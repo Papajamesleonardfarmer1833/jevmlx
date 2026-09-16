@@ -97,6 +97,30 @@
       The frontier cluster sits at 86–90%; Jev, at 86.6%, is genuinely in that cluster at a fraction of the price.
       Full method and raw data in the GitHub repo, <code>evals/</code>.
     </p>
+    <details>
+      <summary><strong>Where the 73.8% comes from — and where it doesn't</strong></summary>
+      <p class="muted small">
+        A later slice analysis changes how the total should be read. All measured, same 373 pairs:
+      </p>
+      <ul class="muted small">
+        <li><strong>Yes/no questions look strong and are not.</strong> 83.1%, but the true rate is
+          18.6% and a constant "false" scores 92.7% on invoice questions (the model finds 0 of 8
+          positives there). Across all types the model scores 73.2% against a 51.5% constant-answer
+          baseline.</li>
+        <li><strong>Score questions (0–3) are the weakest type:</strong> 7/27 exact, 85.2% within one
+          level, and <em>every</em> score slice scores below its constant baseline.</li>
+        <li><strong>Choice questions: 63.6%, dominated by listing order.</strong> The model picks the
+          first listed option 82% of the time and is right 96.7% when the truth is listed first versus
+          24.5% when it is not.</li>
+        <li><strong>31 of 81 fields that repeat across cases give a constant answer while the truth
+          varies.</strong> The failure mode is "ignores the case" — a training problem, not a
+          decoding one.</li>
+      </ul>
+      <p class="muted small">
+        So: reliable where the answer is written down in the context, weak where it has to be
+        inferred or counted. Numbers and method in <code>evals/analysis/REPORT.md</code>.
+      </p>
+    </details>
   </section>
 </main>
 
