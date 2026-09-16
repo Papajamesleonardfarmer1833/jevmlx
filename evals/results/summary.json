@@ -1,0 +1,297 @@
+{
+ "rows": [
+  {
+   "model": "opus",
+   "agreements": 29,
+   "n": 37
+  },
+  {
+   "model": "sol",
+   "agreements": 31,
+   "n": 37
+  },
+  {
+   "model": "typesafe",
+   "agreements": 20,
+   "n": 26
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "agreements": 39,
+   "n": 48
+  },
+  {
+   "model": "local-qwen3-8b",
+   "agreements": 36,
+   "n": 48
+  }
+ ],
+ "common_subset": {
+  "n_pairs": 26,
+  "rows": [
+   {
+    "model": "opus",
+    "agreements": 21,
+    "n": 26
+   },
+   {
+    "model": "sol",
+    "agreements": 23,
+    "n": 26
+   },
+   {
+    "model": "typesafe",
+    "agreements": 20,
+    "n": 26
+   },
+   {
+    "model": "deepseek-v4.1-flash",
+    "agreements": 21,
+    "n": 26
+   },
+   {
+    "model": "local-qwen3-8b",
+    "agreements": 20,
+    "n": 26
+   }
+  ]
+ },
+ "per_type": {
+  "opus": {
+   "noul": [
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true
+   ],
+   "score": [
+    false,
+    true,
+    true,
+    true,
+    false
+   ],
+   "choice": [
+    false,
+    true,
+    true,
+    true
+   ]
+  },
+  "sol": {
+   "noul": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true
+   ],
+   "score": [
+    true,
+    true,
+    true,
+    true,
+    false
+   ],
+   "choice": [
+    false,
+    true,
+    true,
+    true
+   ]
+  },
+  "typesafe": {
+   "noul": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    true,
+    true,
+    true,
+    false
+   ],
+   "score": [
+    false,
+    false,
+    true,
+    true,
+    false
+   ],
+   "choice": [
+    true,
+    true
+   ]
+  },
+  "deepseek-v4.1-flash": {
+   "noul": [
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false
+   ],
+   "score": [
+    false,
+    false,
+    true,
+    true,
+    false
+   ],
+   "choice": [
+    false,
+    false,
+    true,
+    true,
+    true,
+    true
+   ]
+  },
+  "local-qwen3-8b": {
+   "noul": [
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    false,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    false,
+    false,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    false
+   ],
+   "score": [
+    false,
+    true,
+    true,
+    true,
+    true
+   ],
+   "choice": [
+    false,
+    true,
+    false,
+    true,
+    true,
+    true
+   ]
+  }
+ }
+}

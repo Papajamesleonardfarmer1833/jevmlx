@@ -90,11 +90,25 @@ Also measured: 4-field / 255-choice tariff preset (1.5B: 0.15 s, 5.9x) and suppo
 
 More analysis in [`docs/`](docs/) — the research notes, hardware fit tables, and the failure-mode list.
 
-## How does this compare to Jev's own accuracy claims?
+## How does this compare to Jev itself?
 
-TypeSafe published workflow accuracies at [evals.typesafe.ai](https://evals.typesafe.ai/): **Jev 67.8% mean** (61.7–76.0% across four workflows) against a **frontier-model consensus** (GPT-6 Astra + Fable 5.1 averaged), at **$0.0004 and 0.4 s per case**.
+TypeSafe's own workflow evals (https://evals.typesafe.ai/) put Jev at **67.8% mean accuracy** (61.7–76.0% per workflow) against a **frontier consensus** (average of GPT-6 Astra and Fable 5.1 answering every question), at $0.0004 and 0.4 s per case. Our 8B's 84.7%/91.7% is **not comparable** (rule-constructed labels, synthetic cases, n=24) — it would imply beating Opus 5 (73.1%) and Sol (74.1%) on their eval, which is implausible. Comparable findings: same-order latency (0.4 s vs 0.65 s) and a ~100–1000x local cost advantage, both type-safe by construction. Full analysis in `docs/10-jev-published-accuracy-vs-our-8b.md`.
 
-Our 8B: **84.7% all-fields exact** (91.7% primary field) at **646 ms/case, ~$0 marginal cost** — but against **rule-constructed labels on synthetic cases**, not a frontier consensus. These two numbers **cannot be equated** (different ground truth, task difficulty, sample sizes; if they were comparable we'd be claiming to beat Opus 5 and Sol on TypeSafe's own eval — implausible for a 4-bit 8B). What *is* comparable: same-order latency (0.4 s vs 0.65 s) and a 100–1000x cost advantage for local, with the same type-safety-by-construction guarantee. Full analysis: [`docs/10-jev-published-accuracy-vs-our-8b.md`](docs/10-jev-published-accuracy-vs-our-8b.md).
+## 5. Head-to-head on TypeSafe's own questions
+
+We rebuilt all five public example cases from TypeSafe's **Security Incidents** eval — the same state, the same 14-question catalog, and scored against their own reference (the GPT-6 Astra + Fable 5.1 consensus). Answerers: the published Opus / Sol / Jev answers, **DeepSeek v4.1 Flash** (via subagents, `variant: max`, ~$0.03 total), and our **local Qwen3-8B** engine.
+
+Strict common subset — the 26 (case, question) pairs every model answered:
+
+| Model | Agreement | n |
+|---|---|---|
+| Sol | 88.5% | 26 |
+| Opus | 80.8% | 26 |
+| DeepSeek v4.1 Flash (max) | 80.8% | 26 |
+| **Jev (TypeSafe)** | **76.9%** | 26 |
+| **local Qwen3-8B** | **76.9%** | 26 |
+
+**The local 8B ties Jev on Jev's own curated cases** — at ~$0 marginal cost, ~0.4–0.6 s/case. The heavier models lead by 1–2 questions. Caveats: these are the viewer's *curated disagreement cases*, so absolute accuracy is not comparable to the published workflow numbers, and the reference is itself two models' consensus. Details + scripts: `evals/`, write-up in `docs/11-typesafe-eval-head-to-head.md`.
 
 ## Repo layout
 
@@ -104,6 +118,7 @@ tools/bench_model.py         benchmark any mlx-lm model, saves results/*.json
 tools/demo.py                single decision call, pretty-printed
 tools/export_demo_data.py    record demo.json for the static showcase
 quality-eval/                labeled accuracy + calibration comparison (1.5B/7B/8B)
+evals/                       head-to-head on TypeSafe's published security-incident questions
 hf-space-static/             static showcase Space (live now, free hosting)
 hf-space/                    interactive Gradio Space (needs HF PRO to host)
 x-posts/                     copy-paste-ready posts + optional Playwright helper

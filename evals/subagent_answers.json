@@ -1,0 +1,60 @@
+{
+  "art_T1040-5__badge_onsite__t2": {
+    "is_true_positive": 0.7,
+    "context_explains_activity": 0.1,
+    "evidence_strength": 2
+  },
+  "art_T1021.006-1__factor_established__t1": {
+    "is_true_positive": 0.25,
+    "context_explains_activity": 0.1,
+    "evidence_strength": 1
+  },
+  "art_T1003.001-2__factor_recent__t1": {
+    "is_true_positive": 0.85,
+    "context_explains_activity": 0.1,
+    "evidence_strength": 2,
+    "credentials_exposed": 0.75,
+    "session_in_attacker_hands": 0.5,
+    "malicious_content_in_mailboxes": 0.05,
+    "attacker_persistence_present": 0.45,
+    "malicious_process_running": 0.35,
+    "outbound_channel_active": 0.1,
+    "attacker_modified_configuration": 0.6,
+    "activity_ongoing": 0.4,
+    "spread_beyond_initial_entity": 0.2,
+    "affected_scope": "single_entity",
+    "attack_type": "account_takeover"
+  },
+  "art_T1574.001-2__peer_contained__t0": {
+    "is_true_positive": 0.9,
+    "context_explains_activity": 0.05,
+    "evidence_strength": 2,
+    "credentials_exposed": 0.1,
+    "session_in_attacker_hands": 0.15,
+    "malicious_content_in_mailboxes": 0.02,
+    "attacker_persistence_present": 0.65,
+    "malicious_process_running": 0.1,
+    "outbound_channel_active": 0.05,
+    "attacker_modified_configuration": 0.6,
+    "activity_ongoing": 0.15,
+    "spread_beyond_initial_entity": 0.7,
+    "affected_scope": "organization_wide",
+    "attack_type": "host_compromise"
+  },
+  "art_T1546.018-2__change_covers__t2": {
+    "is_true_positive": 0.75,
+    "context_explains_activity": 0.25,
+    "evidence_strength": 2,
+    "credentials_exposed": 0.05,
+    "session_in_attacker_hands": 0.05,
+    "malicious_content_in_mailboxes": 0.02,
+    "attacker_persistence_present": 0.75,
+    "malicious_process_running": 0.45,
+    "outbound_channel_active": 0.05,
+    "attacker_modified_configuration": 0.45,
+    "activity_ongoing": 0.4,
+    "spread_beyond_initial_entity": 0.05,
+    "affected_scope": "single_entity",
+    "attack_type": "host_compromise"
+  }
+}

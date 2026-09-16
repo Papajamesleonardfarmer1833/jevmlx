@@ -1,0 +1,255 @@
+{
+ "model": "deepseek-v4.1-flash (opencode-go, max)",
+ "answers": {
+  "art_T1040-5__badge_onsite__t2": {
+   "is_true_positive": {
+    "value": true,
+    "raw": 0.7,
+    "kind": "noul"
+   },
+   "context_explains_activity": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "evidence_strength": {
+    "value": "2",
+    "raw": 2,
+    "kind": "score"
+   }
+  },
+  "art_T1021.006-1__factor_established__t1": {
+   "is_true_positive": {
+    "value": false,
+    "raw": 0.25,
+    "kind": "noul"
+   },
+   "context_explains_activity": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "evidence_strength": {
+    "value": "1",
+    "raw": 1,
+    "kind": "score"
+   }
+  },
+  "art_T1003.001-2__factor_recent__t1": {
+   "is_true_positive": {
+    "value": true,
+    "raw": 0.85,
+    "kind": "noul"
+   },
+   "context_explains_activity": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "evidence_strength": {
+    "value": "2",
+    "raw": 2,
+    "kind": "score"
+   },
+   "credentials_exposed": {
+    "value": true,
+    "raw": 0.75,
+    "kind": "noul"
+   },
+   "session_in_attacker_hands": {
+    "value": true,
+    "raw": 0.5,
+    "kind": "noul"
+   },
+   "malicious_content_in_mailboxes": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "attacker_persistence_present": {
+    "value": false,
+    "raw": 0.45,
+    "kind": "noul"
+   },
+   "malicious_process_running": {
+    "value": false,
+    "raw": 0.35,
+    "kind": "noul"
+   },
+   "outbound_channel_active": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "attacker_modified_configuration": {
+    "value": true,
+    "raw": 0.6,
+    "kind": "noul"
+   },
+   "activity_ongoing": {
+    "value": false,
+    "raw": 0.4,
+    "kind": "noul"
+   },
+   "spread_beyond_initial_entity": {
+    "value": false,
+    "raw": 0.2,
+    "kind": "noul"
+   },
+   "affected_scope": {
+    "value": "single_entity",
+    "raw": "single_entity",
+    "kind": "choice"
+   },
+   "attack_type": {
+    "value": "account_takeover",
+    "raw": "account_takeover",
+    "kind": "choice"
+   }
+  },
+  "art_T1574.001-2__peer_contained__t0": {
+   "is_true_positive": {
+    "value": true,
+    "raw": 0.9,
+    "kind": "noul"
+   },
+   "context_explains_activity": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "evidence_strength": {
+    "value": "2",
+    "raw": 2,
+    "kind": "score"
+   },
+   "credentials_exposed": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "session_in_attacker_hands": {
+    "value": false,
+    "raw": 0.15,
+    "kind": "noul"
+   },
+   "malicious_content_in_mailboxes": {
+    "value": false,
+    "raw": 0.02,
+    "kind": "noul"
+   },
+   "attacker_persistence_present": {
+    "value": true,
+    "raw": 0.65,
+    "kind": "noul"
+   },
+   "malicious_process_running": {
+    "value": false,
+    "raw": 0.1,
+    "kind": "noul"
+   },
+   "outbound_channel_active": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "attacker_modified_configuration": {
+    "value": true,
+    "raw": 0.6,
+    "kind": "noul"
+   },
+   "activity_ongoing": {
+    "value": false,
+    "raw": 0.15,
+    "kind": "noul"
+   },
+   "spread_beyond_initial_entity": {
+    "value": true,
+    "raw": 0.7,
+    "kind": "noul"
+   },
+   "affected_scope": {
+    "value": "organization_wide",
+    "raw": "organization_wide",
+    "kind": "choice"
+   },
+   "attack_type": {
+    "value": "host_compromise",
+    "raw": "host_compromise",
+    "kind": "choice"
+   }
+  },
+  "art_T1546.018-2__change_covers__t2": {
+   "is_true_positive": {
+    "value": true,
+    "raw": 0.75,
+    "kind": "noul"
+   },
+   "context_explains_activity": {
+    "value": false,
+    "raw": 0.25,
+    "kind": "noul"
+   },
+   "evidence_strength": {
+    "value": "2",
+    "raw": 2,
+    "kind": "score"
+   },
+   "credentials_exposed": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "session_in_attacker_hands": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "malicious_content_in_mailboxes": {
+    "value": false,
+    "raw": 0.02,
+    "kind": "noul"
+   },
+   "attacker_persistence_present": {
+    "value": true,
+    "raw": 0.75,
+    "kind": "noul"
+   },
+   "malicious_process_running": {
+    "value": false,
+    "raw": 0.45,
+    "kind": "noul"
+   },
+   "outbound_channel_active": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "attacker_modified_configuration": {
+    "value": false,
+    "raw": 0.45,
+    "kind": "noul"
+   },
+   "activity_ongoing": {
+    "value": false,
+    "raw": 0.4,
+    "kind": "noul"
+   },
+   "spread_beyond_initial_entity": {
+    "value": false,
+    "raw": 0.05,
+    "kind": "noul"
+   },
+   "affected_scope": {
+    "value": "single_entity",
+    "raw": "single_entity",
+    "kind": "choice"
+   },
+   "attack_type": {
+    "value": "host_compromise",
+    "raw": "host_compromise",
+    "kind": "choice"
+   }
+  }
+ }
+}
