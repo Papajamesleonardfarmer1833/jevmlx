@@ -111,6 +111,8 @@ Strict like-for-like — the 343 pairs answered by every model:
 
 **The honest result: the free local model is ~13 points behind Jev on Jev's own benchmark.** An earlier 5-case run (`docs/11-...`) showed a tie, but that was an artifact of the tiny curated sample — on the full public set the gap is real and stable across all four workflows. The local model's advantages are cost (~$0), privacy, and offline operation, not accuracy parity. The frontier cluster sits at 86–90%; Jev at 86.6% is genuinely in that cluster at 1/1000th the price.
 
+Where this is going next: [ROADMAP.md](ROADMAP.md) (calibration, evaluation expansion, packaging, integrations).
+
 ## Repo layout
 
 ```
