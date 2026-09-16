@@ -37,6 +37,13 @@ always schema-valid. Model size does not fix JSON reliability; decoding structur
 act on, 8B when the whole typed payload must be right, 1.5B for demos only. Caution: confidence did
 not reliably flag errors (7B was >90% confident on 13 of its 20 wrong fields).
 
+**How does it compare to Jev itself?** TypeSafe's published workflow evals put Jev at 67.8% mean
+accuracy (61.7–76.0% per workflow) against a frontier-model consensus, at $0.0004 and 0.4 s per case.
+This local 8B reaches the same latency class (0.65 s) and the same type-safety guarantee at ~$0
+marginal cost — but its accuracy is not comparable (different ground truth; equating them would imply
+beating Opus 5 and Sol on TypeSafe's own eval). Full analysis in the GitHub repo,
+`docs/10-jev-published-accuracy-vs-our-8b.md`.
+
 **Honest caveats:** confidence here is a softmax over candidate token logits — a proxy for
 calibration, not trained calibration (that's what TypeSafe's RLCD training is for). Fields whose
 choices share a first token hit a slower fallback path.

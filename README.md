@@ -90,6 +90,12 @@ Also measured: 4-field / 255-choice tariff preset (1.5B: 0.15 s, 5.9x) and suppo
 
 More analysis in [`docs/`](docs/) — the research notes, hardware fit tables, and the failure-mode list.
 
+## How does this compare to Jev's own accuracy claims?
+
+TypeSafe published workflow accuracies at [evals.typesafe.ai](https://evals.typesafe.ai/): **Jev 67.8% mean** (61.7–76.0% across four workflows) against a **frontier-model consensus** (GPT-6 Astra + Fable 5.1 averaged), at **$0.0004 and 0.4 s per case**.
+
+Our 8B: **84.7% all-fields exact** (91.7% primary field) at **646 ms/case, ~$0 marginal cost** — but against **rule-constructed labels on synthetic cases**, not a frontier consensus. These two numbers **cannot be equated** (different ground truth, task difficulty, sample sizes; if they were comparable we'd be claiming to beat Opus 5 and Sol on TypeSafe's own eval — implausible for a 4-bit 8B). What *is* comparable: same-order latency (0.4 s vs 0.65 s) and a 100–1000x cost advantage for local, with the same type-safety-by-construction guarantee. Full analysis: [`docs/10-jev-published-accuracy-vs-our-8b.md`](docs/10-jev-published-accuracy-vs-our-8b.md).
+
 ## Repo layout
 
 ```

@@ -47,3 +47,7 @@ Notes:
 **Verdict:** the 1.5B sits at the majority-class baseline (not usable for real decisions); 7B is the best primary-field model at the best latency/quality trade (use when one field is what you act on); 8B wins on all-fields exactness (use when the whole typed payload must be right). **Confidence is a weak error signal:** the 7B was >0.90 confident on 13 of its 20 wrong fields — do not threshold on it without further calibration work.
 
 Details, per-field breakdown, failure analysis, and limitations: `quality-eval/SUMMARY.md`.
+
+## 4. How this compares to Jev's published accuracy
+
+TypeSafe's own workflow evals (https://evals.typesafe.ai/) put Jev at **67.8% mean accuracy** (61.7–76.0% per workflow) against a **frontier consensus** (average of GPT-6 Astra and Fable 5.1 answering every question), at $0.0004 and 0.4 s per case. Our 8B's 84.7%/91.7% is **not comparable** (rule-constructed labels, synthetic cases, n=24) — it would imply beating Opus 5 (73.1%) and Sol (74.1%) on their eval, which is implausible. Comparable findings: same-order latency (0.4 s vs 0.65 s) and a ~100–1000x local cost advantage, both type-safe by construction. Full analysis in `docs/10-jev-published-accuracy-vs-our-8b.md`.
