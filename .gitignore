@@ -1,0 +1,12 @@
+# Environments
+.venv/
+.venv-dev/
+__pycache__/
+*.pyc
+
+# Cloned upstream engine (fetched by setup.sh, not vendored)
+vendor/
+
+# Local outputs
+*.log
+.DS_Store

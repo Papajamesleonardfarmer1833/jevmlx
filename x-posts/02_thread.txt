@@ -1,0 +1,80 @@
+POST 1
+------
+TypeSafe (founded by a ChatGPT co-inventor) just launched Jev: a model that returns typed decisions + probabilities instead of text. Claims: 20-200x faster than frontier LLMs, output tokens free.
+
+I wanted to know if the *idea* needs their frontier model.
+
+Turns out it doesn't. I ran the same shape of thing on a stock 1.5B model - on a laptop. No training.
+
+Benchmarks and code below 🧵
+
+---
+POST 2
+------
+How it works (no training involved):
+
+1. Schema fields = typed slots (enums / booleans)
+2. Prefill the context once into a KV cache
+3. Broadcast the cache across one batch row per field
+4. ONE forward pass evaluates all fields at once
+5. Slice logits to valid choices -> softmax -> pick
+
+The JSON is assembled, never generated. So it can't be malformed.
+
+---
+POST 3
+------
+The whole trick in one diagram:
+
+context + schema
+      |
+   prefill (once)
+      |
+   KV cache
+      | broadcast x 28 fields
+  +-------------------------------+
+  | field 1   field 2 ... field 28 |  <- one batched pass
+  +-------------------------------+
+      |
+  value + probability per field
+
+---
+POST 4
+------
+M5 MacBook Air, 28-field fraud-decision preset.
+Naive JSON generation -> parallel decisions:
+
+1.5B:  3.3 s -> 0.41 s  (7.9x)
+7B:   11.9 s -> 1.52 s  (7.9x)
+8B:   14.3 s -> 2.03 s  (7.0x)
+
+Same models, same context.
+
+And none of the three could reliably produce valid 28-field JSON unconstrained. All three were always schema-valid through the constrained path. Model size doesn't fix JSON reliability - decoding structure does.
+
+---
+POST 5
+------
+What's real vs marketing (my measurements):
+
+✅ typed values + probabilities, one pass, zero malformed outputs
+✅ real speedup vs naive local JSON generation (3-8x)
+❌ "calibrated confidence" is raw softmax here - not trained calibration
+⚠️ fields whose choices share a first token hit a slow fallback with fake confidence
+
+Still: for decision routing on a laptop, this is genuinely useful.
+
+---
+POST 6
+------
+[QUALITY_RESULT - fill in after quality-eval finishes, or delete this post]
+
+---
+POST 7
+------
+All code, benchmarks, model-size comparisons and the full write-up (unofficial, no affiliation with TypeSafe):
+
+github.com/rorshopping/jev-on-a-laptop
+
+Try it in the browser (Hugging Face Space):
+huggingface.co/spaces/[[HF_USERNAME]]/parallel-constrained-decisions

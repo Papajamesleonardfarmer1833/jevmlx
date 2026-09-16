@@ -1,0 +1,11 @@
+I put the "Jev-style" decision engine on Hugging Face Spaces - runs right in your browser, nothing to install.
+
+Pick a preset -> hit Run -> get typed decisions with confidence + latency in ~0.5 s.
+
+Stock 1.5B model. No training. Unofficial demo.
+
+👉 huggingface.co/spaces/[[HF_USERNAME]]/parallel-constrained-decisions
+
+Code: github.com/rorshopping/jev-on-a-laptop
+
+Context: a ChatGPT co-inventor's new startup (TypeSafe) launched Jev this week - a model that returns typed decisions instead of text, 20-200x faster. I reproduced the decoding trick behind it locally to see how much of that you get from an off-the-shelf small model. Answer: the structure and speed mostly yes, the trained calibration no.
