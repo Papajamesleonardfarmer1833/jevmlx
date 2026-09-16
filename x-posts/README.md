@@ -12,10 +12,9 @@ Plain `.txt` files. Copy the text as-is and paste into X.
 
 ## Before you post
 
-Replace `[[HF_USERNAME]]` in `02_thread.txt` and `03_space_launch.txt` once the
-Hugging Face Space exists. The thread's POST 6 contains a
-`[QUALITY_RESULT ...]` placeholder if the 1.5B/7B/8B accuracy comparison isn't
-filled in yet — either fill it or delete that whole post.
+The Space URL is already filled in (`rorshopping/parallel-constrained-decisions`, live now).
+The thread's POST 6 contains a `[QUALITY_RESULT ...]` placeholder if the 1.5B/7B/8B accuracy
+comparison isn't filled in yet — either fill it or delete that whole post.
 
 ## Posting
 

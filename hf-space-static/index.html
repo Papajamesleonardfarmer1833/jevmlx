@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parallel Constrained Decisions — static demo</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap">
+    <div class="badge">Unofficial demo · not affiliated with TypeSafe AI</div>
+    <h1>Typed decisions, one pass, no parsing</h1>
+    <p class="lede">
+      Reproducing the <em>parallel constrained decoding</em> idea behind Jev (TypeSafe AI's
+      "System One" model) on a stock 1.5B model, on a laptop. Instead of generating JSON
+      token-by-token, all schema fields are evaluated in <strong>one batched forward pass</strong>
+      and the JSON is assembled programmatically — so it can never be malformed.
+    </p>
+    <div class="header-links">
+      <a href="https://github.com/rorshopping/jev-on-a-laptop" target="_blank" rel="noopener">Code &amp; benchmarks on GitHub</a>
+      <a href="https://typesafe.ai/" target="_blank" rel="noopener">What TypeSafe actually launched</a>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <h2>How it works</h2>
+    <pre class="diagram">
+[context + schema] ──► prefill (once) ──► KV cache
+                                            │ broadcast × N fields
+      ┌───────────┬───────────┬─────────────┴───────────┐
+    field 1     field 2     ...                      field N
+      └───────────┴──── one batched forward pass ────────┘
+                          │
+              slice logits → softmax → pick value + probability</pre>
+    <p class="muted">
+      The pipe below is <strong>real recorded output</strong> from
+      <code id="model-name">mlx-community/Qwen2.5-1.5B-Instruct-4bit</code> on an
+      M5 MacBook Air (16 GB). This page is static: no model runs in your browser.
+      The interactive version (choose your own context, run live) is the Gradio
+      app in the <a href="https://github.com/rorshopping/jev-on-a-laptop/tree/main/hf-space" target="_blank" rel="noopener">repo's <code>hf-space/</code> folder</a>.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>Presets</h2>
+    <div id="preset-tabs" class="tabs" role="tablist"></div>
+    <div id="demo" class="demo" aria-live="polite"></div>
+  </section>
+
+  <section class="card">
+    <h2>Measured on this machine</h2>
+    <p class="muted">28-field fraud preset · naive = the same model writing the whole JSON object token-by-token.</p>
+    <table class="bench">
+      <thead>
+        <tr><th>Model (4-bit)</th><th>Naive JSON</th><th>Parallel decisions</th><th>Speedup</th><th>Naive schema-valid?</th><th>Parallel schema-valid?</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Qwen2.5-1.5B</td><td>3.3 s</td><td><strong>0.41 s</strong></td><td>7.9x</td><td class="no">fail</td><td class="yes">100%</td></tr>
+        <tr><td>Qwen2.5-7B</td><td>11.9 s</td><td><strong>1.52 s</strong></td><td>7.9x</td><td class="no">fail</td><td class="yes">100%</td></tr>
+        <tr><td>Qwen3-8B</td><td>14.3 s</td><td><strong>2.03 s</strong></td><td>7.0x</td><td class="no">fail</td><td class="yes">100%</td></tr>
+      </tbody>
+    </table>
+    <p class="muted small">
+      None of the three models could reliably emit valid 28-field JSON unconstrained — all three were
+      always schema-valid through the constrained path. Model size does not fix JSON reliability;
+      decoding structure does. More numbers and the honest caveats
+      (<span class="warn">"calibrated" confidence is a softmax proxy here, not trained calibration</span>)
+      in the GitHub repo.
+    </p>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <p>
+      Engine: <a href="https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD" target="_blank" rel="noopener">harshatheg/Qwen-2.5-1B-RLCD</a> (Apache-2.0) ·
+      Model: Qwen2.5-1.5B-Instruct-4bit (Apache-2.0) ·
+      Our code and write-up: <a href="https://github.com/rorshopping/jev-on-a-laptop" target="_blank" rel="noopener">MIT</a>
+    </p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

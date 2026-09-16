@@ -25,7 +25,13 @@ cd jev-on-a-laptop
 ./run_benchmark.sh  # default: Qwen2.5-1.5B-Instruct-4bit
 ```
 
-Non-Mac? The upstream engine also has a PyTorch/CUDA path (and a Hugging Face Space version of this demo: [link pending]). See `docs/07-hardware-mac-vs-pc-analysis.md` for the memory math behind our Mac-vs-PC recommendation.
+Non-Mac? The upstream engine also has a PyTorch/CUDA path. See `docs/07-hardware-mac-vs-pc-analysis.md` for the memory math behind our Mac-vs-PC recommendation.
+
+**See it without installing anything:** a static showcase with real recorded outputs is live at
+**[huggingface.co/spaces/rorshopping/parallel-constrained-decisions](https://huggingface.co/spaces/rorshopping/parallel-constrained-decisions)**
+(source in `hf-space-static/`). Its interactive sibling — a Gradio app that runs live on ZeroGPU — is
+ready in `hf-space/`; deploying it requires a Hugging Face **PRO** account (free accounts can't host
+Gradio Spaces; static Spaces are free). One command when you have PRO: `python hf-space/push_to_hub.py`.
 
 Try a single decision instead:
 
@@ -82,8 +88,10 @@ More analysis in [`docs/`](docs/) — the research notes, hardware fit tables, a
 setup.sh, run_benchmark.sh   one-command setup + benchmark (Mac)
 tools/bench_model.py         benchmark any mlx-lm model, saves results/*.json
 tools/demo.py                single decision call, pretty-printed
+tools/export_demo_data.py    record demo.json for the static showcase
 quality-eval/                labeled accuracy + calibration comparison (1.5B/7B/8B)
-hf-space/                    self-contained Gradio Space demo (torch/ZeroGPU)
+hf-space-static/             static showcase Space (live now, free hosting)
+hf-space/                    interactive Gradio Space (needs HF PRO to host)
 x-posts/                     copy-paste-ready posts + optional Playwright helper
 docs/                        full research notes (start at 04 → 05 → 07 → 08)
 results/                     raw benchmark outputs

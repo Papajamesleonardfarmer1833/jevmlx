@@ -1,10 +1,8 @@
-I put the "Jev-style" decision engine on Hugging Face Spaces - runs right in your browser, nothing to install.
+I put the "Jev-style" decision engine on a Hugging Face Space - runs right in your browser, nothing to install.
 
-Pick a preset -> hit Run -> get typed decisions with confidence + latency in ~0.5 s.
+Pick a preset -> see typed decisions with confidence, live recorded from a stock 1.5B model on a laptop. No training. Unofficial demo.
 
-Stock 1.5B model. No training. Unofficial demo.
-
-👉 huggingface.co/spaces/[[HF_USERNAME]]/parallel-constrained-decisions
+👉 huggingface.co/spaces/rorshopping/parallel-constrained-decisions
 
 Code: github.com/rorshopping/jev-on-a-laptop
 

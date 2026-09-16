@@ -77,4 +77,6 @@ All code, benchmarks, model-size comparisons and the full write-up (unofficial, 
 github.com/rorshopping/jev-on-a-laptop
 
 Try it in the browser (Hugging Face Space):
-huggingface.co/spaces/[[HF_USERNAME]]/parallel-constrained-decisions
+huggingface.co/spaces/rorshopping/parallel-constrained-decisions
+
+(Interactive live version: someone with HF PRO can deploy hf-space/ in one command.)
