@@ -67,19 +67,16 @@ Still: for decision routing on a laptop, this is genuinely useful.
 ---
 POST 6
 ------
-I labeled 24 realistic cases and tested all three models on the same engine (72 field decisions each):
+Then I ran ALL of TypeSafe's public eval cases (4 workflows, 20 cases, 373 question-pairs) against their own reference and scored my laptop's model the same way.
 
-Primary-field accuracy / all-fields exact:
-- 1.5B: 58% / 50%  (majority-class baseline: 54%)
-- 7B:   96% / 72%
-- 8B:   92% / 85%
+Like-for-like (343 pairs every model answered) vs the frontier consensus:
+- Opus 89.8%
+- DeepSeek v4.1 Flash 89.5%
+- Sol 89.2%
+- Jev 86.6%
+- my free local model 73.8%
 
-Verdict: bigger IS worth it, but not "biggest wins":
-- 7B: best primary field, ~0.6 s/case
-- 8B: best when ALL fields must be right, same speed
-- 1.5B: fine for demos, not for real decisions
-
-And confidence does NOT reliably flag errors - the 7B was 96% confident on 13 of its 20 wrong fields.
+Honest result: the free local model is ~13 points behind Jev. Its edge is cost (~$0), privacy and offline - not accuracy. But Jev landing at 86.6% in the 86-90% frontier cluster, at a fraction of the price, is genuinely impressive.
 
 ---
 POST 7

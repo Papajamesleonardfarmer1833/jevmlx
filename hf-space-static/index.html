@@ -74,26 +74,28 @@
   <section class="card">
     <h2>How does this compare to Jev itself?</h2>
     <p class="muted">
-      TypeSafe published workflow accuracies at <a href="https://evals.typesafe.ai/" target="_blank" rel="noopener">evals.typesafe.ai</a>:
-      Jev scores <strong>67.8% mean</strong> (61.7–76.0% across four workflows) against a <strong>frontier-model consensus</strong>
-      (GPT-6 Astra and Fable 5.1 averaged), at $0.0004 and 0.4 s per case.
+      We ran <strong>all public example cases of TypeSafe's four workflows</strong> (20 cases, 373 question-pairs)
+      and scored everyone against TypeSafe's own reference — the consensus of GPT-6 Astra and Fable 5.1.
+      Strict like-for-like, on the 343 pairs every model answered:
     </p>
     <table class="bench">
       <thead>
-        <tr><th></th><th>Jev (published)</th><th>This local 8B</th><th>Comparable?</th></tr>
+        <tr><th>Model</th><th>Agreement</th><th>Pairs</th></tr>
       </thead>
       <tbody>
-        <tr><td>Accuracy</td><td>61.7–76.0% vs frontier consensus</td><td>84.7% all-fields exact vs rule-constructed labels</td><td class="no">No — different ground truth</td></tr>
-        <tr><td>Latency / case</td><td>0.3–0.5 s</td><td>0.65 s</td><td class="yes">Same order of magnitude</td></tr>
-        <tr><td>Cost / case</td><td>$0.0001–$0.0011</td><td>~$0 (electricity)</td><td class="yes">100–1000x cheaper locally</td></tr>
-        <tr><td>Output safety</td><td>type-safe by construction</td><td>schema-valid by construction</td><td class="yes">Tie</td></tr>
+        <tr><td>Opus (published)</td><td>89.8%</td><td>308/343</td></tr>
+        <tr><td>DeepSeek v4.1 Flash (max)</td><td>89.5%</td><td>307/343</td></tr>
+        <tr><td>Sol (published)</td><td>89.2%</td><td>306/343</td></tr>
+        <tr><td><strong>Jev / TypeSafe (published)</strong></td><td><strong>86.6%</strong></td><td><strong>297/343</strong></td></tr>
+        <tr><td><strong>local Qwen2.5-7B (free, this laptop)</strong></td><td><strong>73.8%</strong></td><td><strong>253/343</strong></td></tr>
+        <tr><td>local Qwen3-8B (3 of 4 workflows)</td><td>71.2%</td><td>114/160</td></tr>
       </tbody>
     </table>
     <p class="muted small">
-      The accuracy numbers are <strong>not equatable</strong>: against a frontier consensus our metric would imply
-      beating Opus 5 (73.1%) and Sol (74.1%) on TypeSafe's own eval — implausible for a 4-bit 8B on a laptop.
-      The honest read: same latency class and safety, far cheaper, accuracy unknown against their metric.
-      Full analysis in the GitHub repo.
+      <strong>The honest result: the free local model is ~13 points behind Jev on Jev's own benchmark.</strong>
+      Its advantages are cost (~$0 vs API), privacy, and offline operation — not accuracy parity.
+      The frontier cluster sits at 86–90%; Jev, at 86.6%, is genuinely in that cluster at a fraction of the price.
+      Full method and raw data in the GitHub repo, <code>evals/</code>.
     </p>
   </section>
 </main>

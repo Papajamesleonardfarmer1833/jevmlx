@@ -136,15 +136,21 @@ def main() -> None:
         rows.append((name, wf_stats, tot_ok, tot_n))
 
     # (b) strict common subset overall + per workflow
+    #     models with zero answers in a workflow are excluded from that workflow's
+    #     intersection (otherwise an incomplete run would blank the whole column)
     common: dict[str, list] = {}
+    common_models: dict[str, list[str]] = {}
     for wf, wdata in full["workflows"].items():
+        answered_by = {m: sum(len(v) for v in models[m].get(wf, {}).values()) for m in models}
+        active = [m for m in models if answered_by[m] > 0]
+        common_models[wf] = active
         pairs = []
         for case in wdata["cases"]:
             cid = case["case_id"]
             for qid, ref in case["reference"].items():
                 if consensus(ref) is None:
                     continue
-                if all(qid in models[m].get(wf, {}).get(cid, {}) for m in models):
+                if all(qid in models[m].get(wf, {}).get(cid, {}) for m in active):
                     pairs.append((cid, qid))
         common[wf] = pairs
 

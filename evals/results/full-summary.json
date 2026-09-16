@@ -124,13 +124,38 @@
      92
     ]
    }
+  },
+  {
+   "model": "local-qwen2.5-7b",
+   "overall": [
+    273,
+    373
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     30,
+     48
+    ],
+    "agent_trace_observability": [
+     30,
+     49
+    ],
+    "invoice_processing": [
+     149,
+     184
+    ],
+    "customer_service": [
+     64,
+     92
+    ]
+   }
   }
  ],
  "common_subset": {
   "opus": {
    "overall": [
-    139,
-    160
+    308,
+    343
    ],
    "per_workflow": {
     "security_incidents": [
@@ -142,8 +167,8 @@
      49
     ],
     "invoice_processing": [
-     0,
-     0
+     169,
+     183
     ],
     "customer_service": [
      76,
@@ -153,8 +178,8 @@
   },
   "sol": {
    "overall": [
-    137,
-    160
+    306,
+    343
    ],
    "per_workflow": {
     "security_incidents": [
@@ -166,8 +191,8 @@
      49
     ],
     "invoice_processing": [
-     0,
-     0
+     169,
+     183
     ],
     "customer_service": [
      75,
@@ -177,8 +202,8 @@
   },
   "typesafe": {
    "overall": [
-    129,
-    160
+    297,
+    343
    ],
    "per_workflow": {
     "security_incidents": [
@@ -190,8 +215,8 @@
      49
     ],
     "invoice_processing": [
-     0,
-     0
+     168,
+     183
     ],
     "customer_service": [
      74,
@@ -201,8 +226,8 @@
   },
   "deepseek-v4.1-flash": {
    "overall": [
-    142,
-    160
+    307,
+    343
    ],
    "per_workflow": {
     "security_incidents": [
@@ -214,8 +239,8 @@
      49
     ],
     "invoice_processing": [
-     0,
-     0
+     165,
+     183
     ],
     "customer_service": [
      80,
@@ -246,12 +271,36 @@
      85
     ]
    }
+  },
+  "local-qwen2.5-7b": {
+   "overall": [
+    253,
+    343
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     16,
+     26
+    ],
+    "agent_trace_observability": [
+     30,
+     49
+    ],
+    "invoice_processing": [
+     148,
+     183
+    ],
+    "customer_service": [
+     59,
+     85
+    ]
+   }
   }
  },
  "common_subset_size": {
   "security_incidents": 26,
   "agent_trace_observability": 49,
-  "invoice_processing": 0,
+  "invoice_processing": 183,
   "customer_service": 85
  }
 }

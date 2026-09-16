@@ -1,4 +1,9 @@
-# 11 — Head-to-head on TypeSafe's own security-incident questions
+# 11 — Head-to-head on TypeSafe's own security-incident questions (5 curated cases)
+
+> Superseded as the headline result by `12-full-head-to-head.md`, which runs **all four workflows,
+> 20 cases, 373 question-pairs**. The 5-case read here (local 8B tying Jev at 20/26) turned out to be
+> an artifact of the tiny curated sample: on the full set the local model is ~13 points behind Jev.
+> Kept for provenance of the method and as the worked example.
 
 > Run 2026-09-16. Method, results, and the caveats that matter.
 > Data: `evals/typesafe/mini_eval.json` (extracted from the public viewer at evals.typesafe.ai)

@@ -94,21 +94,22 @@ More analysis in [`docs/`](docs/) — the research notes, hardware fit tables, a
 
 TypeSafe's own workflow evals (https://evals.typesafe.ai/) put Jev at **67.8% mean accuracy** (61.7–76.0% per workflow) against a **frontier consensus** (average of GPT-6 Astra and Fable 5.1 answering every question), at $0.0004 and 0.4 s per case. Our 8B's 84.7%/91.7% is **not comparable** (rule-constructed labels, synthetic cases, n=24) — it would imply beating Opus 5 (73.1%) and Sol (74.1%) on their eval, which is implausible. Comparable findings: same-order latency (0.4 s vs 0.65 s) and a ~100–1000x local cost advantage, both type-safe by construction. Full analysis in `docs/10-jev-published-accuracy-vs-our-8b.md`.
 
-## 5. Head-to-head on TypeSafe's own questions
+## 5. Head-to-head on TypeSafe's own questions (full public eval)
 
-We rebuilt all five public example cases from TypeSafe's **Security Incidents** eval — the same state, the same 14-question catalog, and scored against their own reference (the GPT-6 Astra + Fable 5.1 consensus). Answerers: the published Opus / Sol / Jev answers, **DeepSeek v4.1 Flash** (via subagents, `variant: max`, ~$0.03 total), and our **local Qwen3-8B** engine.
+We rebuilt **all public example cases of all four TypeSafe workflows** — 20 cases, **373 reference question-pairs** — and scored everyone against TypeSafe's own reference (consensus of GPT-6 Astra + Fable 5.1). Full detail: `evals/RESULTS.md` and `docs/12-full-head-to-head.md`.
 
-Strict common subset — the 26 (case, question) pairs every model answered:
+Strict like-for-like — the 343 pairs answered by every model:
 
-| Model | Agreement | n |
+| Model | Agreement | Pairs |
 |---|---|---|
-| Sol | 88.5% | 26 |
-| Opus | 80.8% | 26 |
-| DeepSeek v4.1 Flash (max) | 80.8% | 26 |
-| **Jev (TypeSafe)** | **76.9%** | 26 |
-| **local Qwen3-8B** | **76.9%** | 26 |
+| Opus (published) | 89.8% | 308/343 |
+| DeepSeek v4.1 Flash (max) | 89.5% | 307/343 |
+| Sol (published) | 89.2% | 306/343 |
+| **Jev / TypeSafe (published)** | **86.6%** | **297/343** |
+| **local Qwen2.5-7B (free, on an M5 Air)** | **73.8%** | **253/343** |
+| local Qwen3-8B (3 of 4 workflows) | 71.2% | 114/160 |
 
-**The local 8B ties Jev on Jev's own curated cases** — at ~$0 marginal cost, ~0.4–0.6 s/case. The heavier models lead by 1–2 questions. Caveats: these are the viewer's *curated disagreement cases*, so absolute accuracy is not comparable to the published workflow numbers, and the reference is itself two models' consensus. Details + scripts: `evals/`, write-up in `docs/11-typesafe-eval-head-to-head.md`.
+**The honest result: the free local model is ~13 points behind Jev on Jev's own benchmark.** An earlier 5-case run (`docs/11-...`) showed a tie, but that was an artifact of the tiny curated sample — on the full public set the gap is real and stable across all four workflows. The local model's advantages are cost (~$0), privacy, and offline operation, not accuracy parity. The frontier cluster sits at 86–90%; Jev at 86.6% is genuinely in that cluster at 1/1000th the price.
 
 ## Repo layout
 
