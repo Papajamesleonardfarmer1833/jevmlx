@@ -1,0 +1,257 @@
+{
+ "rows": [
+  {
+   "model": "opus",
+   "overall": [
+    324,
+    362
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     29,
+     37
+    ],
+    "agent_trace_observability": [
+     42,
+     49
+    ],
+    "invoice_processing": [
+     170,
+     184
+    ],
+    "customer_service": [
+     83,
+     92
+    ]
+   }
+  },
+  {
+   "model": "sol",
+   "overall": [
+    315,
+    355
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     31,
+     37
+    ],
+    "agent_trace_observability": [
+     39,
+     49
+    ],
+    "invoice_processing": [
+     170,
+     184
+    ],
+    "customer_service": [
+     75,
+     85
+    ]
+   }
+  },
+  {
+   "model": "typesafe",
+   "overall": [
+    305,
+    351
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     20,
+     26
+    ],
+    "agent_trace_observability": [
+     35,
+     49
+    ],
+    "invoice_processing": [
+     169,
+     184
+    ],
+    "customer_service": [
+     81,
+     92
+    ]
+   }
+  },
+  {
+   "model": "deepseek-v4.1-flash",
+   "overall": [
+    328,
+    372
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     35,
+     48
+    ],
+    "agent_trace_observability": [
+     41,
+     49
+    ],
+    "invoice_processing": [
+     165,
+     183
+    ],
+    "customer_service": [
+     87,
+     92
+    ]
+   }
+  },
+  {
+   "model": "local-qwen3-8b",
+   "overall": [
+    135,
+    189
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     34,
+     48
+    ],
+    "agent_trace_observability": [
+     32,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     69,
+     92
+    ]
+   }
+  }
+ ],
+ "common_subset": {
+  "opus": {
+   "overall": [
+    139,
+    160
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     21,
+     26
+    ],
+    "agent_trace_observability": [
+     42,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     76,
+     85
+    ]
+   }
+  },
+  "sol": {
+   "overall": [
+    137,
+    160
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     23,
+     26
+    ],
+    "agent_trace_observability": [
+     39,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     75,
+     85
+    ]
+   }
+  },
+  "typesafe": {
+   "overall": [
+    129,
+    160
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     20,
+     26
+    ],
+    "agent_trace_observability": [
+     35,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     74,
+     85
+    ]
+   }
+  },
+  "deepseek-v4.1-flash": {
+   "overall": [
+    142,
+    160
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     21,
+     26
+    ],
+    "agent_trace_observability": [
+     41,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     80,
+     85
+    ]
+   }
+  },
+  "local-qwen3-8b": {
+   "overall": [
+    114,
+    160
+   ],
+   "per_workflow": {
+    "security_incidents": [
+     19,
+     26
+    ],
+    "agent_trace_observability": [
+     32,
+     49
+    ],
+    "invoice_processing": [
+     0,
+     0
+    ],
+    "customer_service": [
+     63,
+     85
+    ]
+   }
+  }
+ },
+ "common_subset_size": {
+  "security_incidents": 26,
+  "agent_trace_observability": 49,
+  "invoice_processing": 0,
+  "customer_service": 85
+ }
+}

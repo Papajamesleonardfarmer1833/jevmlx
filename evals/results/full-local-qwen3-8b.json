@@ -1,0 +1,904 @@
+{
+ "model": "mlx-community/Qwen3-8B-4bit",
+ "timings": {
+  "security_incidents/art_T1040-5__badge_onsite__t2": {
+   "total_ms": 7708.335958071984,
+   "prefill_ms": 6766.81,
+   "suffix_eval_ms": 921.3,
+   "chunks": 1,
+   "fields": 3
+  },
+  "security_incidents/art_T1021.006-1__factor_established__t1": {
+   "total_ms": 5342.254082905129,
+   "prefill_ms": 5035.7,
+   "suffix_eval_ms": 294.61,
+   "chunks": 1,
+   "fields": 3
+  },
+  "security_incidents/art_T1003.001-2__factor_recent__t1": {
+   "total_ms": 12685.509125003591,
+   "prefill_ms": 8085.16,
+   "suffix_eval_ms": 4545.49,
+   "chunks": 1,
+   "fields": 14
+  },
+  "security_incidents/art_T1574.001-2__peer_contained__t0": {
+   "total_ms": 24108.67754195351,
+   "prefill_ms": 9345.52,
+   "suffix_eval_ms": 14654.95,
+   "chunks": 1,
+   "fields": 14
+  },
+  "security_incidents/art_T1546.018-2__change_covers__t2": {
+   "total_ms": 19586.5423749201,
+   "prefill_ms": 15595.42,
+   "suffix_eval_ms": 3919.21,
+   "chunks": 1,
+   "fields": 14
+  },
+  "agent_trace_observability/trace_185afd508b6907c6075de2931f14946c": {
+   "total_ms": 22583.380457945168,
+   "prefill_ms": 13641.29,
+   "suffix_eval_ms": 8885.32,
+   "chunks": 1,
+   "fields": 9
+  },
+  "agent_trace_observability/trace_ce6a5fb975fce60de84457e97ab6ed35": {
+   "total_ms": 114464.60383303929,
+   "prefill_ms": 24804.04,
+   "suffix_eval_ms": 19604.56,
+   "chunks": 1,
+   "fields": 9
+  },
+  "agent_trace_observability/trace_ebba36efa92c88a555ad4be8eabf149d": {
+   "total_ms": 89258.53966607247,
+   "prefill_ms": 21340.34,
+   "suffix_eval_ms": 10981.87,
+   "chunks": 1,
+   "fields": 9
+  },
+  "agent_trace_observability/trace_e2ab80ce644dc6a4d4ea02cfcffcccee": {
+   "total_ms": 201828.66883301176,
+   "prefill_ms": 45680.27,
+   "suffix_eval_ms": 33527.97,
+   "chunks": 1,
+   "fields": 12
+  },
+  "agent_trace_observability/trace_9222e1c90cfe97d34a6893f13889ff1d": {
+   "total_ms": 36556.46608304232,
+   "prefill_ms": 19930.92,
+   "suffix_eval_ms": 16094.28,
+   "chunks": 1,
+   "fields": 10
+  },
+  "customer_service/retention-charged-after-cancel/t0": {
+   "total_ms": 16654.65787507128,
+   "prefill_ms": 11719.19,
+   "suffix_eval_ms": 2968.96,
+   "chunks": 2,
+   "fields": 20
+  },
+  "customer_service/billing-double-charge-152/t2": {
+   "total_ms": 13546.749708009884,
+   "prefill_ms": 11795.57,
+   "suffix_eval_ms": 1668.1399999999999,
+   "chunks": 2,
+   "fields": 18
+  },
+  "customer_service/refunds-espresso-impulse-148/t2": {
+   "total_ms": 18835.962624987587,
+   "prefill_ms": 13079.02,
+   "suffix_eval_ms": 5693.2,
+   "chunks": 2,
+   "fields": 20
+  },
+  "customer_service/retention-sarcastic-sure-whatever/t0": {
+   "total_ms": 7807.539957924746,
+   "prefill_ms": 6486.92,
+   "suffix_eval_ms": 1132.23,
+   "chunks": 2,
+   "fields": 14
+  },
+  "customer_service/billing-overdraft-no-food/t1": {
+   "total_ms": 13594.277500058524,
+   "prefill_ms": 10237.15,
+   "suffix_eval_ms": 3276.2299999999996,
+   "chunks": 2,
+   "fields": 20
+  }
+ },
+ "answers": {
+  "security_incidents": {
+   "art_T1040-5__badge_onsite__t2": {
+    "context_explains_activity": {
+     "raw": 0.133,
+     "kind": "noul"
+    },
+    "evidence_strength": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "is_true_positive": {
+     "raw": 0.7549,
+     "kind": "noul"
+    }
+   },
+   "art_T1021.006-1__factor_established__t1": {
+    "context_explains_activity": {
+     "raw": 0.3346,
+     "kind": "noul"
+    },
+    "is_true_positive": {
+     "raw": 0.7549,
+     "kind": "noul"
+    },
+    "evidence_strength": {
+     "raw": "0",
+     "kind": "score"
+    }
+   },
+   "art_T1003.001-2__factor_recent__t1": {
+    "context_explains_activity": {
+     "raw": 0.5622,
+     "kind": "noul"
+    },
+    "is_true_positive": {
+     "raw": 0.9968,
+     "kind": "noul"
+    },
+    "evidence_strength": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "malicious_content_in_mailboxes": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "attacker_persistence_present": {
+     "raw": 0.4073,
+     "kind": "noul"
+    },
+    "credentials_exposed": {
+     "raw": 0.001,
+     "kind": "noul"
+    },
+    "malicious_process_running": {
+     "raw": 0.1067,
+     "kind": "noul"
+    },
+    "outbound_channel_active": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "session_in_attacker_hands": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "spread_beyond_initial_entity": {
+     "raw": 0.0086,
+     "kind": "noul"
+    },
+    "affected_scope": {
+     "raw": "single_entity",
+     "kind": "choice"
+    },
+    "activity_ongoing": {
+     "raw": 0.9399,
+     "kind": "noul"
+    },
+    "attacker_modified_configuration": {
+     "raw": 0.0022,
+     "kind": "noul"
+    },
+    "attack_type": {
+     "raw": "host_compromise",
+     "kind": "choice"
+    }
+   },
+   "art_T1574.001-2__peer_contained__t0": {
+    "context_explains_activity": {
+     "raw": 0.3775,
+     "kind": "noul"
+    },
+    "is_true_positive": {
+     "raw": 0.9972,
+     "kind": "noul"
+    },
+    "evidence_strength": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "malicious_content_in_mailboxes": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "credentials_exposed": {
+     "raw": 0.0009,
+     "kind": "noul"
+    },
+    "malicious_process_running": {
+     "raw": 0.6792,
+     "kind": "noul"
+    },
+    "session_in_attacker_hands": {
+     "raw": 0.0009,
+     "kind": "noul"
+    },
+    "outbound_channel_active": {
+     "raw": 0.0009,
+     "kind": "noul"
+    },
+    "activity_ongoing": {
+     "raw": 0.9919,
+     "kind": "noul"
+    },
+    "spread_beyond_initial_entity": {
+     "raw": 0.0076,
+     "kind": "noul"
+    },
+    "attacker_modified_configuration": {
+     "raw": 0.0019,
+     "kind": "noul"
+    },
+    "affected_scope": {
+     "raw": "single_entity",
+     "kind": "choice"
+    },
+    "attacker_persistence_present": {
+     "raw": 0.5,
+     "kind": "noul"
+    },
+    "attack_type": {
+     "raw": "host_compromise",
+     "kind": "choice"
+    }
+   },
+   "art_T1546.018-2__change_covers__t2": {
+    "context_explains_activity": {
+     "raw": 0.148,
+     "kind": "noul"
+    },
+    "evidence_strength": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "is_true_positive": {
+     "raw": 0.7186,
+     "kind": "noul"
+    },
+    "malicious_content_in_mailboxes": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "credentials_exposed": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "session_in_attacker_hands": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "malicious_process_running": {
+     "raw": 0.0396,
+     "kind": "noul"
+    },
+    "outbound_channel_active": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "attacker_persistence_present": {
+     "raw": 0.0003,
+     "kind": "noul"
+    },
+    "spread_beyond_initial_entity": {
+     "raw": 0.0028,
+     "kind": "noul"
+    },
+    "activity_ongoing": {
+     "raw": 0.9526,
+     "kind": "noul"
+    },
+    "affected_scope": {
+     "raw": "single_entity",
+     "kind": "choice"
+    },
+    "attacker_modified_configuration": {
+     "raw": 0.0034,
+     "kind": "noul"
+    },
+    "attack_type": {
+     "raw": "host_compromise",
+     "kind": "choice"
+    }
+   }
+  },
+  "agent_trace_observability": {
+   "trace_185afd508b6907c6075de2931f14946c": {
+    "handed_off": {
+     "raw": 0.9466,
+     "kind": "noul"
+    },
+    "request_fulfilled": {
+     "raw": 0.133,
+     "kind": "noul"
+    },
+    "left_undone": {
+     "raw": 0.0191,
+     "kind": "noul"
+    },
+    "handoff_required": {
+     "raw": 0.4378,
+     "kind": "noul"
+    },
+    "claims_supported": {
+     "raw": 0.8355,
+     "kind": "noul"
+    },
+    "reports_unresolved": {
+     "raw": 0.0276,
+     "kind": "noul"
+    },
+    "expressed_satisfaction": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "in_scope": {
+     "raw": 0.7549,
+     "kind": "noul"
+    },
+    "request_specificity": {
+     "raw": "3",
+     "kind": "score"
+    }
+   },
+   "trace_ce6a5fb975fce60de84457e97ab6ed35": {
+    "handed_off": {
+     "raw": 0.9399,
+     "kind": "noul"
+    },
+    "request_fulfilled": {
+     "raw": 0.4225,
+     "kind": "noul"
+    },
+    "handoff_required": {
+     "raw": 0.7058,
+     "kind": "noul"
+    },
+    "claims_supported": {
+     "raw": 0.5312,
+     "kind": "noul"
+    },
+    "left_undone": {
+     "raw": 0.0028,
+     "kind": "noul"
+    },
+    "reports_unresolved": {
+     "raw": 0.0159,
+     "kind": "noul"
+    },
+    "expressed_satisfaction": {
+     "raw": "3",
+     "kind": "score"
+    },
+    "attribution": {
+     "raw": "tool_or_service",
+     "kind": "choice"
+    },
+    "first_bad_step": {
+     "raw": "none",
+     "kind": "choice"
+    }
+   },
+   "trace_ebba36efa92c88a555ad4be8eabf149d": {
+    "request_fulfilled": {
+     "raw": 0.0851,
+     "kind": "noul"
+    },
+    "handed_off": {
+     "raw": 0.6225,
+     "kind": "noul"
+    },
+    "handoff_required": {
+     "raw": 0.867,
+     "kind": "noul"
+    },
+    "claims_supported": {
+     "raw": 0.5312,
+     "kind": "noul"
+    },
+    "left_undone": {
+     "raw": 0.1733,
+     "kind": "noul"
+    },
+    "reports_unresolved": {
+     "raw": 0.2018,
+     "kind": "noul"
+    },
+    "expressed_satisfaction": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "first_bad_step": {
+     "raw": "none",
+     "kind": "choice"
+    },
+    "attribution": {
+     "raw": "tool_or_service",
+     "kind": "choice"
+    }
+   },
+   "trace_e2ab80ce644dc6a4d4ea02cfcffcccee": {
+    "user_asked_or_agreed": {
+     "raw": 0.9099,
+     "kind": "noul"
+    },
+    "instructed_by_tool_output": {
+     "raw": 0.0017,
+     "kind": "noul"
+    },
+    "within_grant": {
+     "raw": 0.0716,
+     "kind": "noul"
+    },
+    "request_fulfilled": {
+     "raw": 0.0076,
+     "kind": "noul"
+    },
+    "handed_off": {
+     "raw": 0.0041,
+     "kind": "noul"
+    },
+    "left_undone": {
+     "raw": 0.5467,
+     "kind": "noul"
+    },
+    "handoff_required": {
+     "raw": 0.4688,
+     "kind": "noul"
+    },
+    "claims_supported": {
+     "raw": 0.148,
+     "kind": "noul"
+    },
+    "reports_unresolved": {
+     "raw": 0.0759,
+     "kind": "noul"
+    },
+    "expressed_satisfaction": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "first_bad_step": {
+     "raw": "step 1: ShiftLoom.run_standard_diagnostics",
+     "kind": "choice"
+    },
+    "attribution": {
+     "raw": "tool_or_service",
+     "kind": "choice"
+    }
+   },
+   "trace_9222e1c90cfe97d34a6893f13889ff1d": {
+    "instructed_by_tool_output": {
+     "raw": 0.0004,
+     "kind": "noul"
+    },
+    "user_asked_or_agreed": {
+     "raw": 0.9784,
+     "kind": "noul"
+    },
+    "within_grant": {
+     "raw": 0.3486,
+     "kind": "noul"
+    },
+    "request_fulfilled": {
+     "raw": 0.3923,
+     "kind": "noul"
+    },
+    "handed_off": {
+     "raw": 0.0034,
+     "kind": "noul"
+    },
+    "claims_supported": {
+     "raw": 0.8808,
+     "kind": "noul"
+    },
+    "handoff_required": {
+     "raw": 0.1259,
+     "kind": "noul"
+    },
+    "left_undone": {
+     "raw": 0.0049,
+     "kind": "noul"
+    },
+    "reports_unresolved": {
+     "raw": 0.0002,
+     "kind": "noul"
+    },
+    "expressed_satisfaction": {
+     "raw": "3",
+     "kind": "score"
+    }
+   }
+  },
+  "customer_service": {
+   "retention-charged-after-cancel/t0": {
+    "frustration": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "desired_outcome": {
+     "raw": "money_back",
+     "kind": "choice"
+    },
+    "intent": {
+     "raw": "refund_request",
+     "kind": "choice"
+    },
+    "urgency": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "threat_legal_regulatory": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "reports_unauthorized": {
+     "raw": 0.0005,
+     "kind": "noul"
+    },
+    "threat_chargeback_or_public": {
+     "raw": 0.0023,
+     "kind": "noul"
+    },
+    "requests_human": {
+     "raw": 0.026,
+     "kind": "noul"
+    },
+    "issue_resolved": {
+     "raw": 0.0002,
+     "kind": "noul"
+    },
+    "claims_agent_error": {
+     "raw": 0.0373,
+     "kind": "noul"
+    },
+    "shares_credentials": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "offers_evidence": {
+     "raw": 0.1192,
+     "kind": "noul"
+    },
+    "already_compensated": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "amount_vs_record": {
+     "raw": "more",
+     "kind": "choice"
+    },
+    "refund_reason": {
+     "raw": "duplicate_or_erroneous_charge",
+     "kind": "choice"
+    },
+    "hardship": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "open_to_offer": {
+     "raw": 0.0421,
+     "kind": "noul"
+    },
+    "churn_risk": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "cancellation_reason": {
+     "raw": "not_stated",
+     "kind": "choice"
+    },
+    "intent_pair": {
+     "raw": "refund_request",
+     "kind": "choice"
+    }
+   },
+   "billing-double-charge-152/t2": {
+    "urgency": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "frustration": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "intent": {
+     "raw": "billing_dispute",
+     "kind": "choice"
+    },
+    "desired_outcome": {
+     "raw": "money_back",
+     "kind": "choice"
+    },
+    "threat_legal_regulatory": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "threat_chargeback_or_public": {
+     "raw": 0.0023,
+     "kind": "noul"
+    },
+    "reports_unauthorized": {
+     "raw": 0.0002,
+     "kind": "noul"
+    },
+    "shares_credentials": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "requests_human": {
+     "raw": 0.0091,
+     "kind": "noul"
+    },
+    "issue_resolved": {
+     "raw": 0.0041,
+     "kind": "noul"
+    },
+    "claims_agent_error": {
+     "raw": 0.0023,
+     "kind": "noul"
+    },
+    "refund_reason": {
+     "raw": "duplicate_or_erroneous_charge",
+     "kind": "choice"
+    },
+    "amount_vs_record": {
+     "raw": "same",
+     "kind": "choice"
+    },
+    "already_compensated": {
+     "raw": 0.0007,
+     "kind": "noul"
+    },
+    "offers_evidence": {
+     "raw": 0.0005,
+     "kind": "noul"
+    },
+    "hardship": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "secured_msg_1": {
+     "raw": 0.0002,
+     "kind": "noul"
+    },
+    "refund_done_msg_1": {
+     "raw": 0.0025,
+     "kind": "noul"
+    }
+   },
+   "refunds-espresso-impulse-148/t2": {
+    "desired_outcome": {
+     "raw": "money_back",
+     "kind": "choice"
+    },
+    "frustration": {
+     "raw": "1",
+     "kind": "score"
+    },
+    "intent": {
+     "raw": "refund_request",
+     "kind": "choice"
+    },
+    "reports_unauthorized": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "threat_legal_regulatory": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "urgency": {
+     "raw": "0",
+     "kind": "score"
+    },
+    "threat_chargeback_or_public": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "requests_human": {
+     "raw": 0.0046,
+     "kind": "noul"
+    },
+    "issue_resolved": {
+     "raw": 0.0675,
+     "kind": "noul"
+    },
+    "shares_credentials": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "claims_agent_error": {
+     "raw": 0.0004,
+     "kind": "noul"
+    },
+    "proposal_reply": {
+     "raw": "accepts",
+     "kind": "choice"
+    },
+    "changes_terms": {
+     "raw": 0.0028,
+     "kind": "noul"
+    },
+    "already_compensated": {
+     "raw": 0.0006,
+     "kind": "noul"
+    },
+    "amount_vs_record": {
+     "raw": "same",
+     "kind": "choice"
+    },
+    "offers_evidence": {
+     "raw": 0.0013,
+     "kind": "noul"
+    },
+    "refund_reason": {
+     "raw": "changed_mind",
+     "kind": "choice"
+    },
+    "hardship": {
+     "raw": "1",
+     "kind": "score"
+    },
+    "refund_done_msg_1": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "secured_msg_1": {
+     "raw": 0.0002,
+     "kind": "noul"
+    }
+   },
+   "retention-sarcastic-sure-whatever/t0": {
+    "frustration": {
+     "raw": "3",
+     "kind": "score"
+    },
+    "reports_unauthorized": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "intent": {
+     "raw": "cancel_account",
+     "kind": "choice"
+    },
+    "urgency": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "desired_outcome": {
+     "raw": "not_stated",
+     "kind": "choice"
+    },
+    "threat_legal_regulatory": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "threat_chargeback_or_public": {
+     "raw": 0.0004,
+     "kind": "noul"
+    },
+    "shares_credentials": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "issue_resolved": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "requests_human": {
+     "raw": 0.0019,
+     "kind": "noul"
+    },
+    "claims_agent_error": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "open_to_offer": {
+     "raw": 0.0076,
+     "kind": "noul"
+    },
+    "churn_risk": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "cancellation_reason": {
+     "raw": "service_failure",
+     "kind": "choice"
+    }
+   },
+   "billing-overdraft-no-food/t1": {
+    "threat_chargeback_or_public": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "threat_legal_regulatory": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "reports_unauthorized": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "requests_human": {
+     "raw": 0.0036,
+     "kind": "noul"
+    },
+    "shares_credentials": {
+     "raw": 0.0,
+     "kind": "noul"
+    },
+    "frustration": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "issue_resolved": {
+     "raw": 0.0091,
+     "kind": "noul"
+    },
+    "urgency": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "claims_agent_error": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "intent": {
+     "raw": "billing_dispute",
+     "kind": "choice"
+    },
+    "desired_outcome": {
+     "raw": "money_back",
+     "kind": "choice"
+    },
+    "proposal_reply": {
+     "raw": "accepts",
+     "kind": "choice"
+    },
+    "changes_terms": {
+     "raw": 0.0019,
+     "kind": "noul"
+    },
+    "hardship": {
+     "raw": "2",
+     "kind": "score"
+    },
+    "amount_vs_record": {
+     "raw": "same",
+     "kind": "choice"
+    },
+    "already_compensated": {
+     "raw": 0.0001,
+     "kind": "noul"
+    },
+    "offers_evidence": {
+     "raw": 0.0007,
+     "kind": "noul"
+    },
+    "refund_reason": {
+     "raw": "no_reason_given",
+     "kind": "choice"
+    },
+    "secured_msg_0": {
+     "raw": 0.0002,
+     "kind": "noul"
+    },
+    "refund_done_msg_0": {
+     "raw": 0.0019,
+     "kind": "noul"
+    }
+   }
+  }
+ }
+}
