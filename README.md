@@ -25,7 +25,15 @@ cd jev-on-a-laptop
 ./run_benchmark.sh  # default: Qwen2.5-1.5B-Instruct-4bit
 ```
 
-Non-Mac? The upstream engine also has a PyTorch/CUDA path. See `docs/07-hardware-mac-vs-pc-analysis.md` for the memory math behind our Mac-vs-PC recommendation.
+**Windows / NVIDIA GPU:** use the released `parallel-decisions` library's
+[GPU setup and performance guide](https://github.com/rorshopping/parallel-decisions/blob/main/GPU_SETUP.md)
+for installation, configuration and reproducible benchmarks. Our integrated Torch
+backend supports shared-prefix reuse and optional CUDA Graphs. On separate warmed
+0.5B workloads, graphs reduced request latency **60.1 → 51.8 ms** (8 fields) and
+**240.9 → 83.8 ms** (custom 27 fields). Capture needs free VRAM and may fall back
+to eager; these are not browser-click timings or universal gains. See
+[doc 14](docs/14-gpu-torch-backend.md) for evidence and limitations, and
+[doc 07](docs/07-hardware-mac-vs-pc-analysis.md) for the memory analysis.
 
 **See it without installing anything:** a static showcase with real recorded outputs is live at
 **[huggingface.co/spaces/rorshopping/parallel-constrained-decisions](https://huggingface.co/spaces/rorshopping/parallel-constrained-decisions)**
