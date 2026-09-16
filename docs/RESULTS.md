@@ -1,6 +1,7 @@
 # Results — all measured runs
 
 Machine: **MacBook Air M5, 16 GB unified memory, macOS 26.5.1** · mlx 0.32.2 / mlx-lm 0.31.3 · dates 2026-09-16
+Machine 2: **Windows PC, RTX 2060 SUPER 8 GB VRAM** · torch 2.6.0+cu124 · 2026-09-16 — see **doc 14** (`14-gpu-torch-backend.md`): CUDA serial ~355 ms/decision (8.1× over CPU), process-parallelism slower than the engine's own batching.
 
 Runner: `tools/bench_model.py`. Raw JSON in `results/`. "Naive" = same model generating the full JSON string autoregressively (greedy). "Parallel" = one batched constrained pass.
 
@@ -51,3 +52,4 @@ Details, per-field breakdown, failure analysis, and limitations: `quality-eval/S
 ## 4. How this compares to Jev's published accuracy
 
 TypeSafe's own workflow evals (https://evals.typesafe.ai/) put Jev at **67.8% mean accuracy** (61.7–76.0% per workflow) against a **frontier consensus** (average of GPT-6 Astra and Fable 5.1 answering every question), at $0.0004 and 0.4 s per case. Our 8B's 84.7%/91.7% is **not comparable** (rule-constructed labels, synthetic cases, n=24) — it would imply beating Opus 5 (73.1%) and Sol (74.1%) on their eval, which is implausible. Comparable findings: same-order latency (0.4 s vs 0.65 s) and a ~100–1000x local cost advantage, both type-safe by construction. Full analysis in `docs/10-jev-published-accuracy-vs-our-8b.md`.
+

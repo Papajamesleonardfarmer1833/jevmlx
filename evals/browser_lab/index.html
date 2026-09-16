@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Email Triage Lab</title>
+<style>
+  body { font-family: Segoe UI, sans-serif; background: #101418; color: #e8eaed; margin: 0; }
+  header { padding: 14px 20px; background: #161b22; border-bottom: 1px solid #2c3440; display: flex; gap: 16px; align-items: baseline; }
+  header h1 { font-size: 16px; margin: 0; }
+  header span { color: #8b949e; font-size: 12px; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; padding: 16px; }
+  .card { background: #161b22; border: 1px solid #2c3440; border-radius: 10px; padding: 12px 14px; }
+  .card h2 { font-size: 13px; margin: 0 0 4px; }
+  .card .from { color: #8b949e; font-size: 11px; margin-bottom: 6px; }
+  .card .body { font-size: 12px; color: #b6bcc4; max-height: 60px; overflow: hidden; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: .4px; padding: 2px 8px; border-radius: 10px; margin-top: 8px; }
+  .b-LOW { background: #1d3320; color: #4ade80; } .b-MEDIUM { background: #3a2e10; color: #f0c04a; }
+  .b-HIGH { background: #3b1d10; color: #f08a4a; } .b-CRITICAL { background: #3d0f14; color: #ff6b81; }
+  .action { margin-top: 8px; font-size: 11px; color: #79c0ff; }
+  .ms { float: right; color: #56d364; font-variant-numeric: tabular-nums; }
+  .done { border-color: #56d364; }
+  .pending { opacity: .55; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Email Triage — local parallel-decisions</h1>
+  <span id="meta">loading…</span>
+  <span id="summary"></span>
+</header>
+<main id="list"></main>
+<script>
+async function boot() {
+  const emails = await (await fetch('/api/emails')).json();
+  const list = document.getElementById('list');
+  const cards = {};
+  for (const e of emails) {
+    const el = document.createElement('div');
+    el.className = 'card pending';
+    el.id = 'email-' + e.id;
+    el.innerHTML = `<h2>${e.subject}</h2><div class="from">${e.from}</div>
+      <div class="body">${e.body}</div><div class="action">deciding…</div>`;
+    list.appendChild(el);
+    cards[e.id] = el;
+  }
+  // fire every triage request at once: the server's model pool decides the concurrency
+  const t0 = performance.now();
+  const results = await Promise.all(emails.map(async e => {
+    const r = await fetch('/api/triage', {method: 'POST',
+      headers: {'content-type': 'application/json'}, body: JSON.stringify({id: e.id})});
+    const d = await r.json();
+    const el = cards[e.id];
+    el.classList.remove('pending');
+    el.classList.add('done');
+    el.querySelector('.action').innerHTML =
+      `<span class="ms">${d.server_ms} ms</span>${d.decision.recommended_action}` +
+      ` <span class="badge b-${d.decision.severity}">${d.decision.severity}</span>` +
+      ` · ${d.decision.category}`;
+    return d;
+  }));
+  const wall = Math.round(performance.now() - t0);
+  document.getElementById('meta').textContent =
+    `batch of ${emails.length} in ${wall} ms (${(emails.length / (wall/1000)).toFixed(1)} actions/s)`;
+  window.__LAB_RESULT__ = {wall_ms: wall, per_action: results};
+  document.title = `done in ${wall} ms`;
+}
+boot();
+</script>
+</body>
+</html>

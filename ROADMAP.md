@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Research tree | `/Users/richardbaecker/Documents/projects/rlcd-research/` | ❌ local only (**not in git**) | knowledge base 01–12, eval pipeline, raw experimental data |
 | Research mirror | `/Users/richardbaecker/Documents/projects/jev-on-a-laptop/` | ✅ [github.com/rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop) | docs + eval scripts + our results, no TypeSafe raw data |
-| Release package | `/Users/richardbaecker/Documents/projects/parallel-decisions/` | ✅ [github.com/rorshopping/parallel-decisions](https://github.com/rorshopping/parallel-decisions) | the thing other people install |
+| Release package | `/Users/richardbaecker/Documents/projects/parallel-decisions/` | ✅ [github.com/rorshopping/parallel-decisions](https://github.com/rorshopping/parallel-decisions) | the thing other people install — **now with the torch/CUDA backend (`engine_torch.py`, v0.3.0)** |
 | Static demo | [hf.co/spaces/rorshopping/parallel-constrained-decisions](https://huggingface.co/spaces/rorshopping/parallel-constrained-decisions) | ✅ live | recorded outputs, no install |
 | Interactive demo | `rlcd-research/hf-space/` | ⏸ blocked | Gradio Space needs HF **PRO**; one command when available |
 | X posts | `jev-on-a-laptop/x-posts/` | — | thread not yet posted |
@@ -94,6 +94,7 @@ Goal: make `probability` usable as a decision signal, not just a ranking signal.
 - [ ] **Observability**: per-call structured log line (fields, latencies, chunk count, calibration on/off) to stderr as JSON when `PD_LOG=json`.
 - [ ] **Packaging**: publish to TestPyPI then PyPI as `parallel-decisions`; add a CHANGELOG; pin `mlx`/`mlx-lm` minimums; test on a clean venv.
 - [ ] **Platforms**: document Apple Silicon as the supported path; add a clear error on non-arm64, and decide whether the PC (8 GB VRAM) gets a torch backend or stays a cross-check tool (E1 — run the existing `core/engine_torch.py` benchmark there and record results).
+  - ✅ **Done 2026-09-16 (E1 + backend shipped early).** Upstream `031d1a8` added a torch engine; we integrated it into `parallel-decisions` v0.3.0 with collision/multi-select/calibration parity (`backend="torch"`, auto-selected off Apple Silicon). Measured on the RTX 2060 SUPER: ~355 ms/decision (8.1× vs CPU), process-parallelism loses to the engine's batching. See `jev-on-a-laptop/docs/14-gpu-torch-backend.md`.
 - [ ] Optional: **MCP server** (`examples/mcp_server.py`) exposing `decide(context, schema)` as a tool, so agents (Claude Code, OpenCode) can call local typed decisions. High leverage for "everyday use", ~1 day.
 
 **Success criteria:** `pip install parallel-decisions` works on a fresh Mac; a stranger follows the README to a working call in <10 minutes.
@@ -170,3 +171,4 @@ cd ~/Documents/projects/parallel-decisions
 mkdir -p ~/Documents/projects/parallel-decisions/tools
 #   then: implement tools/fit_temperature.py against the eval data above
 ```
+
