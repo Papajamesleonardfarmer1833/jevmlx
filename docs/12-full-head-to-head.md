@@ -154,6 +154,20 @@ None of this changes the headline: 73.8% on the strict common subset, ~13 points
 behind Jev. It does change the interpretation — the model is reliable where the
 answer is written down, and near-useless where it must be inferred or counted.
 
+**The number itself has since moved, and the reason matters.** Re-running the same
+cases through the packaged engine (which fixed three prompt/scoring bugs found by
+exactly this comparison) gives **70.8% over 277 slots**, with 92.4% of individual
+answers identical to the recorded run. Three repeat runs at fixed settings differ by
+2.8 pp with 1 flip in 82 answers, so:
+- the difference is *not* sampling noise, and
+- a 2-3 point difference between two configurations is at the edge of what an eval of
+  this size can resolve.
+
+The corrections were: the prompt had a duplicated opening brace and repeated option
+lists, score questions declared 4 levels where 10 published questions define 5 (2 with
+level 4 as the reference answer), and the collision candidate tokens were guessed
+rather than derived. Details in `evals/VARIANCE.md`.
+
 ## Files
 
 - `evals/extract_full.py`, `extract_published.py`, `make_full_prompts.py`
