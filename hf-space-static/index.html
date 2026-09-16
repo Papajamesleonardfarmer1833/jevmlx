@@ -51,24 +51,23 @@
   </section>
 
   <section class="card">
-    <h2>Measured on this machine</h2>
-    <p class="muted">28-field fraud preset · naive = the same model writing the whole JSON object token-by-token.</p>
+    <h2>Does a bigger model help? (measured)</h2>
+    <p class="muted">24 labeled cases × 3 fields = 72 decisions per model, same engine. "All fields exact" = every field of the case correct.</p>
     <table class="bench">
       <thead>
-        <tr><th>Model (4-bit)</th><th>Naive JSON</th><th>Parallel decisions</th><th>Speedup</th><th>Naive schema-valid?</th><th>Parallel schema-valid?</th></tr>
+        <tr><th>Model (4-bit)</th><th>Primary field</th><th>All fields exact</th><th>Latency / case</th></tr>
       </thead>
       <tbody>
-        <tr><td>Qwen2.5-1.5B</td><td>3.3 s</td><td><strong>0.41 s</strong></td><td>7.9x</td><td class="no">fail</td><td class="yes">100%</td></tr>
-        <tr><td>Qwen2.5-7B</td><td>11.9 s</td><td><strong>1.52 s</strong></td><td>7.9x</td><td class="no">fail</td><td class="yes">100%</td></tr>
-        <tr><td>Qwen3-8B</td><td>14.3 s</td><td><strong>2.03 s</strong></td><td>7.0x</td><td class="no">fail</td><td class="yes">100%</td></tr>
+        <tr><td>Qwen2.5-1.5B</td><td>58% <span class="muted">(= majority-class baseline)</span></td><td>50%</td><td>147 ms</td></tr>
+        <tr><td><strong>Qwen2.5-7B</strong></td><td class="yes"><strong>96%</strong></td><td>72%</td><td>611 ms</td></tr>
+        <tr><td><strong>Qwen3-8B</strong></td><td>92%</td><td class="yes"><strong>85%</strong></td><td>646 ms</td></tr>
       </tbody>
     </table>
     <p class="muted small">
-      None of the three models could reliably emit valid 28-field JSON unconstrained — all three were
-      always schema-valid through the constrained path. Model size does not fix JSON reliability;
-      decoding structure does. More numbers and the honest caveats
-      (<span class="warn">"calibrated" confidence is a softmax proxy here, not trained calibration</span>)
-      in the GitHub repo.
+      Bigger is worth it — but not "biggest wins": <strong>7B</strong> for the single decision you act on,
+      <strong>8B</strong> when the whole typed payload must be right, <strong>1.5B</strong> for demos only.
+      And <span class="warn">confidence does not reliably flag errors</span> — the 7B was >90% confident on
+      13 of its 20 wrong fields. Full breakdown in the GitHub repo.
     </p>
   </section>
 </main>

@@ -65,9 +65,17 @@ Also measured: 4-field / 255-choice tariff preset (1.5B: 0.15 s, 5.9x) and suppo
 
 **Punchline: none of the three models could reliably emit 28-field JSON unconstrained — all three are always schema-valid through the constrained path.** Model size does not fix JSON reliability; the decoding structure does.
 
-## Is a bigger model worth it?
+## Is a bigger model worth it? (measured)
 
-Speed: 1.5B → 7B triples latency (0.41 → 1.52 s); 8B adds ~33% more (2.03 s) and showed no clear behavioral win. Prefill dominates at 28 fields. See `quality-eval/` for the labeled accuracy comparison that answers this properly (built into this repo).
+24 labeled cases × 3 fields = 72 decisions per model, run through the same engine (`quality-eval/`):
+
+| Model | Primary field acc | All fields exact | Latency/case |
+|---|---|---|---|
+| 1.5B | 58% (= majority-class baseline 54%) | 50% | 147 ms |
+| **7B** | **96%** | 72% | 611 ms |
+| **8B** | 92% | **85%** | 646 ms |
+
+**Verdict:** yes, 1.5B→7B is a clear win (+37 pts primary accuracy); 1.5B is only suitable for demos/UI work. 7B is the best when the single primary decision is what you act on; 8B is best when *all* fields must be jointly correct, at nearly the same speed. Also measured: **confidence does not reliably flag errors** — the 7B was >0.90 confident on 13 of its 20 wrong fields. Full report: `quality-eval/SUMMARY.md`.
 
 ## What's real vs. what's marketing (in our measurements)
 

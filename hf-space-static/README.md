@@ -32,6 +32,11 @@ Highlights: 28-field decisions in ~0.4 s, 7–8x faster than naive JSON generati
 baseline produced malformed/incomplete JSON on 3 of the 4 presets while the constrained path was
 always schema-valid. Model size does not fix JSON reliability; decoding structure does.
 
+**Does a bigger model help?** On 24 labeled cases (72 decisions per model): primary-field accuracy
+1.5B 58% → 7B 96% → 8B 92%; all-fields exact 50% / 72% / 85%. So: 7B for the single decision you
+act on, 8B when the whole typed payload must be right, 1.5B for demos only. Caution: confidence did
+not reliably flag errors (7B was >90% confident on 13 of its 20 wrong fields).
+
 **Honest caveats:** confidence here is a softmax over candidate token logits — a proxy for
 calibration, not trained calibration (that's what TypeSafe's RLCD training is for). Fields whose
 choices share a first token hit a slower fallback path.

@@ -35,4 +35,15 @@ Notes:
 
 ## 3. Decision quality (labeled eval)
 
-See `../quality-eval/SUMMARY.md` (generated 2026-09-16) for per-model accuracy, calibration buckets, and the explicit "is bigger worth it" verdict on synthetic labeled cases.
+`quality-eval/` — 24 synthetic, policy-grounded cases (12 payment risk, 12 support triage, 3 fields each, 6 deliberately ambiguous). Primary field = the one you'd act on (`fraud` / `category`).
+
+| Model | Primary acc | All-fields exact | Mean conf (correct) | Mean conf (wrong) | Latency/case |
+|---|---|---|---|---|---|
+| Qwen2.5-1.5B | 58.3% | 50.0% | 0.73 | 0.60 | 147 ms |
+| Qwen2.5-7B | **95.8%** | 72.2% | 0.96 | 0.90 | 611 ms |
+| Qwen3-8B | 91.7% | **84.7%** | 0.89 | 0.84 | 646 ms |
+| majority-class baseline | 54.2% | — | — | — | — |
+
+**Verdict:** the 1.5B sits at the majority-class baseline (not usable for real decisions); 7B is the best primary-field model at the best latency/quality trade (use when one field is what you act on); 8B wins on all-fields exactness (use when the whole typed payload must be right). **Confidence is a weak error signal:** the 7B was >0.90 confident on 13 of its 20 wrong fields — do not threshold on it without further calibration work.
+
+Details, per-field breakdown, failure analysis, and limitations: `quality-eval/SUMMARY.md`.

@@ -5,16 +5,15 @@ Plain `.txt` files. Copy the text as-is and paste into X.
 | File | What it is |
 |---|---|
 | `01_main_post.txt` | single short announcement post |
-| `02_thread.txt` | full 7-post thread (benchmarks + diagram + honest caveats) |
+| `02_thread.txt` | full 7-post thread (benchmarks + diagram + quality results + honest caveats) |
 | `03_space_launch.txt` | post for launching the Hugging Face Space demo |
 | `04_alt_short.txt` | one-paragraph alternative if you don't like threads |
 | `post_with_playwright.py` | optional best-effort automation (needs Playwright + a logged-in X session) |
 
 ## Before you post
 
-The Space URL is already filled in (`rorshopping/parallel-constrained-decisions`, live now).
-The thread's POST 6 contains a `[QUALITY_RESULT ...]` placeholder if the 1.5B/7B/8B accuracy
-comparison isn't filled in yet — either fill it or delete that whole post.
+Everything is filled in: the Space URL (`rorshopping/parallel-constrained-decisions`, live)
+and POST 6 with the measured quality results. Read the whole thread once for tone, then post.
 
 ## Posting
 

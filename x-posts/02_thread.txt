@@ -67,7 +67,19 @@ Still: for decision routing on a laptop, this is genuinely useful.
 ---
 POST 6
 ------
-[QUALITY_RESULT - fill in after quality-eval finishes, or delete this post]
+I labeled 24 realistic cases and tested all three models on the same engine (72 field decisions each):
+
+Primary-field accuracy / all-fields exact:
+- 1.5B: 58% / 50%  (majority-class baseline: 54%)
+- 7B:   96% / 72%
+- 8B:   92% / 85%
+
+Verdict: bigger IS worth it, but not "biggest wins":
+- 7B: best primary field, ~0.6 s/case
+- 8B: best when ALL fields must be right, same speed
+- 1.5B: fine for demos, not for real decisions
+
+And confidence does NOT reliably flag errors - the 7B was 96% confident on 13 of its 20 wrong fields.
 
 ---
 POST 7

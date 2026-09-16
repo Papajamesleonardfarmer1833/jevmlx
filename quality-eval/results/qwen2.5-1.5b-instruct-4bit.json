@@ -1,0 +1,1979 @@
+{
+  "kind": "rlcd-quality-eval",
+  "status": "ok",
+  "model": "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+  "tag": "qwen2.5-1.5b-instruct-4bit",
+  "timestamp": "2026-09-16T11:25:54",
+  "cases_file": "/Users/richardbaecker/Documents/projects/rlcd-research/quality-eval/cases.json",
+  "artifact": "/Users/richardbaecker/Documents/projects/rlcd-research/source/Qwen-2.5-1B-RLCD",
+  "load_seconds": 0.5,
+  "case_count": 24,
+  "ok_count": 24,
+  "total_elapsed_ms": 3517.8,
+  "results": [
+    {
+      "id": "A01",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "LOW"
+      },
+      "acceptable": {},
+      "note": "Clear low: small domestic purchase on a known device.",
+      "status": "ok",
+      "context_tokens": 313,
+      "elapsed_ms": 147.63,
+      "prefill_ms": 112.75,
+      "suffix_eval_ms": 29.82,
+      "predicted": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.4576,
+        "fraud": 0.6567,
+        "risk": 0.4582
+      },
+      "top_choices": {
+        "action": [
+          [
+            "APPROVE",
+            0.4576
+          ],
+          [
+            "REVIEW",
+            0.3194
+          ],
+          [
+            "BLOCK",
+            0.223
+          ]
+        ],
+        "fraud": [
+          [
+            "false",
+            0.6567
+          ],
+          [
+            "true",
+            0.3433
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.4582
+          ],
+          [
+            "HIGH",
+            0.3859
+          ],
+          [
+            "LOW",
+            0.1106
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A02",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "BLOCK",
+        "fraud": true,
+        "risk": "HIGH"
+      },
+      "acceptable": {},
+      "note": "Rule A3: unrecognized device plus amount >= 2000.",
+      "status": "ok",
+      "context_tokens": 313,
+      "elapsed_ms": 144.47,
+      "prefill_ms": 110.54,
+      "suffix_eval_ms": 29.65,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.6123,
+        "fraud": 0.7969,
+        "risk": 0.5017
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.6123
+          ],
+          [
+            "BLOCK",
+            0.2892
+          ],
+          [
+            "APPROVE",
+            0.0984
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.7969
+          ],
+          [
+            "false",
+            0.2031
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5017
+          ],
+          [
+            "HIGH",
+            0.464
+          ],
+          [
+            "ELEVATED",
+            0.0292
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": false,
+        "fraud": true,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": false,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A03",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "ELEVATED"
+      },
+      "acceptable": {},
+      "note": "Rule A4: foreign merchant and high amount, but no device or transport signal.",
+      "status": "ok",
+      "context_tokens": 315,
+      "elapsed_ms": 146.35,
+      "prefill_ms": 112.46,
+      "suffix_eval_ms": 29.62,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.5682,
+        "fraud": 0.5946,
+        "risk": 0.5355
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.5682
+          ],
+          [
+            "BLOCK",
+            0.226
+          ],
+          [
+            "APPROVE",
+            0.2058
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.5946
+          ],
+          [
+            "false",
+            0.4054
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5355
+          ],
+          [
+            "HIGH",
+            0.4042
+          ],
+          [
+            "ELEVATED",
+            0.0364
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A04",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "ELEVATED"
+      },
+      "acceptable": {},
+      "note": "Rule A4: Tor alone, small amount and known device, so not fraud.",
+      "status": "ok",
+      "context_tokens": 317,
+      "elapsed_ms": 146.87,
+      "prefill_ms": 112.81,
+      "suffix_eval_ms": 29.75,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.4806,
+        "fraud": 0.6334,
+        "risk": 0.5254
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.4806
+          ],
+          [
+            "BLOCK",
+            0.3252
+          ],
+          [
+            "APPROVE",
+            0.1942
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.6334
+          ],
+          [
+            "false",
+            0.3666
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5254
+          ],
+          [
+            "HIGH",
+            0.4289
+          ],
+          [
+            "ELEVATED",
+            0.0283
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A05",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "BLOCK",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "acceptable": {},
+      "note": "Rule A2: Tor plus unrecognized device plus high amount, the CRITICAL branch.",
+      "status": "ok",
+      "context_tokens": 327,
+      "elapsed_ms": 148.1,
+      "prefill_ms": 114.9,
+      "suffix_eval_ms": 29.41,
+      "predicted": {
+        "action": "BLOCK",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.4902,
+        "fraud": 0.9047,
+        "risk": 0.5685
+      },
+      "top_choices": {
+        "action": [
+          [
+            "BLOCK",
+            0.4902
+          ],
+          [
+            "REVIEW",
+            0.4826
+          ],
+          [
+            "APPROVE",
+            0.0272
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.9047
+          ],
+          [
+            "false",
+            0.0953
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5685
+          ],
+          [
+            "HIGH",
+            0.4095
+          ],
+          [
+            "ELEVATED",
+            0.0207
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": true,
+        "risk": true
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": true,
+      "all_fields_correct_or_acceptable": true
+    },
+    {
+      "id": "A06",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "BLOCK",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "acceptable": {},
+      "note": "Rule A1: tiny amount but the session was hijacked.",
+      "status": "ok",
+      "context_tokens": 316,
+      "elapsed_ms": 145.14,
+      "prefill_ms": 111.21,
+      "suffix_eval_ms": 28.97,
+      "predicted": {
+        "action": "BLOCK",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.9887,
+        "fraud": 0.9807,
+        "risk": 0.9215
+      },
+      "top_choices": {
+        "action": [
+          [
+            "BLOCK",
+            0.9887
+          ],
+          [
+            "REVIEW",
+            0.0105
+          ],
+          [
+            "APPROVE",
+            0.0008
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.9807
+          ],
+          [
+            "false",
+            0.0193
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.9215
+          ],
+          [
+            "HIGH",
+            0.0745
+          ],
+          [
+            "ELEVATED",
+            0.0037
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": true,
+        "risk": true
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": true,
+      "all_fields_correct_or_acceptable": true
+    },
+    {
+      "id": "A07",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "ELEVATED"
+      },
+      "acceptable": {},
+      "note": "Rule A4: velocity burst without any takeover signal.",
+      "status": "ok",
+      "context_tokens": 317,
+      "elapsed_ms": 146.48,
+      "prefill_ms": 112.89,
+      "suffix_eval_ms": 29.01,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "HIGH"
+      },
+      "confidence": {
+        "action": 0.6188,
+        "fraud": 0.5098,
+        "risk": 0.4785
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.6188
+          ],
+          [
+            "BLOCK",
+            0.2703
+          ],
+          [
+            "APPROVE",
+            0.1109
+          ]
+        ],
+        "fraud": [
+          [
+            "false",
+            0.5098
+          ],
+          [
+            "true",
+            0.4902
+          ]
+        ],
+        "risk": [
+          [
+            "HIGH",
+            0.4785
+          ],
+          [
+            "CRITICAL",
+            0.4425
+          ],
+          [
+            "ELEVATED",
+            0.0459
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A08",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "LOW"
+      },
+      "acceptable": {},
+      "note": "Clear low: routine repeat merchant.",
+      "status": "ok",
+      "context_tokens": 311,
+      "elapsed_ms": 146.1,
+      "prefill_ms": 112.22,
+      "suffix_eval_ms": 29.64,
+      "predicted": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.3921,
+        "fraud": 0.5234,
+        "risk": 0.5411
+      },
+      "top_choices": {
+        "action": [
+          [
+            "APPROVE",
+            0.3921
+          ],
+          [
+            "REVIEW",
+            0.3626
+          ],
+          [
+            "BLOCK",
+            0.2453
+          ]
+        ],
+        "fraud": [
+          [
+            "false",
+            0.5234
+          ],
+          [
+            "true",
+            0.4766
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5411
+          ],
+          [
+            "HIGH",
+            0.3604
+          ],
+          [
+            "LOW",
+            0.0617
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A09",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "ELEVATED"
+      },
+      "acceptable": {},
+      "note": "Rule A4: unrecognized device but amount is just under the 2000 threshold, so not fraud.",
+      "status": "ok",
+      "context_tokens": 318,
+      "elapsed_ms": 148.17,
+      "prefill_ms": 114.07,
+      "suffix_eval_ms": 29.84,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "HIGH"
+      },
+      "confidence": {
+        "action": 0.6382,
+        "fraud": 0.8559,
+        "risk": 0.5383
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.6382
+          ],
+          [
+            "BLOCK",
+            0.2832
+          ],
+          [
+            "APPROVE",
+            0.0786
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.8559
+          ],
+          [
+            "false",
+            0.1441
+          ]
+        ],
+        "risk": [
+          [
+            "HIGH",
+            0.5383
+          ],
+          [
+            "CRITICAL",
+            0.4258
+          ],
+          [
+            "ELEVATED",
+            0.0281
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A10",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "REVIEW",
+        "fraud": false,
+        "risk": "ELEVATED"
+      },
+      "acceptable": {
+        "action": [
+          "APPROVE"
+        ],
+        "risk": [
+          "LOW"
+        ]
+      },
+      "note": "Ambiguous: 3 payments in 6 minutes is only arguably a velocity burst.",
+      "status": "ok",
+      "context_tokens": 321,
+      "elapsed_ms": 145.67,
+      "prefill_ms": 112.67,
+      "suffix_eval_ms": 28.76,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.6875,
+        "fraud": 0.5098,
+        "risk": 0.4637
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.6875
+          ],
+          [
+            "BLOCK",
+            0.2569
+          ],
+          [
+            "APPROVE",
+            0.0556
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.5098
+          ],
+          [
+            "false",
+            0.4902
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.4637
+          ],
+          [
+            "HIGH",
+            0.4494
+          ],
+          [
+            "ELEVATED",
+            0.0438
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": false,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A11",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "LOW"
+      },
+      "acceptable": {
+        "action": [
+          "BLOCK"
+        ],
+        "fraud": [
+          true
+        ],
+        "risk": [
+          "HIGH"
+        ]
+      },
+      "note": "Ambiguous: device is new but enrolled and verified through the bank app.",
+      "status": "ok",
+      "context_tokens": 318,
+      "elapsed_ms": 146.02,
+      "prefill_ms": 112.62,
+      "suffix_eval_ms": 29.31,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.5683,
+        "fraud": 0.7074,
+        "risk": 0.5473
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.5683
+          ],
+          [
+            "BLOCK",
+            0.2903
+          ],
+          [
+            "APPROVE",
+            0.1415
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.7074
+          ],
+          [
+            "false",
+            0.2926
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5473
+          ],
+          [
+            "HIGH",
+            0.4196
+          ],
+          [
+            "ELEVATED",
+            0.0272
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": false,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": false,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [
+        "fraud"
+      ],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "A12",
+      "family": "payment_risk",
+      "primary_field": "fraud",
+      "labels": {
+        "action": "APPROVE",
+        "fraud": false,
+        "risk": "LOW"
+      },
+      "acceptable": {
+        "action": [
+          "REVIEW"
+        ],
+        "fraud": [
+          true
+        ],
+        "risk": [
+          "ELEVATED"
+        ]
+      },
+      "note": "Ambiguous: 2FA was approved, but from a phone number replaced the day before.",
+      "status": "ok",
+      "context_tokens": 326,
+      "elapsed_ms": 147.36,
+      "prefill_ms": 113.52,
+      "suffix_eval_ms": 29.09,
+      "predicted": {
+        "action": "REVIEW",
+        "fraud": true,
+        "risk": "CRITICAL"
+      },
+      "confidence": {
+        "action": 0.5005,
+        "fraud": 0.6706,
+        "risk": 0.5814
+      },
+      "top_choices": {
+        "action": [
+          [
+            "REVIEW",
+            0.5005
+          ],
+          [
+            "BLOCK",
+            0.3605
+          ],
+          [
+            "APPROVE",
+            0.139
+          ]
+        ],
+        "fraud": [
+          [
+            "true",
+            0.6706
+          ],
+          [
+            "false",
+            0.3294
+          ]
+        ],
+        "risk": [
+          [
+            "CRITICAL",
+            0.5814
+          ],
+          [
+            "HIGH",
+            0.3582
+          ],
+          [
+            "ELEVATED",
+            0.0396
+          ]
+        ]
+      },
+      "field_correct": {
+        "action": false,
+        "fraud": false,
+        "risk": false
+      },
+      "field_correct_or_acceptable": {
+        "action": true,
+        "fraud": true,
+        "risk": false
+      },
+      "fields_on_acceptable_alternative": [
+        "action",
+        "fraud"
+      ],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B01",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "BILLING",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "acceptable": {},
+      "note": "Clear: wrong bill, refund under 100 USD.",
+      "status": "ok",
+      "context_tokens": 264,
+      "elapsed_ms": 129.74,
+      "prefill_ms": 95.91,
+      "suffix_eval_ms": 29.35,
+      "predicted": {
+        "category": "BILLING",
+        "needs_human": true,
+        "priority": "P3"
+      },
+      "confidence": {
+        "category": 0.9518,
+        "needs_human": 0.7402,
+        "priority": 0.7447
+      },
+      "top_choices": {
+        "category": [
+          [
+            "BILLING",
+            0.9518
+          ],
+          [
+            "ACCOUNT",
+            0.0393
+          ],
+          [
+            "TECHNICAL",
+            0.0058
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.7402
+          ],
+          [
+            "false",
+            0.2598
+          ]
+        ],
+        "priority": [
+          [
+            "P3",
+            0.7447
+          ],
+          [
+            "P1",
+            0.1561
+          ],
+          [
+            "P2",
+            0.0992
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B02",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "TECHNICAL",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "acceptable": {},
+      "note": "Clear: production outage, everyone blocked.",
+      "status": "ok",
+      "context_tokens": 263,
+      "elapsed_ms": 127.96,
+      "prefill_ms": 95.33,
+      "suffix_eval_ms": 28.97,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "confidence": {
+        "category": 0.4582,
+        "needs_human": 0.851,
+        "priority": 0.7138
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.4582
+          ],
+          [
+            "BILLING",
+            0.2736
+          ],
+          [
+            "TECHNICAL",
+            0.1766
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.851
+          ],
+          [
+            "false",
+            0.149
+          ]
+        ],
+        "priority": [
+          [
+            "P1",
+            0.7138
+          ],
+          [
+            "P3",
+            0.2177
+          ],
+          [
+            "P2",
+            0.0685
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": false,
+        "needs_human": true,
+        "priority": true
+      },
+      "field_correct_or_acceptable": {
+        "category": false,
+        "needs_human": true,
+        "priority": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B03",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "ACCOUNT",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "acceptable": {},
+      "note": "Clear ACCOUNT: self-service reset flow.",
+      "status": "ok",
+      "context_tokens": 264,
+      "elapsed_ms": 128.31,
+      "prefill_ms": 94.44,
+      "suffix_eval_ms": 29.52,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P2"
+      },
+      "confidence": {
+        "category": 0.9781,
+        "needs_human": 0.566,
+        "priority": 0.4721
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.9781
+          ],
+          [
+            "TECHNICAL",
+            0.0179
+          ],
+          [
+            "BILLING",
+            0.0029
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.566
+          ],
+          [
+            "false",
+            0.434
+          ]
+        ],
+        "priority": [
+          [
+            "P2",
+            0.4721
+          ],
+          [
+            "P1",
+            0.3048
+          ],
+          [
+            "P3",
+            0.223
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": false,
+        "priority": true
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": false,
+        "priority": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B04",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "acceptable": {},
+      "note": "Clear ACCOUNT: unlock plus team-wide impact.",
+      "status": "ok",
+      "context_tokens": 264,
+      "elapsed_ms": 128.35,
+      "prefill_ms": 95.17,
+      "suffix_eval_ms": 28.3,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "confidence": {
+        "category": 0.9422,
+        "needs_human": 0.7607,
+        "priority": 0.6349
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.9422
+          ],
+          [
+            "TECHNICAL",
+            0.0515
+          ],
+          [
+            "BILLING",
+            0.0032
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.7607
+          ],
+          [
+            "false",
+            0.2393
+          ]
+        ],
+        "priority": [
+          [
+            "P1",
+            0.6349
+          ],
+          [
+            "P3",
+            0.2299
+          ],
+          [
+            "P2",
+            0.1352
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": true,
+        "priority": true
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": true,
+        "priority": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": true,
+      "all_fields_correct_or_acceptable": true
+    },
+    {
+      "id": "B05",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "SHIPPING",
+        "needs_human": true,
+        "priority": "P2"
+      },
+      "acceptable": {},
+      "note": "Clear SHIPPING: lost parcel investigation.",
+      "status": "ok",
+      "context_tokens": 255,
+      "elapsed_ms": 127.61,
+      "prefill_ms": 94.25,
+      "suffix_eval_ms": 29.22,
+      "predicted": {
+        "category": "SHIPPING",
+        "needs_human": false,
+        "priority": "P3"
+      },
+      "confidence": {
+        "category": 0.9652,
+        "needs_human": 0.6741,
+        "priority": 0.5266
+      },
+      "top_choices": {
+        "category": [
+          [
+            "SHIPPING",
+            0.9652
+          ],
+          [
+            "BILLING",
+            0.033
+          ],
+          [
+            "ACCOUNT",
+            0.0014
+          ]
+        ],
+        "needs_human": [
+          [
+            "false",
+            0.6741
+          ],
+          [
+            "true",
+            0.3259
+          ]
+        ],
+        "priority": [
+          [
+            "P3",
+            0.5266
+          ],
+          [
+            "P2",
+            0.3975
+          ],
+          [
+            "P1",
+            0.0759
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B06",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "TECHNICAL",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "acceptable": {},
+      "note": "Clear TECHNICAL: reproducible, workaround exists.",
+      "status": "ok",
+      "context_tokens": 265,
+      "elapsed_ms": 129.94,
+      "prefill_ms": 96.33,
+      "suffix_eval_ms": 29.36,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P3"
+      },
+      "confidence": {
+        "category": 0.5641,
+        "needs_human": 0.5117,
+        "priority": 0.6092
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.5641
+          ],
+          [
+            "BILLING",
+            0.2665
+          ],
+          [
+            "TECHNICAL",
+            0.1299
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.5117
+          ],
+          [
+            "false",
+            0.4883
+          ]
+        ],
+        "priority": [
+          [
+            "P3",
+            0.6092
+          ],
+          [
+            "P1",
+            0.2461
+          ],
+          [
+            "P2",
+            0.1447
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": false,
+        "needs_human": false,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": false,
+        "needs_human": false,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B07",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "SHIPPING",
+        "needs_human": false,
+        "priority": "P3"
+      },
+      "acceptable": {},
+      "note": "Clear SHIPPING: routine pre-dispatch update.",
+      "status": "ok",
+      "context_tokens": 247,
+      "elapsed_ms": 127.45,
+      "prefill_ms": 94.47,
+      "suffix_eval_ms": 28.27,
+      "predicted": {
+        "category": "SHIPPING",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "confidence": {
+        "category": 0.8962,
+        "needs_human": 0.8697,
+        "priority": 0.6271
+      },
+      "top_choices": {
+        "category": [
+          [
+            "SHIPPING",
+            0.8962
+          ],
+          [
+            "ACCOUNT",
+            0.0629
+          ],
+          [
+            "BILLING",
+            0.0406
+          ]
+        ],
+        "needs_human": [
+          [
+            "false",
+            0.8697
+          ],
+          [
+            "true",
+            0.1303
+          ]
+        ],
+        "priority": [
+          [
+            "P2",
+            0.6271
+          ],
+          [
+            "P3",
+            0.2783
+          ],
+          [
+            "P1",
+            0.0947
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": true,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": true,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B08",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "BILLING",
+        "needs_human": true,
+        "priority": "P2"
+      },
+      "acceptable": {},
+      "note": "Clear BILLING: invoice correction above the 100 USD threshold.",
+      "status": "ok",
+      "context_tokens": 294,
+      "elapsed_ms": 146.23,
+      "prefill_ms": 113.42,
+      "suffix_eval_ms": 28.53,
+      "predicted": {
+        "category": "BILLING",
+        "needs_human": false,
+        "priority": "P3"
+      },
+      "confidence": {
+        "category": 0.9432,
+        "needs_human": 0.6741,
+        "priority": 0.748
+      },
+      "top_choices": {
+        "category": [
+          [
+            "BILLING",
+            0.9432
+          ],
+          [
+            "ACCOUNT",
+            0.0462
+          ],
+          [
+            "SHIPPING",
+            0.0066
+          ]
+        ],
+        "needs_human": [
+          [
+            "false",
+            0.6741
+          ],
+          [
+            "true",
+            0.3259
+          ]
+        ],
+        "priority": [
+          [
+            "P3",
+            0.748
+          ],
+          [
+            "P1",
+            0.126
+          ],
+          [
+            "P2",
+            0.126
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B09",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "BILLING",
+        "needs_human": false,
+        "priority": "P3"
+      },
+      "acceptable": {},
+      "note": "Clear BILLING: pricing question, no action needed.",
+      "status": "ok",
+      "context_tokens": 248,
+      "elapsed_ms": 127.87,
+      "prefill_ms": 94.34,
+      "suffix_eval_ms": 29.36,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "confidence": {
+        "category": 0.8805,
+        "needs_human": 0.9454,
+        "priority": 0.5705
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.8805
+          ],
+          [
+            "BILLING",
+            0.0668
+          ],
+          [
+            "TECHNICAL",
+            0.0521
+          ]
+        ],
+        "needs_human": [
+          [
+            "false",
+            0.9454
+          ],
+          [
+            "true",
+            0.0546
+          ]
+        ],
+        "priority": [
+          [
+            "P2",
+            0.5705
+          ],
+          [
+            "P3",
+            0.346
+          ],
+          [
+            "P1",
+            0.0835
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": false,
+        "needs_human": true,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": false,
+        "needs_human": true,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B10",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "acceptable": {
+        "category": [
+          "TECHNICAL"
+        ]
+      },
+      "note": "Ambiguous: sign-in failure (ACCOUNT) or SSO integration defect (TECHNICAL).",
+      "status": "ok",
+      "context_tokens": 276,
+      "elapsed_ms": 147.01,
+      "prefill_ms": 112.81,
+      "suffix_eval_ms": 29.82,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": true,
+        "priority": "P1"
+      },
+      "confidence": {
+        "category": 0.9315,
+        "needs_human": 0.7447,
+        "priority": 0.5456
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.9315
+          ],
+          [
+            "TECHNICAL",
+            0.0517
+          ],
+          [
+            "SHIPPING",
+            0.009
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.7447
+          ],
+          [
+            "false",
+            0.2553
+          ]
+        ],
+        "priority": [
+          [
+            "P1",
+            0.5456
+          ],
+          [
+            "P3",
+            0.2537
+          ],
+          [
+            "P2",
+            0.2007
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": true,
+        "priority": true
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": true,
+        "priority": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": true,
+      "all_fields_correct_or_acceptable": true
+    },
+    {
+      "id": "B11",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "BILLING",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "acceptable": {
+        "category": [
+          "TECHNICAL"
+        ]
+      },
+      "note": "Ambiguous: billing refund or technical performance issue.",
+      "status": "ok",
+      "context_tokens": 261,
+      "elapsed_ms": 309.0,
+      "prefill_ms": 275.07,
+      "suffix_eval_ms": 28.99,
+      "predicted": {
+        "category": "BILLING",
+        "needs_human": true,
+        "priority": "P3"
+      },
+      "confidence": {
+        "category": 0.9424,
+        "needs_human": 0.5487,
+        "priority": 0.6192
+      },
+      "top_choices": {
+        "category": [
+          [
+            "BILLING",
+            0.9424
+          ],
+          [
+            "ACCOUNT",
+            0.0469
+          ],
+          [
+            "SHIPPING",
+            0.0091
+          ]
+        ],
+        "needs_human": [
+          [
+            "true",
+            0.5487
+          ],
+          [
+            "false",
+            0.4513
+          ]
+        ],
+        "priority": [
+          [
+            "P3",
+            0.6192
+          ],
+          [
+            "P2",
+            0.2243
+          ],
+          [
+            "P1",
+            0.1566
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "field_correct_or_acceptable": {
+        "category": true,
+        "needs_human": false,
+        "priority": false
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    },
+    {
+      "id": "B12",
+      "family": "support_triage",
+      "primary_field": "category",
+      "labels": {
+        "category": "TECHNICAL",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "acceptable": {
+        "priority": [
+          "P3"
+        ]
+      },
+      "note": "Ambiguous: team-wide impairment, but nothing is blocked.",
+      "status": "ok",
+      "context_tokens": 259,
+      "elapsed_ms": 129.95,
+      "prefill_ms": 95.52,
+      "suffix_eval_ms": 28.95,
+      "predicted": {
+        "category": "ACCOUNT",
+        "needs_human": false,
+        "priority": "P2"
+      },
+      "confidence": {
+        "category": 0.6477,
+        "needs_human": 0.6169,
+        "priority": 0.5609
+      },
+      "top_choices": {
+        "category": [
+          [
+            "ACCOUNT",
+            0.6477
+          ],
+          [
+            "SHIPPING",
+            0.2383
+          ],
+          [
+            "BILLING",
+            0.0877
+          ]
+        ],
+        "needs_human": [
+          [
+            "false",
+            0.6169
+          ],
+          [
+            "true",
+            0.3831
+          ]
+        ],
+        "priority": [
+          [
+            "P2",
+            0.5609
+          ],
+          [
+            "P3",
+            0.3196
+          ],
+          [
+            "P1",
+            0.1194
+          ]
+        ]
+      },
+      "field_correct": {
+        "category": false,
+        "needs_human": true,
+        "priority": true
+      },
+      "field_correct_or_acceptable": {
+        "category": false,
+        "needs_human": true,
+        "priority": true
+      },
+      "fields_on_acceptable_alternative": [],
+      "all_fields_correct": false,
+      "all_fields_correct_or_acceptable": false
+    }
+  ]
+}
