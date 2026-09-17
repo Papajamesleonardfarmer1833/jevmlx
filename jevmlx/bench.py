@@ -559,11 +559,12 @@ def _print_pr_instructions(folder: Path, last_run: dict) -> None:
         "\nBench complete.\n"
         f"Results folder: {folder}\n"
         f"Combos: {n_combos}; summary: {folder / 'SUMMARY.md'}\n\n"
-        "To publish these numbers:\n"
+        "To publish these numbers (as a human contributor):\n"
         f"  1. git checkout -b bench-results-{folder.name}\n"
         f"  2. git add {folder}  (predictions may be gzipped; see the folder README)\n"
         f"  3. git commit -m 'Bench results: {folder.name}'\n"
-        "  4. Open a PR against main with SUMMARY.md pasted into the description.\n"
+        "  4. Push the branch to your fork and open a pull request against\n"
+        "     main with SUMMARY.md pasted into the description.\n"
         "Do NOT commit anything outside the results folder (no caches, no models)."
     )
 
