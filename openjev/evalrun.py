@@ -83,12 +83,13 @@ def _sha256_file(path: str | None) -> str | None:
 def parallel_decide_fn(model, tokenizer) -> DecideFn:
     """Track ``parallel``: the openjev engine at T=1.
 
-    Log scores come from field telemetry. The engine exposes the raw
-    constrained-path log-probabilities per choice (choices order) under a key
-    that w3-trie renamed (``constrained_path_logp``; ``scores`` on main
-    today) — this accessor accepts whichever has landed, behind this one
-    function, so a rename does not touch the runner. Multi fields report
-    ``per_option`` instead; log_scores stays None for them.
+    Log scores come from field telemetry. The finalized engine key is
+    ``log_scores`` — a dict mapping choice to constrained-path log P at T=1.
+    Main today still exposes ``scores`` (a list in choice order); this
+    accessor reads ``log_scores`` first and falls back to ``scores``, behind
+    this one function, so the engine-side migration does not touch the
+    runner. Multi fields report ``per_option`` instead; log_scores stays
+    None for them.
     """
 
     def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
@@ -106,9 +107,15 @@ def parallel_decide_fn(model, tokenizer) -> DecideFn:
                 "type": telemetry.get("type") or (field.field_type if field else None),
             }
             if field is not None and field.field_type != "multi":
-                raw = telemetry.get("constrained_path_logp", telemetry.get("scores"))
-                if raw is not None:
-                    entry["log_scores"] = dict(zip(field.choices, raw, strict=True))
+                raw = telemetry.get("log_scores")
+                if isinstance(raw, dict):
+                    entry["log_scores"] = raw
+                else:
+                    raw_list = telemetry.get("scores")
+                    if raw_list is not None:
+                        entry["log_scores"] = dict(
+                            zip(field.choices, raw_list, strict=True)
+                        )
             out[fname] = entry
         out["_meta"] = {
             "latency_ms": result.get("elapsed_ms"),

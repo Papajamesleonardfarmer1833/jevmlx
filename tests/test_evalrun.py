@@ -273,3 +273,72 @@ def test_load_cases_skips_comments_and_blank(tmp_path):
     )
     cases = evalrun.load_cases(str(path))
     assert len(cases) == 1 and cases[0]["id"] == "c1"
+
+
+def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
+    """Accessor reads finalized 'log_scores' (dict) first; falls back to
+    legacy 'scores' (list in choice order)."""
+    from openjev import evalrun as er
+
+    class FakeField:
+        field_type = "enum"
+        choices = ["A", "B"]
+
+    class FakeSchema:
+        fields = {"x": FakeField()}
+
+    class FakeSchemaCtor:
+        def __init__(self, schema_dict):
+            pass
+
+        def __getattr__(self, name):
+            return FakeSchema().fields  # not used
+
+    # parallel_decide_fn returns decide(); we test decide() by monkeypatching
+    # run_parallel_generation inside openjev.engine.
+    calls = {}
+
+    def fake_rpg(model, tokenizer, context, schema, temperature=1.0):
+        calls["temperature"] = temperature
+        return {
+            "field_telemetry": {
+                "x": {
+                    "value": "A",
+                    "type": "enum",
+                    "confidence": 0.9,
+                    "log_scores": {"A": -0.1, "B": -2.0},
+                }
+            },
+            "elapsed_ms": 5.0,
+            "rows": 2,
+            "passes": 1,
+        }
+
+    import openjev.engine as engine_mod
+
+    monkeypatch.setattr(engine_mod, "run_parallel_generation", fake_rpg)
+    decide = er.parallel_decide_fn(model=object(), tokenizer=object())
+    result = decide({"x": {"type": "enum", "description": "d", "choices": ["A", "B"]}}, "ctx")
+    assert result["x"]["log_scores"] == {"A": -0.1, "B": -2.0}
+    assert calls["temperature"] == 1.0
+
+    # legacy fallback: scores list in choice order
+    def fake_rpg_legacy(model, tokenizer, context, schema, temperature=1.0):
+        return {
+            "field_telemetry": {
+                "x": {
+                    "value": "B",
+                    "type": "enum",
+                    "confidence": 0.4,
+                    "scores": [-2.0, -0.1],
+                }
+            },
+            "elapsed_ms": 5.0,
+            "rows": 2,
+            "passes": 1,
+        }
+
+    monkeypatch.setattr(engine_mod, "run_parallel_generation", fake_rpg_legacy)
+    decide = er.parallel_decide_fn(model=object(), tokenizer=object())
+    result = decide({"x": {"type": "enum", "description": "d", "choices": ["A", "B"]}}, "ctx")
+    assert result["x"]["log_scores"] == {"A": -2.0, "B": -0.1}
