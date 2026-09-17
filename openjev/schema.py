@@ -23,6 +23,19 @@ def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
     return shared
 
 
+class SchemaCompileError(ValueError):
+    """compile_batch_plan cannot produce a scorable plan for one field.
+
+    Raised for token-identical choices, strict token-prefix continuations,
+    candidates with no shared token prefix, and duplicate-choice keys.
+    Carries the offending field name so linters can attribute the failure.
+    """
+
+    def __init__(self, field: str, message: str):
+        super().__init__(message)
+        self.field = field
+
+
 class FieldDefinition:
     def __init__(
         self, name: str, field_type: str, description: str, choices: list[str] | None = None
@@ -216,17 +229,19 @@ class StructuredSchema:
                         # Zero-length row: the true/false decision would sit
                         # directly at the generation boundary (C2, same rule
                         # as the scalar guard).
-                        raise ValueError(
+                        raise SchemaCompileError(
+                            fname,
                             f"field '{fname}': option '{option}' true/false "
                             f"candidates share no token prefix (tokenizer "
                             f"{type(tokenizer).__name__}); cannot place the "
-                            "decision row"
+                            "decision row",
                         )
                     if option_remainders[0] == option_remainders[1]:
-                        raise ValueError(
+                        raise SchemaCompileError(
+                            fname,
                             f"field '{fname}': option '{option}' tokenizes to "
                             "identical true/false candidates; the engine cannot "
-                            "distinguish them"
+                            "distinguish them",
                         )
                     # Same rule as enums (R5): a strict-prefix continuation can
                     # never be distinguished by branch scoring.
@@ -237,11 +252,12 @@ class StructuredSchema:
                         shorter, longer = option_remainders[1], option_remainders[0]
                         short_name, long_name = "false", "true"
                     if longer[: len(shorter)] == shorter:
-                        raise ValueError(
+                        raise SchemaCompileError(
+                            fname,
                             f"field '{fname}': option '{option}' has a strict "
                             f"token-prefix continuation ({short_name} is a prefix of "
                             f"{long_name} in token space); the engine would never "
-                            "distinguish them"
+                            "distinguish them",
                         )
                     suffix_ids_list.append(option_shared)
                     remainders_per_option.append(option_remainders)
@@ -270,24 +286,27 @@ class StructuredSchema:
                     if i == j or other[: len(remainder)] != remainder:
                         continue
                     if other == remainder:
-                        raise ValueError(
+                        raise SchemaCompileError(
+                            fname,
                             f"field '{fname}': choices '{fdef.choices[i]}' and "
                             f"'{fdef.choices[j]}' are token-identical; the engine "
-                            "cannot distinguish them"
+                            "cannot distinguish them",
                         )
-                    raise ValueError(
+                    raise SchemaCompileError(
+                        fname,
                         f"field '{fname}': choice '{fdef.choices[i]}' is a strict "
                         f"token-prefix of '{fdef.choices[j]}' in token space; the "
-                        "engine would never distinguish them"
+                        "engine would never distinguish them",
                     )
             if not shared and len({r[0] for r in remainders}) > 1:
                 # After lead-in removal this field would have an empty row: a
                 # branch directly at the generation boundary cannot be scored
                 # by a broadcast row (B2).
-                raise ValueError(
+                raise SchemaCompileError(
+                    fname,
                     f"field '{fname}': candidates share no token prefix "
                     f"(tokenizer {type(tokenizer).__name__}); cannot place the "
-                    "decision row"
+                    "decision row",
                 )
             plan[fname] = {
                 "shared_ids": shared,

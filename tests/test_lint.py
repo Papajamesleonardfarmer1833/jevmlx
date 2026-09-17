@@ -269,3 +269,81 @@ def test_valid_schema_lints_with_no_compile_error():
         }
     )
     assert all(f.kind != "compile_error" for f in findings)
+
+
+def test_multi_only_schema_strict_prefix_pair_yields_one_compile_error():
+    """M1: a multi-only schema with a strict-prefix pair is attributed to the
+    multi field — one compile_error finding, not a clean lint."""
+
+    class PrefixPair(NonCompositionalTokenizer):
+        name_or_path = "fake-m1-prefix-pair"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            # opt_a's 'true' candidate is a strict token-prefix of 'false'.
+            if ".opt_a" in text and "true" in text:
+                false_cand = self.encode(text.replace("true", "false"), add_special_tokens)
+                return false_cand[:-1]
+            return super().encode(text, add_special_tokens)
+
+    findings = _findings(
+        {
+            "flags": {
+                "type": "multi",
+                "description": "d",
+                "choices": ["opt_a", "opt_b"],
+            }
+        },
+        tokenizer=PrefixPair(),
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "compile_error"
+    assert findings[0].field == "flags"
+    assert "strict" in findings[0].message
+
+
+def test_mixed_schema_failing_boolean_reports_once_with_right_field():
+    """M1: a mixed schema whose BOOLEAN field fails compilation yields exactly
+    one compile_error finding, attributed to the boolean field."""
+
+    class BoolKills(NonCompositionalTokenizer):
+        name_or_path = "fake-m1-bool-kills"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            # Only the boolean field's candidates share no token prefix.
+            if '"flag": ' in text:
+                if "true" in text:
+                    return [84]
+                if "false" in text:
+                    return [70]
+            return super().encode(text, add_special_tokens)
+
+    findings = _findings(
+        {
+            "flag": {"type": "boolean", "description": "d"},
+            "action": {
+                "type": "enum",
+                "description": "d",
+                "choices": ["ALLOW", "BLOCK"],
+            },
+            "backup": {
+                "type": "enum",
+                "description": "d",
+                "choices": ["ON", "OFF"],
+            },
+        },
+        tokenizer=BoolKills(),
+    )
+    assert len(findings) == 1
+    assert findings[0].kind == "compile_error"
+    assert findings[0].field == "flag"
+
+
+def test_schema_compile_error_is_value_error():
+    """SchemaCompileError stays a ValueError subclass (back-compat for
+    engine-side except ValueError handlers)."""
+    from openjev.schema import SchemaCompileError
+
+    err = SchemaCompileError("flag", "boom")
+    assert isinstance(err, ValueError)
+    assert err.field == "flag"
+    assert str(err) == "boom"

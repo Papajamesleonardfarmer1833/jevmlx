@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openjev.schema import StructuredSchema
+from openjev.schema import SchemaCompileError, StructuredSchema
 
 
 @dataclass(frozen=True)
@@ -63,38 +63,39 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     true/false per option, so their choice token lists are fixed and cannot
     collide.
 
-    Checks per enum field:
-    - collision: two or more choices share their first diverging token. The
-      engine still scores them correctly, but the field needs one row per
-      trie branch point instead of one row total (slower).
+    The plan is compiled ONCE for the whole schema before any per-field loop
+    (M1): a compile failure caused by a boolean or multi field is attributed
+    to that field (SchemaCompileError.field), not reported per enum with the
+    wrong name — and boolean/multi-only schemas get real coverage.
+
+    Checks:
     - compile_error: the schema cannot be compiled for this tokenizer at all
       (token-identical choices, strict token-prefix continuations, choices
-      with no shared token prefix) — the compile-time ValueError becomes a
-      finding so invalid schemas never lint clean.
-    - single_choice (informational): a cardinality-1 enum has no branch
-      points; the engine scores it deterministically (P = 1.0). Reported so
-      the degenerate schema is visible, not an error.
+      with no shared token prefix, in ANY field type). Exactly one finding
+      naming SchemaCompileError.field; linting stops there because nothing
+      else can be linted without a plan.
+    - collision (enum fields): two or more choices share their first
+      diverging token. The engine still scores them correctly, but the field
+      needs one row per trie branch point instead of one row total (slower).
+    - single_choice (informational, enum fields): a cardinality-1 enum has
+      no branch points; the engine scores it deterministically (P = 1.0).
+      Reported so the degenerate schema is visible, not an error.
     """
     findings: list[Finding] = []
 
+    try:
+        compiled = schema.compile_batch_plan(tokenizer)
+    except SchemaCompileError as exc:
+        return [
+            Finding(
+                field=exc.field,
+                kind="compile_error",
+                message=f"schema cannot be compiled: {exc}",
+            )
+        ]
+
     for fname, fdef in schema.fields.items():
         if fdef.field_type not in ("enum", "choice", "selection"):
-            continue
-
-        # Compile the plan once per schema; a compile-time ValueError
-        # (token-identical, strict-prefix, no-common-prefix) becomes a
-        # compile_error finding naming the field — invalid schemas must not
-        # lint clean (L1b).
-        try:
-            compiled = schema.compile_batch_plan(tokenizer)
-        except ValueError as exc:
-            findings.append(
-                Finding(
-                    field=fname,
-                    kind="compile_error",
-                    message=f"schema cannot be compiled: {exc}",
-                )
-            )
             continue
 
         if len(fdef.choices) == 1:
