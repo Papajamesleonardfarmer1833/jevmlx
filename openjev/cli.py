@@ -17,6 +17,7 @@ from importlib import resources
 from openjev import __version__
 from openjev.api import DEFAULT_MODEL
 from openjev.engine import load_engine, run_parallel_generation
+from openjev.lint import lint_schema
 from openjev.log import configure
 from openjev.schema import StructuredSchema
 
@@ -99,6 +100,19 @@ def main(argv=None) -> None:
     serve_p.add_argument("--host", default="127.0.0.1")
     serve_p.add_argument("--port", type=int, default=8000)
     ap.add_argument("-v", "--verbose", action="store_true", help="info-level logs on stderr")
+
+    validate_p = sub.add_parser(
+        "validate", help="Lint a schema for engine-visible problems (no model download)"
+    )
+    validate_p.add_argument("schema", help="path to a schema .json file")
+    validate_p.add_argument(
+        "--model",
+        default=DEFAULT_MODEL,
+        help="Hugging Face model id whose tokenizer decides choice token boundaries",
+    )
+    validate_p.add_argument(
+        "--json", action="store_true", dest="as_json", help="print findings as JSON"
+    )
     args = ap.parse_args(argv)
 
     # serve defaults to INFO: the user must see the listen address. -v is a no-op there.
@@ -173,3 +187,25 @@ def main(argv=None) -> None:
         from openjev.serve import serve
 
         serve(args.model, args.host, args.port)
+
+    elif args.command == "validate":
+        from dataclasses import asdict
+
+        from transformers import AutoTokenizer
+
+        with open(args.schema, encoding="utf-8") as f:
+            schema = StructuredSchema(json.load(f))
+        tokenizer = AutoTokenizer.from_pretrained(args.model)
+        findings = lint_schema(schema, tokenizer)
+
+        if args.as_json:
+            print(json.dumps([asdict(finding) for finding in findings], indent=2))
+        else:
+            if not findings:
+                print("OK: no findings.")
+            for finding in findings:
+                print(f"{finding.field}: [{finding.kind}] {finding.message}")
+                if finding.suggestion:
+                    print(f"  suggestion: {finding.suggestion}")
+        if any(finding.kind == "collision" for finding in findings):
+            sys.exit(1)
