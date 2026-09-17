@@ -136,7 +136,7 @@ def test_multi_field_returns_subset(engine):
     assert len(telemetry["per_option"]) == 3
     selected = value
     if selected:
-        assert telemetry["confidence"] == min(telemetry["per_option"][o] for o in selected)
+        assert telemetry["probability"] == min(telemetry["per_option"][o] for o in selected)
 
 
 @pytest.mark.slow

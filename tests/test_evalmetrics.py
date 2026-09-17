@@ -47,7 +47,7 @@ P = [
         "valid": True,
         "correct": True,
         "log_scores": {"APPROVE": 0.0, "REJECT": 0.0},
-        "confidence": 0.6,
+        "probability": 0.6,
     },
     # case c1: amount wrong
     {
@@ -66,7 +66,7 @@ P = [
         "valid": True,
         "correct": False,
         "log_scores": None,
-        "confidence": 0.9,
+        "probability": 0.9,
     },
     # case c2: invalid prediction (counts wrong, not skipped)
     {
@@ -85,7 +85,7 @@ P = [
         "valid": False,
         "correct": False,
         "log_scores": None,
-        "confidence": None,
+        "probability": None,
         "error": "bad JSON",
     },
     # case c3: action correct, high confidence
@@ -105,7 +105,7 @@ P = [
         "valid": True,
         "correct": True,
         "log_scores": {"APPROVE": -2.0, "REJECT": 2.0},
-        "confidence": 0.95,
+        "probability": 0.95,
     },
     # case c3: multi field jaccard 1/2
     {
@@ -124,7 +124,7 @@ P = [
         "valid": True,
         "correct": False,
         "log_scores": None,
-        "confidence": 0.7,
+        "probability": 0.7,
     },
     # case c4: multi field correct (jaccard 1.0)
     {
@@ -143,7 +143,7 @@ P = [
         "valid": True,
         "correct": True,
         "log_scores": None,
-        "confidence": 0.8,
+        "probability": 0.8,
     },
     # unlabelled row: excluded from accuracies
     {
@@ -162,7 +162,7 @@ P = [
         "valid": True,
         "correct": None,
         "log_scores": None,
-        "confidence": 0.5,
+        "probability": 0.5,
     },
 ]
 
@@ -222,7 +222,8 @@ class TestProbabilistic:
         assert correctness_auroc(P) == 0.5
 
     def test_auroc_needs_both_classes(self):
-        assert correctness_auroc([r for r in P if r.get("confidence") and r.get("correct")]) is None
+        only_correct = [r for r in P if r.get("probability") is not None and r.get("correct")]
+        assert correctness_auroc(only_correct) is None
 
     def test_ece_equal_mass(self):
         # confidences: 0.6,0.9,0.95,0.7,0.8 sorted -> 5 bins of 1
@@ -267,7 +268,7 @@ class TestPositionBias:
                 "valid": True,
                 "correct": False,
                 "log_scores": None,
-                "confidence": 0.9,
+                "probability": 0.9,
             },
             {
                 "run_id": "r",
@@ -285,7 +286,7 @@ class TestPositionBias:
                 "valid": True,
                 "correct": True,
                 "log_scores": None,
-                "confidence": 0.9,
+                "probability": 0.9,
             },
         ]
         flips = any_flip_rate(records)
@@ -311,7 +312,7 @@ class TestPositionBias:
                 "valid": True,
                 "correct": False,
                 "log_scores": {"APPROVE": 0.0, "REJECT": 2.0},
-                "confidence": 0.9,
+                "probability": 0.9,
             },
         ]
         tvds = mean_tvd_across_permutations(records)
@@ -414,7 +415,7 @@ class TestBalancedAccuracyAndMacroF1:
             "valid": valid,
             "correct": None if label is None else (valid and prediction == label),
             "log_scores": None,
-            "confidence": None,
+            "probability": None,
             "per_option": None,
             "latency_ms": None,
             "rows": None,
@@ -564,7 +565,7 @@ class TestTypesafeComparable:
             "valid": prediction is not None,
             "correct": None if label is None else (prediction is not None and prediction == label),
             "log_scores": None,
-            "confidence": None,
+            "probability": None,
             "per_option": None,
             "latency_ms": None,
             "rows": None,

@@ -75,8 +75,8 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
                 "risk_tier": {"value": "HIGH"},
             },
             "field_telemetry": {
-                "is_fraudulent": {"value": True, "confidence": 0.9},
-                "risk_tier": {"value": "HIGH", "confidence": 0.8},
+                "is_fraudulent": {"value": True, "probability": 0.9},
+                "risk_tier": {"value": "HIGH", "probability": 0.8},
             },
             "confidence_model": "constrained_path",
             "elapsed_ms": 5.0,
@@ -333,7 +333,7 @@ def test_allow_unknown_appends_choice_and_maps_to_none(monkeypatch):
             "field_telemetry": {
                 "risk_tier": {
                     "value": "UNKNOWN",
-                    "confidence": 0.4,
+                    "probability": 0.4,
                     "log_scores": {"LOW": -2.1, "HIGH": -3.0, "UNKNOWN": -1.1},
                     "top_choices": [{"choice": "UNKNOWN", "probability": 0.4}],
                 }
@@ -364,7 +364,7 @@ def test_allow_unknown_off_leaves_schema_untouched(monkeypatch):
         captured["choices"] = schema.fields["risk_tier"].choices
         return {
             "parsed_json": {"risk_tier": {"value": "LOW"}},
-            "field_telemetry": {"risk_tier": {"value": "LOW", "confidence": 0.9}},
+            "field_telemetry": {"risk_tier": {"value": "LOW", "probability": 0.9}},
             "confidence_model": "constrained_path",
             "elapsed_ms": 5.0,
         }
@@ -393,7 +393,7 @@ def _fake_result(confidence_model="constrained_path"):
         "field_telemetry": {
             "risk_tier": {
                 "value": "HIGH",
-                "confidence": 0.7,
+                "probability": 0.7,
                 "log_scores": {"LOW": -0.5, "HIGH": -0.1, "CRITICAL": -2.0},
                 "top_choices": [
                     {"choice": "HIGH", "probability": 0.7},
@@ -403,7 +403,7 @@ def _fake_result(confidence_model="constrained_path"):
             },
             "tags": {
                 "value": ["a"],
-                "confidence": 0.8,
+                "probability": 0.8,
                 "per_option": {"a": 0.8, "b": 0.1},
             },
         },

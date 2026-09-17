@@ -57,8 +57,8 @@ def test_predictions_contract_lines(tmp_path):
     run = evalrun.run_eval(
         cases,
         lambda s, c: {
-            "action": {"prediction": "APPROVE", "confidence": 0.9},
-            "flag": {"prediction": True, "confidence": 0.8},
+            "action": {"prediction": "APPROVE", "probability": 0.9},
+            "flag": {"prediction": True, "probability": 0.8},
             "_meta": {"latency_ms": 1.0, "rows": 3, "passes": 1},
         },
         track="parallel",
@@ -88,7 +88,7 @@ def test_predictions_contract_lines(tmp_path):
         "valid",
         "correct",
         "log_scores",
-        "confidence",
+        "probability",
         "per_option",
         "latency_ms",
         "rows",
@@ -323,7 +323,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
                 "x": {
                     "value": "A",
                     "type": "enum",
-                    "confidence": 0.9,
+                    "probability": 0.9,
                     "log_scores": {"A": -0.1, "B": -2.0},
                 }
             },
@@ -347,7 +347,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
                 "x": {
                     "value": "B",
                     "type": "enum",
-                    "confidence": 0.4,
+                    "probability": 0.4,
                     "scores": [-2.0, -0.1],
                 }
             },

@@ -240,13 +240,13 @@ def _build_field_results(result: dict, confidence_model: str) -> dict[str, Field
     """Build Decision.fields from the engine's field_telemetry.
 
     Telemetry contract per field: ``log_scores`` ({choice: log P}, enum and
-    boolean fields only), ``confidence`` (P of the winner), ``top_choices``
+    boolean fields only), ``probability`` (P of the winner), ``top_choices``
     (top 5 {choice, probability}). Multi fields carry ``per_option`` instead
     of log_scores; their margin is 0.0 and alternatives come from per_option.
     """
     fields: dict[str, FieldResult] = {}
     for name, telemetry in result["field_telemetry"].items():
-        probability = telemetry["confidence"]
+        probability = telemetry["probability"]
         log_scores: dict[str, float] | None = telemetry.get("log_scores")
         if log_scores:
             ranked = sorted(log_scores.items(), key=lambda kv: -kv[1])

@@ -70,7 +70,7 @@ def main() -> None:
             "parallel_suffix_ms": parallel["suffix_eval_ms"],
             "parallel_schema_match": parallel["schema_match"],
             "speedup": round(speedup, 1),
-            "confidences": {k: v["confidence"] for k, v in parallel["field_telemetry"].items()},
+            "confidences": {k: v["probability"] for k, v in parallel["field_telemetry"].items()},
         }
         rows.append(row)
 

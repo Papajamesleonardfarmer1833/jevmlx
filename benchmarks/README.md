@@ -82,7 +82,7 @@ labels exact by construction, byte-identical output for the same seed
 - `predictions.jsonl` — one line per (run, case, field, permutation):
   prediction, label, `valid`, `correct` (null when no label; invalid counts
   as wrong), `log_scores` (constrained-path log P at T=1, parallel track),
-  confidence/per-option, latency, engine rows/passes, error strings. Malformed
+  probability/per-option, latency, engine rows/passes, error strings. Malformed
   output is a measurement, never a crash. Naive-local lines additionally
   carry `salvage_prediction` (per-field salvage value) so salvage validity
   can be reported as a diagnostic alongside strict validity.

@@ -47,7 +47,7 @@ __all__ = [
 ]
 
 # decide_fn(schema_dict, context) -> {field: {"prediction", "valid", "error",
-# "log_scores", "confidence", "per_option", "type"}, "_meta": {...}}.
+# "log_scores", "probability", "per_option", "type"}, "_meta": {...}}.
 DecideFn = Callable[[dict, str], dict[str, Any]]
 
 logger = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ def parallel_decide_fn(model, tokenizer, scoring: str = "trie") -> DecideFn:
             field = schema.fields.get(fname)
             entry: dict[str, Any] = {
                 "prediction": telemetry["value"],
-                "confidence": telemetry.get("confidence"),
+                "probability": telemetry.get("probability"),
                 "per_option": telemetry.get("per_option"),
                 "type": telemetry.get("type") or (field.field_type if field else None),
             }
@@ -255,7 +255,7 @@ def run_eval(
 
     ``decide_fn(schema_dict, context) -> per-field results`` is the seam: each
     per-field result carries ``prediction``, optionally ``valid``/``error``/
-    ``log_scores``/``confidence``/``per_option``; a ``"_meta"`` entry carries
+    ``log_scores``/``probability``/``per_option``; a ``"_meta"`` entry carries
     run-level ``latency_ms``/``rows``/``passes``. Returns the run manifest.
 
     With ``carry_perturbation=True`` each prediction line also carries
@@ -316,7 +316,7 @@ def run_eval(
                     if label is None
                     else (prediction is not None and prediction == label),
                     "log_scores": res.get("log_scores"),
-                    "confidence": res.get("confidence"),
+                    "probability": res.get("probability"),
                     "per_option": res.get("per_option"),
                     "latency_ms": meta.get("latency_ms"),
                     "rows": meta.get("rows"),

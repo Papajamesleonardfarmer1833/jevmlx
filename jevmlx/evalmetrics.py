@@ -177,9 +177,9 @@ def correctness_auroc(records: list[dict]) -> float | None:
     None without both classes.
     """
     scored = [
-        (float(r["confidence"]), _valid_correct(r))
+        (float(r["probability"]), _valid_correct(r))
         for r in _labelled(records)
-        if r.get("confidence") is not None and _finite(r["confidence"])
+        if r.get("probability") is not None and _finite(r["probability"])
     ]
     positive = sum(1 for _, correct in scored if correct)
     negative = len(scored) - positive
@@ -203,9 +203,9 @@ def ece_equal_mass(records: list[dict], bins: int = 5) -> float | None:
     Empty-sample safety: returns None when there is nothing to measure.
     """
     scored = [
-        (float(r["confidence"]), 1.0 if _valid_correct(r) else 0.0)
+        (float(r["probability"]), 1.0 if _valid_correct(r) else 0.0)
         for r in _labelled(records)
-        if r.get("confidence") is not None and _finite(r["confidence"])
+        if r.get("probability") is not None and _finite(r["probability"])
     ]
     if not scored:
         return None
@@ -464,9 +464,9 @@ def risk_coverage_curve(records: list[dict], points: int = 10) -> list[dict]:
     """
     scored = sorted(
         (
-            (float(r["confidence"]), 1.0 if _valid_correct(r) else 0.0)
+            (float(r["probability"]), 1.0 if _valid_correct(r) else 0.0)
             for r in _labelled(records)
-            if r.get("confidence") is not None and _finite(r["confidence"])
+            if r.get("probability") is not None and _finite(r["probability"])
         ),
         key=lambda pair: -pair[0],
     )

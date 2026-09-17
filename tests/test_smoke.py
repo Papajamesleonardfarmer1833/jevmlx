@@ -26,7 +26,7 @@ def test_fintech_fraud_decisions():
     # Real inference ran: telemetry for every field with valid confidences.
     assert set(result["field_telemetry"]) == set(schema.fields)
     for entry in result["field_telemetry"].values():
-        assert 0.0 <= entry["confidence"] <= 1.0
+        assert 0.0 <= entry["probability"] <= 1.0
 
     # The assembled JSON serializes.
     assert isinstance(json.dumps(result["parsed_json"]), str)

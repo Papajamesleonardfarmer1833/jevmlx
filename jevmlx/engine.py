@@ -486,7 +486,7 @@ def _run_letters_scoring(
             field_telemetry[fname] = {
                 "value": selected,
                 "type": "multi",
-                "confidence": confidence,
+                "probability": confidence,
                 "cardinality": fdef.cardinality,
                 "per_option": dict(probs_true),
                 "top_choices": [
@@ -519,7 +519,7 @@ def _run_letters_scoring(
         field_telemetry[fname] = {
             "value": val,
             "type": fdef.field_type,
-            "confidence": w_prob,
+            "probability": w_prob,
             "cardinality": fdef.cardinality,
             "log_scores": log_scores,
             "top_choices": scored_choices[:5],
@@ -764,7 +764,7 @@ def run_parallel_generation(
             field_telemetry[fname] = {
                 "value": selected,
                 "type": "multi",
-                "confidence": confidence,
+                "probability": confidence,
                 "cardinality": fdef.cardinality,
                 # No 'scores' key for multi: for every other type it holds log
                 # P(choice), which does not exist here. per_option carries the
@@ -788,7 +788,7 @@ def run_parallel_generation(
             field_telemetry[fname] = {
                 "value": val,
                 "type": fdef.field_type,
-                "confidence": 1.0,
+                "probability": 1.0,
                 "cardinality": fdef.cardinality,
                 "log_scores": {choices_list[0]: 0.0},
                 "top_choices": [{"choice": choices_list[0], "probability": 1.0}],
@@ -839,7 +839,7 @@ def run_parallel_generation(
         field_telemetry[fname] = {
             "value": val,
             "type": fdef.field_type,
-            "confidence": w_prob,
+            "probability": w_prob,
             "cardinality": fdef.cardinality,
             # Constrained-path log-probabilities at T=1, dict keyed by choice
             # string (the contract calibrate.collect reads). Temperature is

@@ -53,7 +53,7 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
     print()
 
     rows = [
-        (name, str(entry["value"]), _fmt_confidence(entry["confidence"], 3), entry["type"])
+        (name, str(entry["value"]), _fmt_confidence(entry["probability"], 3), entry["type"])
         for name, entry in result["field_telemetry"].items()
     ]
     width = max(len(r[0]) for r in rows) if rows else 10
