@@ -63,7 +63,9 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
         load_calls.append(model_id)
         return ("engine", "tokenizer")
 
-    def fake_run_parallel(engine_model, tokenizer, context, schema, *, temperature=1.0):
+    def fake_run_parallel(
+        engine_model, tokenizer, context, schema, *, temperature=1.0, scoring="trie"
+    ):
         run_calls.append((engine_model, tokenizer, context, schema, temperature))
         return {
             "parsed_json": {

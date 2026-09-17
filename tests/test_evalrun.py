@@ -316,7 +316,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
     # run_parallel_generation inside jevmlx.engine.
     calls = {}
 
-    def fake_rpg(model, tokenizer, context, schema, temperature=1.0):
+    def fake_rpg(model, tokenizer, context, schema, temperature=1.0, scoring="trie"):
         calls["temperature"] = temperature
         return {
             "field_telemetry": {
@@ -341,7 +341,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
     assert calls["temperature"] == 1.0
 
     # legacy fallback: scores list in choice order
-    def fake_rpg_legacy(model, tokenizer, context, schema, temperature=1.0):
+    def fake_rpg_legacy(model, tokenizer, context, schema, temperature=1.0, scoring="trie"):
         return {
             "field_telemetry": {
                 "x": {

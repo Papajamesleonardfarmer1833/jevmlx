@@ -110,10 +110,11 @@ def _decide_once[T: BaseModel](
     tokenizer,
     schema: StructuredSchema,
     temperature: float,
+    scoring: str = "trie",
 ) -> Decision[T]:
     """Decide one context with a loaded engine and a compiled schema."""
     result = run_parallel_generation(
-        engine_model, tokenizer, context, schema, temperature=temperature
+        engine_model, tokenizer, context, schema, temperature=temperature, scoring=scoring
     )
 
     kwargs = {}
@@ -140,11 +141,19 @@ def decide[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
+    scoring: str = "trie",
 ) -> Decision[T]:
-    """Run parallel constrained decisions and return a validated model instance."""
+    """Run parallel constrained decisions and return a validated model instance.
+
+    ``scoring`` selects the engine mode: ``"trie"`` (default) scores the
+    choice text via token-trie branches; ``"letters"`` lists the choices as
+    lettered options in the prompt and reads one slot token per choice.
+    """
     engine_model, tokenizer = load_engine(model)
     schema = StructuredSchema(schema_from_model(model_cls))
-    return _decide_once(model_cls, context, engine_model, tokenizer, schema, temperature)
+    return _decide_once(
+        model_cls, context, engine_model, tokenizer, schema, temperature, scoring=scoring
+    )
 
 
 def decide_many[T: BaseModel](
@@ -153,6 +162,7 @@ def decide_many[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
+    scoring: str = "trie",
 ) -> list[Decision[T]]:
     """Decide many contexts against one schema and return one Decision per context.
 
@@ -181,6 +191,8 @@ def decide_many[T: BaseModel](
     engine_model, tokenizer = load_engine(model)
     schema = StructuredSchema(schema_from_model(model_cls))
     return [
-        _decide_once(model_cls, context, engine_model, tokenizer, schema, temperature)
+        _decide_once(
+            model_cls, context, engine_model, tokenizer, schema, temperature, scoring=scoring
+        )
         for context in contexts
     ]
