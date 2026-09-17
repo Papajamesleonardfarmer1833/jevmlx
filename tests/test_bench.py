@@ -463,10 +463,14 @@ def test_release_between_models_logs_memory(tmp_path, monkeypatch, capsys):
     _patch_bench_core(monkeypatch, tmp_path)
     released: list[int] = []
 
+    from jevmlx import engine
+
     monkeypatch.setattr(bench, "_metal_cache_memory_gb", lambda: 2.0)
     monkeypatch.setattr(bench, "_clear_metal_cache", lambda: released.append(1))
+    # clear_engine_cache is looked up as jevmlx.engine.clear_engine_cache inside
+    # run_bench_models (lazy import so bench.py loads without mlx); patch it there.
     monkeypatch.setattr(
-        bench,
+        engine,
         "clear_engine_cache",
         lambda: released.append(0),
     )

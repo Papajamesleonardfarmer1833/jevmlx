@@ -309,6 +309,8 @@ def run_bench_models(
     logged before/after. A model that fails to bench (load error, crash) is
     logged and skipped — the remaining models still run.
     """
+    from jevmlx.engine import clear_engine_cache
+
     if not models:
         raise SystemExit("no models selected")
     failures: dict[str, str] = {}
