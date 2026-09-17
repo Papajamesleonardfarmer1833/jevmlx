@@ -44,11 +44,12 @@ jobs:
               | tr '\n' ' ')
             echo "dirs=$dirs" >> "$GITHUB_OUTPUT"
 
-      - name: Run check_results
+      - name: Run check_results + README freshness
         id: check
         run: |
           .venv/bin/python -m benchmarks.check_results ${{ steps.dirs.outputs.dirs }} > summary.md
           cat summary.md
+          .venv/bin/python -m benchmarks.check_results --check-readme README.md
         continue-on-error: true
 
       - name: Post SUMMARY table as a PR comment

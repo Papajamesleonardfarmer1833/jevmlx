@@ -91,3 +91,6 @@ than 5 MB total are gzipped automatically (the folder README says so).
       benchmarks.check_results` on the changed folders: contract keys, folder
       size, dataset lock, and report reproducibility — all must pass before
       merge)
+- [ ] Ran `python -m benchmarks.leaderboard --results benchmarks/results
+      --readme README.md` so the README leaderboard block is up to date
+      (the `--check-readme` freshness gate in `results-check` CI enforces this)

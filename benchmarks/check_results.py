@@ -264,12 +264,64 @@ def _summary(results: list[tuple[Path, bool, list[str]]]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    argv = list(argv if argv is not None else sys.argv[1:])
-    if not argv:
-        print("usage: python -m benchmarks.check_results <results_dir> [...]", file=sys.stderr)
+    import argparse
+
+    ap = argparse.ArgumentParser(
+        description="Validate bench results folders and README leaderboard freshness."
+    )
+    ap.add_argument("results_dirs", nargs="*", help="results folders to validate")
+    ap.add_argument(
+        "--check-readme",
+        metavar="README.md",
+        default=None,
+        help="regenerate the leaderboard table in memory and fail if the README's "
+        "<!-- leaderboard:start --> block differs",
+    )
+    ap.add_argument(
+        "--results",
+        default="benchmarks/results",
+        help="results root for --check-readme (default: benchmarks/results)",
+    )
+    ap.add_argument(
+        "--published",
+        default=None,
+        help="published_agreement.json for --check-readme (L1 output, optional)",
+    )
+    args = ap.parse_args(argv)
+
+    # --check-readme: build the leaderboard table and compare the README block.
+    if args.check_readme:
+        from benchmarks.leaderboard import build_table, check_readme
+
+        table = build_table(
+            Path(args.results),
+            Path(args.published) if args.published else None,
+        )
+        readme_path = Path(args.check_readme)
+        if check_readme(readme_path, table):
+            print("README leaderboard block is up to date.")
+        else:
+            print("README leaderboard block is STALE — regenerate with:", file=sys.stderr)
+            cmd = f"  python -m benchmarks.leaderboard --results {args.results}"
+            if args.published:
+                cmd += f" --published {args.published}"
+            cmd += f" --readme {args.check_readme}"
+            print(cmd, file=sys.stderr)
+            return 1
+        # Fall through to folder validation if dirs were also given.
+        if not args.results_dirs:
+            return 0
+
+    argv_dirs = args.results_dirs
+    if not argv_dirs:
+        print(
+            "usage: python -m benchmarks.check_results <results_dir> [...] "
+            "[--check-readme README.md]",
+            file=sys.stderr,
+        )
         return 2
     all_results: list[tuple[Path, bool, list[str]]] = []
-    for arg in argv:
+    for arg in argv_dirs:
         all_results.extend(check_root(Path(arg)))
     print(_summary(all_results))
     any_fail = False
