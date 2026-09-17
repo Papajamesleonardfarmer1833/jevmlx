@@ -5,7 +5,8 @@ cd "$(dirname "$0")"
 
 if [ "$(uname -m)" != "arm64" ] || [ "$(uname -s)" != "Darwin" ]; then
   echo "This setup targets Apple Silicon Macs (MLX)."
-  echo "On other machines see docs/07-hardware-mac-vs-pc-analysis.md (PyTorch path)."
+  echo "On other machines, see the upstream research repo for a PyTorch path:"
+  echo "  https://github.com/rorshopping/jev-on-a-laptop"
   exit 1
 fi
 

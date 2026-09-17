@@ -10,8 +10,7 @@ import pytest
 
 from openjev.serve import make_handler
 
-FAKE_RESULT = {"parsed_json": {"action": {"value": "APPROVE", "prob": 0.9}},
-               "elapsed_ms": 1.0}
+FAKE_RESULT = {"parsed_json": {"action": {"value": "APPROVE", "prob": 0.9}}, "elapsed_ms": 1.0}
 
 
 def _start_server(decide_fn, model_id="fake"):
@@ -23,9 +22,12 @@ def _start_server(decide_fn, model_id="fake"):
 
 def _post(port, payload, raw=None):
     data = raw if raw is not None else json.dumps(payload).encode()
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/decide", data=data,
-                                 headers={"Content-Type": "application/json"},
-                                 method="POST")
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{port}/decide",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
             return resp.status, json.loads(resp.read())

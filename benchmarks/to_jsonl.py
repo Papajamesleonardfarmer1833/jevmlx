@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Convert quality-eval/cases.json (labeled) to the calibrator's JSONL format.
+"""Convert the repo's labeled cases (benchmarks/cases.json) to the calibrator's JSONL format.
 
-Usage: .venv/bin/python tools/quality_eval_to_jsonl.py > quality-eval/cases.jsonl
+Usage: .venv/bin/python benchmarks/to_jsonl.py > cases.jsonl
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ import json
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CASES = os.path.join(HERE, "..", "quality-eval", "cases.json")
+CASES = os.path.join(HERE, "cases.json")
 
 with open(CASES, encoding="utf-8") as f:
     data = json.load(f)

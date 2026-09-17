@@ -2,7 +2,7 @@
 Parallel constrained decision engine (MLX, Apple Silicon) with broadcast
 prefix KV-caching.
 
-- run_naive_generation / stream_naive_generation: autoregressive JSON baseline.
+- run_naive_generation: autoregressive JSON baseline.
 - run_parallel_generation: all schema fields decided in one batched forward pass
   (chunked automatically when the broadcast cache would not fit in memory).
 """
@@ -14,7 +14,6 @@ import math
 import platform
 import re
 import time
-from collections.abc import Generator
 from typing import Any
 
 import mlx.core as mx
@@ -209,95 +208,6 @@ def run_naive_generation(
         "missing_keys": missing_keys,
         "invalid_enums": invalid_enums,
         "has_calibrated_probabilities": False,
-    }
-
-
-def stream_naive_generation(
-    model,
-    tokenizer,
-    context: str,
-    schema: StructuredSchema,
-    max_tokens: int = 700,
-    temperature: float = 0.2,
-) -> Generator[dict[str, Any], None, None]:
-    """Yields incremental tokens for real-time streaming visualization."""
-    prompt_ids = _chat_ids(
-        tokenizer,
-        f"{schema.to_json_schema_prompt_str()}\n\n"
-        "Analyze the following context and generate the required formatted JSON object "
-        "(only valid JSON, 2-space indentation, no markdown):\n\n"
-        f"{context}",
-        assistant_prefix="{\n  ",
-    )
-    input_ids = mx.array(prompt_ids)[None]
-
-    t0 = time.perf_counter()
-    cache = make_prompt_cache(model)
-
-    logits = model(input_ids, cache=cache)
-    mx.eval(logits)
-    next_token = int(mx.argmax(logits[:, -1, :]))
-
-    tok_str = tokenizer.decode([next_token])
-    current_text = "{\n  " + tok_str
-    token_count = 1
-
-    yield {
-        "type": "token",
-        "token": "{\n  " + tok_str,
-        "accumulated": current_text,
-        "token_count": token_count,
-        "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
-    }
-
-    stop_tokens = _stop_token_ids(tokenizer)
-    while token_count < max_tokens and next_token not in stop_tokens:
-        logits = model(mx.array([[next_token]]), cache=cache)
-        mx.eval(logits)
-        next_token = int(mx.argmax(logits[:, -1, :]))
-        if next_token in stop_tokens:
-            break
-        token_count += 1
-        delta = tokenizer.decode([next_token])
-        current_text += delta
-
-        yield {
-            "type": "token",
-            "token": delta,
-            "accumulated": current_text,
-            "token_count": token_count,
-            "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
-        }
-
-        if current_text.strip().endswith("}") and current_text.count("{") == current_text.count(
-            "}"
-        ):
-            break
-
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    tok_per_sec = (token_count / (elapsed_ms / 1000)) if elapsed_ms > 0 else 0.0
-
-    (parsed_json, is_valid_json, parse_error, missing_keys, invalid_enums, schema_match) = (
-        _validate_json(current_text, schema)
-    )
-
-    yield {
-        "type": "done",
-        "result": {
-            "mode": "naive_autoregressive",
-            "elapsed_ms": round(elapsed_ms, 2),
-            "total_tokens": token_count,
-            "tokens_per_second": round(tok_per_sec, 1),
-            "sequential_forward_passes": token_count,
-            "is_valid_json": is_valid_json,
-            "schema_match": schema_match,
-            "raw_text": current_text,
-            "parsed_json": parsed_json,
-            "parse_error": parse_error,
-            "missing_keys": missing_keys,
-            "invalid_enums": invalid_enums,
-            "has_calibrated_probabilities": False,
-        },
     }
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the deterministic, labeled quality-eval case set (24 cases).
+"""Build the deterministic, labeled decision case set (24 cases).
 
 Usage:
     .venv/bin/python quality-eval/make_cases.py            # writes quality-eval/cases.json
@@ -671,7 +671,7 @@ def build() -> dict:
     ambiguous = [c["id"] for c in family_a + family_b if c["ambiguous"]]
     return {
         "version": 1,
-        "generated_by": "quality-eval/make_cases.py",
+        "generated_by": "benchmarks/make_cases.py",
         "primary_metric_note": "primary field: fraud (family A) / category (family B)",
         "counts": {
             "total": len(family_a) + len(family_b),
@@ -688,7 +688,7 @@ def build() -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Generate the labeled quality-eval cases.")
+    ap = argparse.ArgumentParser(description="Generate the labeled decision cases.")
     ap.add_argument("--out", default=os.path.join(HERE, "cases.json"))
     ap.add_argument(
         "--check",

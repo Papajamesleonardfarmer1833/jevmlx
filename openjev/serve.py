@@ -10,11 +10,11 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Callable, Optional
 
 
-def make_handler(decide_fn: Callable[[dict, str, Optional[float]], dict], model_id: str):
+def make_handler(decide_fn: Callable[[dict, str, float | None], dict], model_id: str):
     """Build a request handler around decide_fn(schema_dict, context, temperature).
 
     decide_fn is the seam tests use: a callable that returns the result dict
@@ -75,10 +75,9 @@ def serve(model_id: str, host: str = "127.0.0.1", port: int = 8000) -> None:
     print(f"Loading {model_id} ...", flush=True)
     model, tokenizer = load_engine(model_id)
 
-    def decide_fn(schema_dict: dict, context: str, temperature: Optional[float] = 1.0) -> dict:
+    def decide_fn(schema_dict: dict, context: str, temperature: float | None = 1.0) -> dict:
         schema = StructuredSchema(schema_dict)
-        return run_parallel_generation(model, tokenizer, context, schema,
-                                       temperature=temperature)
+        return run_parallel_generation(model, tokenizer, context, schema, temperature=temperature)
 
     server = HTTPServer((host, port), make_handler(decide_fn, model_id))
     print(f"openjev serving {model_id} on http://{host}:{port}", flush=True)

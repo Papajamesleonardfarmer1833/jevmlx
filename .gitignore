@@ -4,15 +4,8 @@
 __pycache__/
 *.pyc
 
-# Cloned upstream engine (fetched by setup.sh, not vendored)
-vendor/
-
 # Local outputs
 *.log
 .DS_Store
 *.egg-info/
 dist/
-
-# Generated from TypeSafe's public eval data at runtime; not redistributed
-evals/prompts/
-evals/typesafe/

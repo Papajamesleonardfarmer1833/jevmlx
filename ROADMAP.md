@@ -16,8 +16,8 @@
 | Phase | Deliverable |
 |---|---|
 | N3 | Latency: 860 ms here vs 410 ms upstream for 1.5B/fintech_fraud, unexplained. Profile prefill on a quiet machine. |
-| N1 | Accuracy: eval loop on quality-eval + evals data, then prompt/description work. 7B is 73.8% vs Jev 86.6%. |
-| N4 | `openjev serve` HTTP endpoint (in progress, I1). |
+| N1 | Accuracy: eval loop over the labeled cases (benchmarks/cases.json), then prompt/description work. |
+| N4 | `openjev serve` HTTP endpoint (shipped in I1). |
 | N2 | More field types: int range, date, short text. Only on request. |
 | N5 | Publish: PyPI, GitHub release. |
 

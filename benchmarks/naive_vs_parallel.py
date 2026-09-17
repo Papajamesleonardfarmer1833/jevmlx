@@ -9,7 +9,7 @@ Usage:
     .venv/bin/python tools/bench_model.py mlx-community/Qwen2.5-1.5B-Instruct-4bit
     .venv/bin/python tools/bench_model.py mlx-community/Qwen2.5-7B-Instruct-4bit --tag 7b
 
-Requires `uv pip install -e .` first. Results are written to results/<tag>.json.
+Requires `uv pip install -e .` first. Results are written to the location given by --output.
 """
 
 from __future__ import annotations
