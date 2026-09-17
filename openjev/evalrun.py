@@ -135,13 +135,16 @@ def naive_local_decide_fn(model, tokenizer) -> DecideFn:
 
         schema = StructuredSchema(schema_dict)
         result = run_naive_generation(model, tokenizer, context, schema)
-        values, errors = parse_baseline_output(result.get("raw_text", ""), schema)
+        strict_values, salvage_values, errors = parse_baseline_output(
+            result.get("raw_text", ""), schema
+        )
         out: dict[str, dict[str, Any]] = {}
         for fname in schema.fields:
-            value = values.get(fname)
+            strict = strict_values.get(fname)
             out[fname] = {
-                "prediction": value,
-                "valid": value is not None,
+                "prediction": strict,
+                "valid": strict is not None,
+                "salvage_prediction": salvage_values.get(fname),
                 "error": next((e for e in errors if fname in e), None),
             }
         out["_meta"] = {
@@ -309,6 +312,7 @@ def run_eval(
                         "rows": meta.get("rows"),
                         "passes": meta.get("passes"),
                         "error": res.get("error"),
+                        "salvage_prediction": res.get("salvage_prediction"),
                     }
                 )
 

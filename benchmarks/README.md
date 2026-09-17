@@ -61,7 +61,9 @@ openjev eval --data benchmarks/cases.jsonl --track parallel \
   prediction, label, `valid`, `correct` (null when no label; invalid counts
   as wrong), `log_scores` (constrained-path log P at T=1, parallel track),
   confidence/per-option, latency, engine rows/passes, error strings. Malformed
-  output is a measurement, never a crash.
+  output is a measurement, never a crash. Naive-local lines additionally
+  carry `salvage_prediction` (per-field salvage value) so salvage validity
+  can be reported as a diagnostic alongside strict validity.
 - `run.json` — run id, `environment()` probe, and config: model, temperature
   (decode at T=1 always), track, dataset path + `dataset.lock.json` sha256,
   sha256 of the tokenizer's chat template, sha256 of the compiled batch plan,

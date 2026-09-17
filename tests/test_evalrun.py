@@ -76,7 +76,7 @@ def test_predictions_contract_lines(tmp_path):
         "run_id", "case_id", "group_id", "source", "workflow", "field", "type",
         "track", "model", "permutation", "label", "prediction", "valid",
         "correct", "log_scores", "confidence", "per_option", "latency_ms",
-        "rows", "passes", "error",
+        "rows", "passes", "error", "salvage_prediction",
     }
     assert first["run_id"] == "r1"
     assert first["track"] == "parallel"
@@ -230,8 +230,8 @@ def test_naive_invalid_prediction_counts_wrong(tmp_path):
     from openjev.schema import StructuredSchema
 
     schema = StructuredSchema({"flag": {"type": "boolean", "description": "urgent"}})
-    values, errors = parse_baseline_output("not json at all", schema)
-    assert values["flag"] is None and errors
+    strict, salvage, errors = parse_baseline_output("not json at all", schema)
+    assert strict["flag"] is None and salvage["flag"] is None and errors
 
     case = {
         "id": "c",
@@ -250,7 +250,8 @@ def test_naive_invalid_prediction_counts_wrong(tmp_path):
             "flag": {
                 "prediction": None,
                 "valid": False,
-                "error": "no JSON object found in output",
+                "salvage_prediction": True,  # e.g. JSON valid but trailing text
+                "error": "trailing text after JSON object",
             }
         },
         track="naive_local",
@@ -261,6 +262,7 @@ def test_naive_invalid_prediction_counts_wrong(tmp_path):
     assert line["valid"] is False
     assert line["correct"] is False  # invalid => wrong when label present
     assert line["error"]
+    assert line["salvage_prediction"] is True  # salvage validity is a diagnostic
 
 
 def test_load_cases_skips_comments_and_blank(tmp_path):
