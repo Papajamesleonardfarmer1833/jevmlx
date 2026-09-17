@@ -279,12 +279,31 @@ class StructuredSchema:
             json.dumps(plan, sort_keys=True, default=list).encode("utf-8")
         ).hexdigest()
 
+    def _cached_plan(self, tokenizer, mode: str) -> dict[str, Any] | None:
+        """Return the live cached plan for (tokenizer, mode), or None.
+
+        Identity check: the stored ref() must resolve to THIS tokenizer, not
+        just an equal one (P2 — two equal-but-distinct tokenizers must not
+        share a plan; token ids are tokenizer-specific). Callers compile and
+        call _cache_plan when this returns None.
+        """
+        try:
+            entry = self._plans.get((id(tokenizer), mode))
+        except TypeError:
+            # Not weak-referenceable (N3): nothing was ever cached for it.
+            return None
+        if entry is not None and entry[0]() is tokenizer:
+            return entry[1]
+        return None
+
     def _cache_plan(self, tokenizer, plan: dict[str, Any], mode: str) -> None:
         """Store a plan keyed by tokenizer identity, evicted on tokenizer death.
 
         Non-weak-referenceable tokenizers are not cached at all (N3): an
         id()-keyed entry without a liveness check could be returned for a
-        different object after id reuse.
+        different object after id reuse. The finalizer is registered only
+        when the key is new — re-storing an existing key must not stack
+        finalizer objects on the tokenizer.
         """
         try:
             ref = weakref.ref(tokenizer)
@@ -299,8 +318,9 @@ class StructuredSchema:
             return
         key = id(tokenizer)
         cache_key = (key, mode)
+        if cache_key not in self._plans:
+            weakref.finalize(tokenizer, self._plans.pop, cache_key, None)
         self._plans[cache_key] = (ref, plan)
-        weakref.finalize(tokenizer, self._plans.pop, cache_key, None)
 
     def compile_slot_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
         """Slot-trie plan (the default scoring mode): the decision row stays
@@ -319,6 +339,9 @@ class StructuredSchema:
         ``shared_ids``/``remainders`` through the token trie unchanged and
         maps winners back via ``alias_map``.
         """
+        cached = self._cached_plan(tokenizer, "slots")
+        if cached is not None:
+            return cached
         fields_plan: dict[str, dict[str, Any]] = {}
 
         def slot_candidate_text(name: str, alias: str) -> str:
@@ -422,29 +445,9 @@ class StructuredSchema:
         legally be named "_lead_in_ids"). Plans are cached per tokenizer
         identity (name_or_path + vocab size).
         """
-        try:
-            entry = self._plans.get((id(tokenizer), "labels"))
-            # Identity check: ref() must resolve to THIS tokenizer, not just
-            # an equal one (P2).
-            if entry is not None and entry[0]() is tokenizer:
-                cached = entry[1]
-            else:
-                cached = None
-        except TypeError:
-            # Not weak-referenceable: do NOT cache (N3 — an id()-keyed cache
-            # can return a dead tokenizer's plan after id reuse). Compile
-            # every time instead; log once at DEBUG so the cost is visible.
-            if not self._logged_non_weakref:
-                _LOGGER.debug(
-                    "tokenizer %s is not weak-referenceable; plan cache disabled "
-                    "for it (compiling on every call)",
-                    type(tokenizer).__name__,
-                )
-                self._logged_non_weakref = True
-            cached = None
+        cached = self._cached_plan(tokenizer, "labels")
         if cached is not None:
             return cached
-
         plan: dict[str, dict[str, Any]] = {}
 
         def candidate_text(name: str, value_text: str) -> str:
