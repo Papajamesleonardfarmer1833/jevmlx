@@ -55,7 +55,7 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 **02. Always-valid JSON.** The JSON object is assembled programmatically from per-field decisions — it is never generated token by token, so it cannot be malformed. Every value comes from the field's allowed choices; `multi` fields return the subset of options that apply, decided as one boolean decision per option.
 
-**03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, full-precision values. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
+**03. Honest confidence.** Each field is a token trie over its choices; at each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities — so the field's probabilities sum to 1 with no extra softmax, at full precision. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
 **04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences — one context at a time with `openjev.decide`, or many contexts with `openjev.decide_many` (model and schema are loaded and compiled once, results come back in input order):
 
@@ -107,7 +107,7 @@ accuracy       : 0.5972
 2. **One row per field.** Each field's choice suffixes are teacher-forced as rows against the broadcast KV cache; choices that share a first token get their own rows.
 3. **Chunking heuristic.** Rows run in batches over the same prefill cache, sized by a memory heuristic (see the engine docstring for its limits).
 4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked.
-5. **Scoring.** Each field's logits are sliced at its decision position, softmaxed over its choices, and the JSON object is assembled from the winners.
+5. **Scoring.** Each field is a token trie over its choices: at each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities, so the field's probabilities sum to 1 with no extra softmax. The JSON object is assembled from the winners.
 
 ## Model compatibility
 
