@@ -54,6 +54,22 @@ d.confidence       # {"is_fraudulent": 0.99, "risk_tier": 0.97}
 d.latency_ms
 ```
 
+## Calibration
+
+Raw confidences are softmax(scores) at T=1 and run overconfident. One scalar temperature, fitted by minimizing NLL on labeled data, fixes most of it — no other tuning. Build a labeled JSONL (`{"schema": ..., "context": ..., "labels": {field: value}}` per line), then `openjev calibrate --model M --data cases.jsonl`; pass the fitted value to decisions with `openjev decide --temperature T`.
+
+Measured on the repo's 24 labeled quality-eval cases (72 field decisions, Qwen2.5-1.5B-Instruct-4bit, via `tools/quality_eval_to_jsonl.py`):
+
+```
+n samples      : 72
+fitted T       : 1.7178
+ECE before     : 0.0870  (T=1.0)
+ECE after      : 0.0773  (T=1.7178)
+accuracy       : 0.5972
+```
+
+## Measured results (M5 MacBook Air, 16 GB)
+
 ## Measured results (M5 MacBook Air, 16 GB)
 
 28-field fraud preset. "Naive" = the same model writing the whole JSON object token-by-token.

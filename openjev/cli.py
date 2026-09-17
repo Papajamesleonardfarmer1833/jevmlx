@@ -67,6 +67,13 @@ def main(argv=None) -> None:
     decide.add_argument("--context", help="path to a context .txt file, or - for stdin")
     decide.add_argument("--json", action="store_true", dest="as_json",
                         help="print the assembled JSON only")
+    decide.add_argument("--temperature", type=float, default=1.0,
+                        help="softmax temperature for choice probabilities (1.0 = raw)")
+
+    calib = sub.add_parser("calibrate", help="Fit a temperature on labeled JSONL cases and report ECE")
+    calib.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
+    calib.add_argument("--data", required=True, help="JSONL file: {schema, context, labels} per line")
+    calib.add_argument("--bins", type=int, default=10, help="ECE bin count")
     args = ap.parse_args(argv)
 
     if args.command == "decide":
@@ -92,9 +99,29 @@ def main(argv=None) -> None:
         model, tokenizer = load_engine(args.model)
 
         schema = StructuredSchema(schema_dict)
-        result = run_parallel_generation(model, tokenizer, context, schema)
+        result = run_parallel_generation(model, tokenizer, context, schema,
+                                         temperature=args.temperature)
 
         if args.as_json:
             print(json.dumps(result["parsed_json"], indent=2, default=str))
         else:
             print_result(title, args.model, result)
+
+    elif args.command == "calibrate":
+        from openjev import calibrate
+
+        print(f"Loading {args.model} ...", flush=True)
+        model, tokenizer = load_engine(args.model)
+        cases = calibrate.load_cases(args.data)
+        print(f"collecting scores from {len(cases)} labeled cases ...", flush=True)
+        samples = calibrate.collect(model, tokenizer, cases)
+
+        t_fit = calibrate.fit_temperature(samples)
+        ece_before = calibrate.ece(samples, 1.0, bins=args.bins)
+        ece_after = calibrate.ece(samples, t_fit, bins=args.bins)
+        acc = calibrate.accuracy(samples)
+        print(f"n samples      : {len(samples)}")
+        print(f"fitted T       : {t_fit}")
+        print(f"ECE before     : {ece_before:.4f}  (T=1.0)")
+        print(f"ECE after      : {ece_after:.4f}  (T={t_fit})")
+        print(f"accuracy       : {acc:.4f}")
