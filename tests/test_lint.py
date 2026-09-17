@@ -2,22 +2,34 @@
 
 import zlib
 
+import pytest
+
 from openjev.lint import lint_schema
 from openjev.schema import StructuredSchema
 
 
 class FakeTokenizer:
-    """Maps words to deterministic token ids via crc32.
-
-    One token per underscore-separated word, so choices collide exactly when
-    they share their first word and that word is not stripped as the
-    schema-wide common prefix.
-    """
+    """Char-level structural text; crc32 ids for value words (non-compositional)."""
 
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
-        if not text:
-            return []
-        return [zlib.crc32(word.encode()) for word in text.split("_")]
+        out: list[int] = []
+        i = 0
+        while i < len(text):
+            if text[i] in '{}\n ":,':
+                out.append(ord(text[i]))
+                i += 1
+                continue
+            if text[i] == "_":
+                out.append(zlib.crc32(b"_"))
+                i += 1
+                continue
+            j = i
+            while j < len(text) and text[j] not in '{}\n ":,_':
+                j += 1
+            word = text[i:j]
+            out.append(zlib.crc32(word.encode()))
+            i = j
+        return out
 
 
 def _findings(schema_dict: dict) -> list:
@@ -73,20 +85,18 @@ def test_shared_first_word_alone_is_not_a_collision():
     assert findings == []
 
 
-def test_duplicate_choice_flagged():
-    """A literal repeated in the choices list gets a duplicate_choice finding."""
-    findings = _findings(
-        {
-            "action": {
-                "type": "enum",
-                "description": "next action",
-                "choices": ["ALLOW", "ALLOW", "BLOCK_USER"],
+def test_duplicate_choice_rejected_at_construction():
+    """B4: duplicate enum values raise ValueError in FieldDefinition."""
+    with pytest.raises(ValueError, match="duplicate choice 'ALLOW'"):
+        StructuredSchema(
+            {
+                "action": {
+                    "type": "enum",
+                    "description": "next action",
+                    "choices": ["ALLOW", "ALLOW", "BLOCK_USER"],
+                }
             }
-        }
-    )
-    duplicates = [f for f in findings if f.kind == "duplicate_choice"]
-    assert len(duplicates) == 1
-    assert 'choice "ALLOW" appears 2 times' in duplicates[0].message
+        )
 
 
 def test_quote_fusion_gives_prefix_choice_its_own_branch():
@@ -155,14 +165,11 @@ def test_findings_are_dataclasses_with_kind_and_field():
     assert finding.suggestion
 
 
-def test_closing_quote_splits_first_token_collision():
-    """Token-aligned encoding can dissolve an apparent first-token collision.
+def test_collision_without_rotation_suggestion():
+    """A collision the rotation rule cannot fix (single-word choice) gets None.
 
-    With the char-level fake tokenizer the closing quote fuses into the word
-    token: 'X' tokenizes as one token ending the candidate, while 'X_Y' keeps
-    a bare X token followed by the rest. The two choices therefore diverge at
-    the first token and the engine scores them in a single root row — no
-    collision finding, no rotation suggestion.
+    X and X_Y share their leading crc32(X) token; X cannot be rotated (single
+    word), so the finding carries suggestion=None.
     """
     findings = _findings(
         {
@@ -173,4 +180,7 @@ def test_closing_quote_splits_first_token_collision():
             }
         }
     )
-    assert findings == []
+    collisions = [f for f in findings if f.kind == "collision"]
+    assert len(collisions) == 1
+    assert "X, X_Y" in collisions[0].message
+    assert collisions[0].suggestion is None

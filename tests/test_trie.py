@@ -177,12 +177,26 @@ def test_softmax_temperature():
 
 
 def test_identical_remainders_rejected():
-    """Two choices with the same token sequence cannot be distinguished."""
+    """Two choices with the same token sequence cannot be distinguished.
+
+    B4 rejects duplicate literals at construction, so this drives the
+    compile-time check through two distinct literals that tokenize alike.
+    """
+
+    class SameTokens(NonCompositionalTokenizer):
+        name_or_path = "fake-same-tokens"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            # 'OK1' and 'OK2' tokenize identically (both become [42]).
+            if "OK1" in text or "OK2" in text:
+                return [ord(c) for c in text.replace("OK1", "OK").replace("OK2", "OK")]
+            return super().encode(text, add_special_tokens)
+
     schema = StructuredSchema(
-        {"action": {"type": "enum", "description": "d", "choices": ["OK", "OK"]}}
+        {"action": {"type": "enum", "description": "d", "choices": ["OK1", "OK2"]}}
     )
     with pytest.raises(ValueError, match="token-identical"):
-        schema.compile_batch_plan(NonCompositionalTokenizer())
+        schema.compile_batch_plan(SameTokens())
 
 
 def test_choice_with_double_quote_is_json_escaped():
@@ -391,3 +405,86 @@ def test_multi_option_strict_prefix_pair_rejected():
     )
     with pytest.raises(ValueError, match="strict"):
         schema.compile_batch_plan(PrefixPair())
+
+
+def test_softmax_extreme_temperature_no_nan():
+    """B3: (v - max)/T order — [-1,-2] at T=1e-300 stays finite, no NaN."""
+    result = softmax([-1.0, -2.0], temperature=1e-300)
+    assert all(math.isfinite(p) for p in result)
+    assert result[0] == pytest.approx(1.0)
+    assert result[1] == pytest.approx(0.0)
+
+
+def test_mixed_enum_multi_lead_in_round_trip():
+    """B1: lead-in spans scalar AND multi prefixes; rows round-trip."""
+    tok = NonCompositionalTokenizer()
+    schema = StructuredSchema(
+        {
+            "action": {"type": "enum", "description": "d", "choices": ["LOW", "LOWER"]},
+            "flags": {"type": "multi", "description": "d", "choices": ["opt_a", "opt_b"]},
+        }
+    )
+    plan = schema.compile_batch_plan(tok)
+    lead_in = plan["_lead_in_ids"]
+
+    # With only one scalar field, the lead-in must NOT contain that field's
+    # name (it is the common prefix of ALL row prefixes, multi included).
+    assert b"action".decode() not in "".join(
+        chr(t) if 32 <= t < 127 else "?" for t in lead_in
+    ) or lead_in == tok.encode('{\n  "')
+
+    rows: list[tuple[str, list[int], str]] = []  # (kind, row, full candidate text)
+    for fname, p in plan.items():
+        if fname == "_lead_in_ids" or not isinstance(p, dict):
+            continue
+        if "options" in p:
+            for oi, ids in enumerate(p["suffix_ids_list"]):
+                option = p["options"][oi]
+                full = lead_in + list(ids)
+                rows.append(("multi", full, "{\n  " + '"flags.' + option + '": '))
+        elif "remainders" in p:
+            for node in build_trie(p["remainders"]):
+                full = lead_in + list(p["shared_ids"]) + list(node["path"])
+                rows.append(("enum", full, '{\n  "action": "LOW"'))
+
+    kinds = {kind for kind, _, _ in rows}
+    assert kinds == {"enum", "multi"}
+    for _kind, row, _ in rows:
+        assert row[: len(lead_in)] == lead_in
+        assert row[len(lead_in) : 2 * len(lead_in)] != lead_in
+
+
+def test_zero_length_row_rejected_when_no_common_prefix():
+    """B2: per-field shared empty AND branching root -> ValueError at compile."""
+
+    class NoCommon(NonCompositionalTokenizer):
+        name_or_path = "fake-no-common"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            # The whole candidate collapses to ONE token keyed by its choice
+            # letter: candidates share no prefix (different single tokens).
+            if '"action": "A' in text:
+                return [65]  # one token for the whole A-candidate
+            if '"action": "B' in text:
+                return [66]  # different single token for the B-candidate
+            return super().encode(text, add_special_tokens)
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    with pytest.raises(ValueError, match="share no token prefix"):
+        schema.compile_batch_plan(NoCommon())
+
+
+def test_duplicate_multi_choices_rejected():
+    """B4: duplicate multi values raise ValueError naming the field."""
+    with pytest.raises(ValueError, match="duplicate choice 'opt_a'"):
+        StructuredSchema(
+            {
+                "flags": {
+                    "type": "multi",
+                    "description": "d",
+                    "choices": ["opt_a", "opt_a", "opt_b"],
+                }
+            }
+        )

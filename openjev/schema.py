@@ -56,6 +56,15 @@ class FieldDefinition:
                 f"Unsupported field type '{field_type}'. "
                 "Supported types: 'boolean', 'enum' and 'multi'."
             )
+        if self.field_type in ("multi", "enum", "choice", "selection"):
+            seen: set[str] = set()
+            for choice in self.choices:
+                if choice in seen:
+                    raise ValueError(
+                        f"Field '{name}': duplicate choice '{choice}'; the engine "
+                        "cannot distinguish duplicate choices"
+                    )
+                seen.add(choice)
 
     @property
     def cardinality(self) -> int:
@@ -243,6 +252,15 @@ class StructuredSchema:
                         f"token-prefix of '{fdef.choices[j]}' in token space; the "
                         "engine would never distinguish them"
                     )
+            if not shared and len({r[0] for r in remainders}) > 1:
+                # After lead-in removal this field would have an empty row: a
+                # branch directly at the generation boundary cannot be scored
+                # by a broadcast row (B2).
+                raise ValueError(
+                    f"field '{fname}': candidates share no token prefix "
+                    f"(tokenizer {type(tokenizer).__name__}); cannot place the "
+                    "decision row"
+                )
             plan[fname] = {
                 "shared_ids": shared,
                 "remainders": remainders,
@@ -252,9 +270,14 @@ class StructuredSchema:
         # candidates: lifted out of shared_ids so the engine can keep it in
         # the prefill broadcast cache. Remainders stay relative to the full
         # per-field shared prefix; rows are lead_in + shared_ids + path.
-        field_shared_prefixes = [p["shared_ids"] for p in plan.values() if "shared_ids" in p]
+        # Lead-in candidates: every row prefix — scalar fields' shared_ids
+        # AND multi option prefixes (B1: with only a multi field, the lead-in
+        # must still be the common prefix of the option rows, never their
+        # longer per-option text).
+        field_shared_prefixes = [p["shared_ids"] for p in plan.values() if "shared_ids" in p] + [
+            ids for p in plan.values() if "suffix_ids_list" in p for ids in p["suffix_ids_list"]
+        ]
         if not field_shared_prefixes:
-            # Multi-only schema: option rows are self-contained, nothing to lift.
             plan["_lead_in_ids"] = []
             try:
                 self._plans[tokenizer] = plan

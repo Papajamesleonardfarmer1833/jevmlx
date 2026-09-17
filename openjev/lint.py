@@ -9,7 +9,6 @@ ships.
 
 from __future__ import annotations
 
-from collections import Counter
 from dataclasses import dataclass
 
 from openjev.schema import StructuredSchema
@@ -79,19 +78,8 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
         if fdef.field_type not in ("enum", "choice", "selection"):
             continue
 
-        counts = Counter(fdef.choices)
-        for choice, count in counts.items():
-            if count > 1:
-                findings.append(
-                    Finding(
-                        field=fname,
-                        kind="duplicate_choice",
-                        message=(
-                            f'choice "{choice}" appears {count} times; the engine '
-                            "cannot distinguish duplicate choices"
-                        ),
-                    )
-                )
+        # Duplicate literals are rejected by FieldDefinition (B4), so they can
+        # never reach plan compilation; nothing to scan here anymore.
 
         # Token-aligned plan for this field alone: schema-wide compilation
         # raises on token-identical/prefix choices, but the lint must report

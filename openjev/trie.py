@@ -81,7 +81,10 @@ def logsumexp(values: list[float]) -> float:
 
 def log_softmax(values: list[float]) -> list[float]:
     """Numerically stable log-softmax over finite values (never log(0))."""
-    lse = logsumexp(values)
+    _validate_finite(values)
+    largest = max(values)
+    shifted = [v - largest for v in values]
+    lse = largest + math.log(sum(math.exp(v) for v in shifted))
     return [v - lse for v in values]
 
 
@@ -95,9 +98,10 @@ def softmax(values: list[float], temperature: float = 1.0) -> list[float]:
     if not math.isfinite(temperature) or temperature <= 0:
         raise ValueError(f"temperature must be a finite number > 0, got {temperature!r}")
     _validate_finite(values)
-    scaled = [v / temperature for v in values]
-    largest = max(scaled)
-    exps = [math.exp(v - largest) for v in scaled]
+    largest = max(values)
+    # Shift BEFORE scaling ((v - max) / T): finite values stay finite for any
+    # finite positive T, however small (B3).
+    exps = [math.exp((v - largest) / temperature) for v in values]
     total = sum(exps)
     return [e / total for e in exps]
 
