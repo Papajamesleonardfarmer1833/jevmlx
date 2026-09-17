@@ -330,17 +330,32 @@ def macro_f1(records: list[dict]) -> dict[str, float | None]:
 # ------------------------------------------------------- perturbation flips
 
 
-def perturbation_flip_rate(records: list[dict]) -> dict[str, float] | None:
+def _canonical_form(value) -> str:
+    """Comparison form of a prediction: lists order-insensitive, dicts stable.
+
+    Multi predictions are lists; ["a", "b"] and ["b", "a"] are the same
+    value, so list elements are sorted before serialising.
+    """
+    if isinstance(value, list):
+        return json.dumps(sorted(value), sort_keys=True)
+    return json.dumps(value, sort_keys=True)
+
+
+def perturbation_flip_rate(records: list[dict]) -> float | None:
     """Share of (original, perturbed) pairs whose prediction differs.
 
     A pair is (group_id, field, case_id) where one line carries a
     ``perturbation`` (the variant) and the other does not (the original).
-    Requires meta.perturbation to have flowed through to the line (see
-    evalrun). Returns None when no such pair exists.
+    Only canonical lines count: ``permutation`` must be ``"canonical"`` or
+    missing, so choice-rotation rows never pollute the pairs. Requires
+    meta.perturbation to have flowed through to the line (see evalrun).
+    Returns None when no such pair exists.
     """
     originals: dict[tuple[str, str], object] = {}
     variants: dict[tuple[str, str], list[tuple[str, object]]] = defaultdict(list)
     for record in records:
+        if record.get("permutation") not in (None, "canonical"):
+            continue  # rotation/fieldperm rows are order probes, not perturbations
         kind = record.get("perturbation") or (record.get("meta") or {}).get("perturbation")
         key = (record.get("group_id") or record["case_id"], record["field"])
         if kind is None:
@@ -352,10 +367,10 @@ def perturbation_flip_rate(records: list[dict]) -> dict[str, float] | None:
     for key, variant_list in variants.items():
         if key not in originals:
             continue
-        base = originals[key]
+        base = _canonical_form(originals[key])
         for _case_id, prediction in variant_list:
             pairs += 1
-            if json.dumps(prediction, sort_keys=True) != json.dumps(base, sort_keys=True):
+            if _canonical_form(prediction) != base:
                 flipped += 1
     if not pairs:
         return None

@@ -499,3 +499,43 @@ class TestBalancedAccuracyAndMacroF1:
             "tier", "LOW", "HIGH", case_id="c1#p1", group_id="g1", perturbation="ws"
         )
         assert perturbation_flip_rate([original_a, original_b, variant_a, variant_b]) == 1.0
+
+    def test_perturbation_flip_rate_ignores_rotation_rows(self):
+        """Rotation/fieldperm rows (permutation != canonical) never join pairs."""
+        original = self._rec("action", "APPROVE", "APPROVE", case_id="c1", group_id="g1")
+        variant = self._rec(
+            "action", "APPROVE", "APPROVE", case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        rotation = self._rec(
+            "action",
+            "APPROVE",
+            "BLOCK",
+            case_id="c1#p1",
+            group_id="g1",
+            perturbation="ws",
+            permutation="rot1",
+        )
+        # Without the rotation row: 1 pair, 0 flips. With it: still 0 flips —
+        # the rotated BLOCK row must not count as a perturbation flip.
+        assert perturbation_flip_rate([original, variant]) == 0.0
+        assert perturbation_flip_rate([original, variant, rotation]) == 0.0
+
+        # And a flipped canonical variant is still detected next to rotation rows.
+        flipped_variant = self._rec(
+            "action", "APPROVE", "BLOCK", case_id="c1#p2", group_id="g1", perturbation="numfmt"
+        )
+        assert perturbation_flip_rate([original, variant, rotation, flipped_variant]) == 0.5
+
+    def test_perturbation_flip_rate_multi_order_is_not_a_flip(self):
+        """Multi predictions compare as sets: order alone is not a flip."""
+        original = self._rec("tags", ["a", "b"], ["a", "b"], case_id="c1", group_id="g1")
+        reordered = self._rec(
+            "tags", ["a", "b"], ["b", "a"], case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        assert perturbation_flip_rate([original, reordered]) == 0.0
+
+        # A genuinely different set still flips.
+        changed = self._rec(
+            "tags", ["a", "b"], ["a", "c"], case_id="c1#p2", group_id="g1", perturbation="ws"
+        )
+        assert perturbation_flip_rate([original, reordered, changed]) == 0.5
