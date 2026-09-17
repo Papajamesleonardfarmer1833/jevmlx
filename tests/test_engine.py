@@ -121,6 +121,12 @@ def test_multi_field_returns_subset(engine):
     assert telemetry["type"] == "multi"
     assert set(telemetry["per_option"]) == {"billing_issue", "technical_issue", "account_issue"}
     assert all(0.0 <= p <= 1.0 for p in telemetry["per_option"].values())
+    # Per-option rows score at each option's own true/false divergence: the
+    # clearly-technical context must not collapse every option to ~0.5 (the
+    # cross-option-prefix bug this test now guards against).
+    p_tech = telemetry["per_option"]["technical_issue"]
+    p_billing = telemetry["per_option"]["billing_issue"]
+    assert p_tech > 0.5 and abs(p_billing - 0.5) > 0.05
     assert "scores" not in telemetry  # one key, one meaning: multi has no raw scores
     assert len(telemetry["per_option"]) == 3
     selected = value

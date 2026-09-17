@@ -393,10 +393,10 @@ def run_parallel_generation(
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
             p = plan[row_field[ridx]]
             if ridx in row_option:
-                # multi option row: true/false logits at the suffix's last position.
-                oi = row_option[ridx]
-                lg = out[i, len(p["suffix_ids_list"][oi]) - 1, :]
-                option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][2 * oi : 2 * oi + 2]]
+                # multi option row: true/false logits at the option row's last
+                # position (the shared prefix ends right before the divergence).
+                lg = out[i, len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
+                option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][row_option[ridx]]]
             else:
                 # Branch-node row: child logits at the node's last position,
                 # in node["children"] order.

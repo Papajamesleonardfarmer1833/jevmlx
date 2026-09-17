@@ -145,9 +145,11 @@ class StructuredSchema:
 
         Per enum/boolean field the plan carries ``shared_ids`` (the common
         token-ID prefix of all candidates) and per-choice ``remainders``.
-        Per multi field it carries one ``suffix_ids_list`` entry per option
-        (``  "name.option": ``) plus the shared true/false token lists.
-        Plans are cached per tokenizer identity (name_or_path + vocab size).
+        Per multi field it carries one ``suffix_ids_list`` entry per option —
+        that option's shared token prefix (everything before its true/false
+        divergence, i.e. the row the engine runs) — and ``remainders`` with
+        the option's two true/false continuations. Plans are cached per
+        tokenizer identity (name_or_path + vocab size).
         """
         key = self._tokenizer_key(tokenizer)
         cached = self._plans.get(key)
@@ -157,33 +159,37 @@ class StructuredSchema:
         plan: dict[str, dict[str, Any]] = {}
         for fname, fdef in self.fields.items():
             if fdef.field_type == "multi":
-                # One boolean row per option: suffix '  "<field>.<option>": '
-                # scored against the true/false literals. The engine folds the
-                # per-option probabilities back into the selected subset. The
-                # true/false remainders come from the token-aligned rule: the
-                # option rows share their suffix, so the remainders are the
-                # full ' true'/' false' sequences with the common token prefix
-                # removed.
-                full_lists = [
-                    tokenizer.encode(
-                        f"  {json.dumps(f'{fname}.{option}')}: {literal}",
-                        add_special_tokens=False,
-                    )
-                    for option in fdef.choices
-                    for literal in ("true", "false")
-                ]
-                shared = _common_token_prefix(full_lists)
-                plan[fname] = {
-                    "options": list(fdef.choices),
-                    "suffix_ids_list": [
+                # One boolean row per option, scored where true/false diverge.
+                # The plan is built PER OPTION from that option's own candidate
+                # pair: shared = everything up to the true/false divergence
+                # (the option's suffix plus any common token start of
+                # 'true'/'false'), remainders = the two continuations. A single
+                # cross-option prefix would put branch nodes at the option-name
+                # position and read the true/false logits at the wrong spot.
+                suffix_ids_list = []
+                remainders_per_option = []
+                for option in fdef.choices:
+                    pair = [
                         tokenizer.encode(
-                            f"  {json.dumps(f'{fname}.{option}')}: ",
+                            f"  {json.dumps(f'{fname}.{option}')}: {literal}",
                             add_special_tokens=False,
                         )
-                        for option in fdef.choices
-                    ],
-                    "shared_ids": shared,
-                    "remainders": [full[len(shared) :] for full in full_lists],
+                        for literal in ("true", "false")
+                    ]
+                    option_shared = _common_token_prefix(pair)
+                    option_remainders = [full[len(option_shared) :] for full in pair]
+                    if option_remainders[0] == option_remainders[1]:
+                        raise ValueError(
+                            f"field '{fname}': option '{option}' tokenizes to "
+                            "identical true/false candidates; the engine cannot "
+                            "distinguish them"
+                        )
+                    suffix_ids_list.append(option_shared)
+                    remainders_per_option.append(option_remainders)
+                plan[fname] = {
+                    "options": list(fdef.choices),
+                    "suffix_ids_list": suffix_ids_list,
+                    "remainders": remainders_per_option,
                 }
                 continue
 
