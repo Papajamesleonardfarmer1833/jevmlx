@@ -111,15 +111,22 @@ Recommended: [uv](https://docs.astral.sh/uv/).
 # Option A: install straight from GitHub into your own environment
 uv pip install git+https://github.com/bnsd55/jevmlx
 
-# Option B: from a clone, via the one-command setup (creates .venv, editable)
+# Option B: CLI only — a global `jevmlx` command, no project venv
+uv tool install git+https://github.com/bnsd55/jevmlx
+
+# Option C: from a clone, via the one-command setup (creates .venv, editable)
 git clone https://github.com/bnsd55/jevmlx.git && cd jevmlx
 ./setup.sh
 
-# Option C: from a clone, manually
+# Option D: from a clone, manually
 git clone https://github.com/bnsd55/jevmlx.git && cd jevmlx
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python -e '.[dev]'
 ```
+
+There is no Homebrew formula; if you only want the CLI, Option B
+(`uv tool install`) is the way — it puts a single `jevmlx` command on your
+PATH without creating a project venv.
 
 RAM guidance by model size (from the measured peaks in the
 [compatibility table](#model-compatibility)): 4-bit models up to ~3B peak
