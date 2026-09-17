@@ -77,7 +77,7 @@ def environment() -> dict:
         "python_version": sys.version.split()[0],
         "mlx_version": _dist_version("mlx"),
         "mlx_lm_version": _dist_version("mlx-lm"),
-        "openjev_version": _dist_version("openjev"),
+        "jevmlx_version": _dist_version("jevmlx"),
         "git_sha": _git_sha(),
         "timestamp_utc": datetime.now(UTC).isoformat(timespec="seconds"),
     }
@@ -154,7 +154,7 @@ def _to_markdown(run: dict) -> str:
         key=lambda row: (_accuracy(row.get("accuracy")), str(row.get("field", ""))),
     )
     parts = [
-        "# openjev eval report",
+        "# jevmlx eval report",
         "",
         "## Environment",
         "",

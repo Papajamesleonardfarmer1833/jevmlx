@@ -9,8 +9,8 @@ import math
 
 import pytest
 
-from openjev.schema import StructuredSchema
-from openjev.trie import build_trie, log_softmax, logsumexp, score_trie, softmax
+from jevmlx.schema import StructuredSchema
+from jevmlx.trie import build_trie, log_softmax, logsumexp, score_trie, softmax
 
 _QUOTE = ord('"')
 
@@ -338,7 +338,7 @@ def test_single_choice_enum_scores_one_point_oh():
 
 def test_mixed_schema_rows_carry_lead_in_exactly_once():
     """R1: every row (enum, boolean, multi) starts with the lead-in exactly once."""
-    from openjev.trie import build_trie as _bt
+    from jevmlx.trie import build_trie as _bt
 
     tok = NonCompositionalTokenizer()
     schema = StructuredSchema(
@@ -379,7 +379,7 @@ def test_mixed_schema_rows_carry_lead_in_exactly_once():
 
 def test_multi_option_strict_prefix_pair_rejected():
     """R5: an option whose true/false continuations are prefix-related raises."""
-    from openjev.schema import StructuredSchema as _SS
+    from jevmlx.schema import StructuredSchema as _SS
 
     class PrefixPair(NonCompositionalTokenizer):
         name_or_path = "fake-prefix-pair"

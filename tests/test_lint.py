@@ -1,11 +1,11 @@
-"""Tests for openjev.lint using a deterministic fake tokenizer (no downloads)."""
+"""Tests for jevmlx.lint using a deterministic fake tokenizer (no downloads)."""
 
 import zlib
 
 import pytest
 
-from openjev.lint import lint_schema
-from openjev.schema import StructuredSchema
+from jevmlx.lint import lint_schema
+from jevmlx.schema import StructuredSchema
 from tests.test_trie import NonCompositionalTokenizer
 
 
@@ -341,7 +341,7 @@ def test_mixed_schema_failing_boolean_reports_once_with_right_field():
 def test_schema_compile_error_is_value_error():
     """SchemaCompileError stays a ValueError subclass (back-compat for
     engine-side except ValueError handlers)."""
-    from openjev.schema import SchemaCompileError
+    from jevmlx.schema import SchemaCompileError
 
     err = SchemaCompileError("flag", "boom")
     assert isinstance(err, ValueError)

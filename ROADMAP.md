@@ -2,13 +2,13 @@
 
 ## Done
 
-- P0: repo hygiene — openjev name, README, LICENSE+NOTICE, research-only artifacts dropped.
-- P1: installable package — `openjev` module, CLI `openjev decide`, tokenizer chat templates, smoke test.
+- P0: repo hygiene — jevmlx name, README, LICENSE+NOTICE, research-only artifacts dropped.
+- P1: installable package — `jevmlx` module, CLI `jevmlx decide`, tokenizer chat templates, smoke test.
 - P2: engine quality — consistent scoring for colliding choices, memory auto-chunking.
-- P3: typed Python API — `openjev.decide(PydanticModel, context)`.
-- P4: calibration — `openjev calibrate` fits one temperature on labeled JSONL.
+- P3: typed Python API — `jevmlx.decide(PydanticModel, context)`.
+- P4: calibration — `jevmlx calibrate` fits one temperature on labeled JSONL.
 - P5: release readiness — model compatibility table, CI, wheel, bundled presets.
-- I1: `openjev serve` — stdlib HTTP endpoint with health check.
+- I1: `jevmlx serve` — stdlib HTTP endpoint with health check.
 - I2: ruff across the repo (line length 100, E/F/I/UP/B) with CI enforcement.
 - I3: ROADMAP.md (this file).
 - I4: single-source `__version__`, argument validation hardening.
@@ -16,7 +16,7 @@
 - C: cleanup pass — only relevant files stay.
 - R: professional README restructure.
 - W2: documentation and CLI presentation fixes.
-- E1-E2, E-baseline, E-metrics, E-report: eval harness (`openjev eval` / `openjev report`), TypeSafe fetcher, API naive-JSON baseline.
+- E1-E2, E-baseline, E-metrics, E-report: eval harness (`jevmlx eval` / `jevmlx report`), TypeSafe fetcher, API naive-JSON baseline.
 
 ## Next
 

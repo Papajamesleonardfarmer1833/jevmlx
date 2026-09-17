@@ -23,8 +23,8 @@ def collect(model, tokenizer, cases: Sequence[dict]) -> list[Sample]:
     does not apply to them."""
     import logging
 
-    from openjev.engine import run_parallel_generation
-    from openjev.schema import StructuredSchema
+    from jevmlx.engine import run_parallel_generation
+    from jevmlx.schema import StructuredSchema
 
     logger = logging.getLogger(__name__)
 

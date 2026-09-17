@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from openjev.schema import SchemaCompileError, StructuredSchema
+from jevmlx.schema import SchemaCompileError, StructuredSchema
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ def _rotation_suggestion(choices: list[str], all_choices: list[str], tokenizer) 
     # collision to the next word (P1), e.g. BLOCK_* -> *_BLOCK that still
     # shares its first token with another choice.
     try:
-        from openjev.schema import StructuredSchema
+        from jevmlx.schema import StructuredSchema
 
         probe = StructuredSchema(
             {"_probe": {"type": "enum", "description": "", "choices": renamed_list}}

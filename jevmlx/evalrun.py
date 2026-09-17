@@ -8,13 +8,13 @@ contract. The runner itself is a thin loop around a per-track
 drive it entirely with fakes.
 
 Tracks:
-- ``parallel``: the openjev engine (``run_parallel_generation`` at T=1),
+- ``parallel``: the jevmlx engine (``run_parallel_generation`` at T=1),
   log scores from field telemetry.
 - ``naive_local``: the same local model free-writes the whole JSON object
   (``run_naive_generation``), parsed strictly by
-  :func:`openjev.baseline.parse_baseline_output`.
+  :func:`jevmlx.baseline.parse_baseline_output`.
 - ``api_baseline``: an OpenAI-compatible chat API via
-  :func:`openjev.baseline.baseline_decide` (product-comparison track).
+  :func:`jevmlx.baseline.baseline_decide` (product-comparison track).
 
 Permutations (parallel track only) probe choice/field order sensitivity:
 ``rotations`` cycles every enum field's choices, ``fieldperm`` permutes the
@@ -32,9 +32,9 @@ import random
 from collections.abc import Callable
 from typing import Any
 
-from openjev.baseline import baseline_decide, parse_baseline_output
-from openjev.evalreport import environment
-from openjev.schema import StructuredSchema
+from jevmlx.baseline import baseline_decide, parse_baseline_output
+from jevmlx.evalreport import environment
+from jevmlx.schema import StructuredSchema
 
 __all__ = [
     "DecideFn",
@@ -76,7 +76,7 @@ def _sha256_file(path: str | None) -> str | None:
 
 
 def parallel_decide_fn(model, tokenizer) -> DecideFn:
-    """Track ``parallel``: the openjev engine at T=1.
+    """Track ``parallel``: the jevmlx engine at T=1.
 
     Log scores come from field telemetry. The finalized engine key is
     ``log_scores`` — a dict mapping choice to constrained-path log P at T=1.
@@ -88,7 +88,7 @@ def parallel_decide_fn(model, tokenizer) -> DecideFn:
     """
 
     def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
-        from openjev.engine import run_parallel_generation
+        from jevmlx.engine import run_parallel_generation
 
         schema = StructuredSchema(schema_dict)
         result = run_parallel_generation(model, tokenizer, context, schema, temperature=1.0)
@@ -123,13 +123,13 @@ def parallel_decide_fn(model, tokenizer) -> DecideFn:
 def naive_local_decide_fn(model, tokenizer) -> DecideFn:
     """Track ``naive_local``: the same local model free-writes the JSON object.
 
-    Output is parsed strictly by :func:`openjev.baseline.parse_baseline_output`;
+    Output is parsed strictly by :func:`jevmlx.baseline.parse_baseline_output`;
     unsalvageable fields become invalid predictions (a measurement, not a
     crash).
     """
 
     def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
-        from openjev.engine import run_naive_generation
+        from jevmlx.engine import run_naive_generation
 
         schema = StructuredSchema(schema_dict)
         result = run_naive_generation(model, tokenizer, context, schema)

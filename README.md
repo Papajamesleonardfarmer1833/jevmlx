@@ -1,12 +1,12 @@
-# openjev
+# jevmlx
 
-[![CI](https://github.com/bnsd55/openjev/actions/workflows/ci.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/ci.yml) [![Build](https://github.com/bnsd55/openjev/actions/workflows/build.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/build.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+[![CI](https://github.com/bnsd55/jevmlx/actions/workflows/ci.yml/badge.svg)](https://github.com/bnsd55/jevmlx/actions/workflows/ci.yml) [![Build](https://github.com/bnsd55/jevmlx/actions/workflows/build.yml/badge.svg)](https://github.com/bnsd55/jevmlx/actions/workflows/build.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 
 Jev-style parallel constrained decisions for MLX models on Apple Silicon. Typed, schema-valid JSON from one batched decision pass.
 
-**Inspired by and built on [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)**, the research repo that reproduced the technique on a laptop. openjev turns that study into an installable library. Unofficial, not affiliated with TypeSafe AI or Jev.
+**Inspired by and built on [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)**, the research repo that reproduced the technique on a laptop. jevmlx turns that study into an installable library. Unofficial, not affiliated with TypeSafe AI or Jev.
 
-openjev makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in one batched decision pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in under a second on an Apple Silicon laptop (see [Model compatibility](#model-compatibility)).
+jevmlx makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in one batched decision pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in under a second on an Apple Silicon laptop (see [Model compatibility](#model-compatibility)).
 
 ```
 [context + schema] ──► prefill (once) ──► KV cache
@@ -22,16 +22,16 @@ openjev makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) an
 
 | Method | Command | Notes |
 |---|---|---|
-| pip (git) | `uv pip install git+https://github.com/bnsd55/openjev` | Installs the `openjev` package and CLI |
-| From source | `git clone https://github.com/bnsd55/openjev && cd openjev && ./setup.sh` | Creates `.venv`, editable install with dev extras |
+| pip (git) | `uv pip install git+https://github.com/bnsd55/jevmlx` | Installs the `jevmlx` package and CLI |
+| From source | `git clone https://github.com/bnsd55/jevmlx && cd jevmlx && ./setup.sh` | Creates `.venv`, editable install with dev extras |
 | Requirements | — | Apple Silicon Mac (macOS, arm64), Python 3.12; engine fails fast elsewhere |
 
-From-source installs run it as `.venv/bin/openjev`.
+From-source installs run it as `.venv/bin/jevmlx`.
 
 ## Quickstart (Apple Silicon Mac)
 
 ```bash
-openjev decide --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --preset fintech_fraud
+jevmlx decide --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --preset fintech_fraud
 ```
 
 Sample output:
@@ -57,12 +57,12 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 **03. Honest confidence.** Each field is a token trie over its choices; at each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities — so the field's probabilities sum to 1 with no extra softmax, at full precision. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
-**04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences — one context at a time with `openjev.decide`, or many contexts with `openjev.decide_many` (model and schema are loaded and compiled once, results come back in input order):
+**04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences — one context at a time with `jevmlx.decide`, or many contexts with `jevmlx.decide_many` (model and schema are loaded and compiled once, results come back in input order):
 
 ```python
 from typing import Literal
 from pydantic import BaseModel, Field
-import openjev
+import jevmlx
 
 
 class Fraud(BaseModel):
@@ -72,22 +72,22 @@ class Fraud(BaseModel):
 
 context = "Wire transfer to a new IBAN, requested from a Tor exit node on an unrecognized device"
 
-d = openjev.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
+d = jevmlx.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
 d.value  # Fraud(is_fraudulent=..., risk_tier=...)
 d.confidence  # {"is_fraudulent": 0.xx, "risk_tier": 0.xx}
 d.latency_ms
 ```
 
-**05. HTTP server.** `openjev serve --model M` loads the model once and serves one decision per request on `POST /decide` (stdlib `http.server`, serial — one Metal GPU):
+**05. HTTP server.** `jevmlx serve --model M` loads the model once and serves one decision per request on `POST /decide` (stdlib `http.server`, serial — one Metal GPU):
 
 ```bash
 curl -s localhost:8000/decide -H 'Content-Type: application/json' \
   -d '{"schema": {"action": {"type": "enum", "description": "The action to take", "choices": ["APPROVE", "BLOCK_TRANSACTION"]}}, "context": "payment from a verified customer, all checks passed", "temperature": 1.0}'
 ```
 
-`GET /health` returns `{"ok": true, "model": M, "busy": bool, "requests_served": n}` (`busy` is true while a decide is running); bad input returns 400. The server logs via `logging` (`openjev.serve`, INFO for model load/server start); the CLI sets WARNING to stderr by default, `-v` for INFO, and `OPENJEV_LOG=json` for one JSON object per line (engine decisions then log structured `prefill_ms`/`suffix_eval_ms`/`rows`/`passes`/`num_fields`).
+`GET /health` returns `{"ok": true, "model": M, "busy": bool, "requests_served": n}` (`busy` is true while a decide is running); bad input returns 400. The server logs via `logging` (`jevmlx.serve`, INFO for model load/server start); the CLI sets WARNING to stderr by default, `-v` for INFO, and `JEVMLX_LOG=json` for one JSON object per line (engine decisions then log structured `prefill_ms`/`suffix_eval_ms`/`rows`/`passes`/`num_fields`).
 
-**06. Temperature calibration.** `openjev calibrate` fits one scalar temperature on labeled JSONL data by minimizing NLL, then reports binned ECE before and after:
+**06. Temperature calibration.** `jevmlx calibrate` fits one scalar temperature on labeled JSONL data by minimizing NLL, then reports binned ECE before and after:
 
 ```
 n samples      : 72
@@ -99,11 +99,11 @@ accuracy       : 0.5972
 
 **07. Works with causal decoder models served by mlx-lm.** Prompts are built with the tokenizer's own chat template — no hand-rolled role tags, no system-role assumptions; tested models are in the table below. Cross-model measurements: [Model compatibility](#model-compatibility).
 
-**08. Schema linting before you ship.** `openjev validate SCHEMA.json` loads the tokenizer only (no model download) and reports enum choices that collide on their first token, duplicate choices, and choices that add nothing beyond the shared prefix — with a rename suggestion for collisions.
+**08. Schema linting before you ship.** `jevmlx validate SCHEMA.json` loads the tokenizer only (no model download) and reports enum choices that collide on their first token, duplicate choices, and choices that add nothing beyond the shared prefix — with a rename suggestion for collisions.
 
 ## How it works
 
-1. **Prefill once.** The context plus a compact schema catalog goes through the model a single time ([engine.py](openjev/engine.py)).
+1. **Prefill once.** The context plus a compact schema catalog goes through the model a single time ([engine.py](jevmlx/engine.py)).
 2. **One row per field.** Each field's choice suffixes are teacher-forced as rows against the broadcast KV cache; choices that share a first token get their own rows.
 3. **Chunking heuristic.** Rows run in batches over the same prefill cache, sized by a memory heuristic (see the engine docstring for its limits).
 4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked.
@@ -128,7 +128,7 @@ Three scripts in [benchmarks/](benchmarks/), each run against a local mlx-lm mod
 
 - `compat.py` — the cross-model compatibility table above.
 - `naive_vs_parallel.py` — autoregressive JSON baseline vs the parallel engine, per preset.
-- `cases.json` — 24 labeled cases (72 field decisions) behind the calibration numbers; `to_jsonl.py` converts them for `openjev calibrate`.
+- `cases.json` — 24 labeled cases (72 field decisions) behind the calibration numbers; `to_jsonl.py` converts them for `jevmlx calibrate`.
 
 ## Roadmap
 
@@ -140,8 +140,8 @@ Branch off `main`, run `ruff check --fix . && ruff format .` and `pytest -m "not
 
 ## Credits & license
 
-openjev is MIT-licensed (see [LICENSE](LICENSE)); third-party credits are listed in [NOTICE](NOTICE).
+jevmlx is MIT-licensed (see [LICENSE](LICENSE)); third-party credits are listed in [NOTICE](NOTICE).
 
 - [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop) (MIT) — the research origin and inspiration; the study that reproduced the technique on a laptop.
-- [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD) (Apache-2.0) — the original parallel constrained decoding engine whose approach openjev reimplements.
+- [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD) (Apache-2.0) — the original parallel constrained decoding engine whose approach jevmlx reimplements.
 - [TypeSafe AI's Jev](https://typesafe.ai/) — the product whose published technique this project reimplements; no affiliation, no access to their model.

@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from openjev.cli import load_preset
-from openjev.engine import load_engine, run_parallel_generation
-from openjev.schema import StructuredSchema
+from jevmlx.cli import load_preset
+from jevmlx.engine import load_engine, run_parallel_generation
+from jevmlx.schema import StructuredSchema
 
 MODEL_ID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 
@@ -34,7 +34,7 @@ def test_fintech_fraud_decisions():
 
 def test_validate_json_multi_list_semantics():
     """C4a: multi values compared as lists (set equality, no duplicates)."""
-    from openjev.engine import _validate_json
+    from jevmlx.engine import _validate_json
 
     schema = StructuredSchema(
         {"flags": {"type": "multi", "description": "d", "choices": ["a", "b", "c"]}}
@@ -63,7 +63,7 @@ def test_validate_json_multi_list_semantics():
 
 def test_validate_json_non_object_is_valid_but_no_match():
     """C4b: a parsed JSON that is not a dict -> is_valid_json=True, match=False."""
-    from openjev.engine import _validate_json
+    from jevmlx.engine import _validate_json
 
     schema = StructuredSchema({"flag": {"type": "boolean", "description": "d"}})
     for text in ("[1, 2, 3]", '"hello"', "42", "null"):
@@ -76,7 +76,7 @@ def test_validate_json_non_object_is_valid_but_no_match():
 
 def test_validate_json_boolean_and_enum_type_checks():
     """D2: booleans must be real JSON bools; enums compare as str only."""
-    from openjev.engine import _validate_json
+    from jevmlx.engine import _validate_json
 
     schema = StructuredSchema(
         {

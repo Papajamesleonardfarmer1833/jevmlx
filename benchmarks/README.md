@@ -1,6 +1,6 @@
 # Benchmarks
 
-Evaluation harness for openjev. Datasets live as `cases.jsonl` (+ a
+Evaluation harness for jevmlx. Datasets live as `cases.jsonl` (+ a
 `dataset.lock.json` written by the fetchers) and runs write
 `predictions.jsonl` + `run.json` into an output directory — one prediction
 line per (case, field, permutation), exact contract in the eval-harness
@@ -13,7 +13,7 @@ Two tracks answer two different questions.
 ### Decoder ablation — `parallel` vs `naive_local`
 
 *Same* local model, tokenizer, prompt information, hardware. The only
-difference is decoding: openjev's parallel constrained path (schema compiled
+difference is decoding: jevmlx's parallel constrained path (schema compiled
 into a batch plan, every field scored in one pass, log-probabilities straight
 off the trie) against the same model free-writing the whole JSON object
 (`naive_local`, parsed strictly). Differences here are attributable to
@@ -21,7 +21,7 @@ decoding, not weights or serving.
 
 ### Product comparison — `parallel` vs `api_baseline`
 
-Local openjev against an OpenAI-compatible chat API endpoint (a bigger
+Local jevmlx against an OpenAI-compatible chat API endpoint (a bigger
 remote model, a different serving stack). Reports accuracy, validity, cost,
 and end-to-end latency *without attributing the differences to decoding* —
 weights, hardware, prompts, and latency boundaries differ by design.
@@ -30,28 +30,28 @@ weights, hardware, prompts, and latency boundaries differ by design.
 
 ```bash
 # Decoder ablation, same local model, both tracks:
-openjev eval --data benchmarks/cases.jsonl --model <model-id> \
+jevmlx eval --data benchmarks/cases.jsonl --model <model-id> \
     --track parallel --out runs/parallel
-openjev eval --data benchmarks/cases.jsonl --model <model-id> \
+jevmlx eval --data benchmarks/cases.jsonl --model <model-id> \
     --track naive_local --out runs/naive_local
 
 # Product comparison against an API endpoint:
-OPENAI_API_KEY=... openjev eval --data benchmarks/cases.jsonl \
+OPENAI_API_KEY=... jevmlx eval --data benchmarks/cases.jsonl \
     --track api_baseline --api-base https://api.example.com/v1 \
     --api-model gpt-4o --api-key-env OPENAI_API_KEY --out runs/api
 
 # Position-bias probes (parallel track only):
-openjev eval --data benchmarks/cases.jsonl --track parallel \
+jevmlx eval --data benchmarks/cases.jsonl --track parallel \
     --permutations rotations --out runs/rotations   # every cyclic rotation of every enum (all k for n<=8, else 8 seeded)
-openjev eval --data benchmarks/cases.jsonl --track parallel \
+jevmlx eval --data benchmarks/cases.jsonl --track parallel \
     --permutations fieldperm --out runs/fieldperm   # 3 seeded field-order permutations
-openjev eval --data benchmarks/cases.jsonl --track parallel \
+jevmlx eval --data benchmarks/cases.jsonl --track parallel \
     --permutations all --out runs/all
 
 # Subsets:
-openjev eval --data benchmarks/cases.jsonl --track parallel \
+jevmlx eval --data benchmarks/cases.jsonl --track parallel \
     --split holdout --out runs/holdout              # train | holdout | all
-openjev eval --data benchmarks/cases.jsonl --track parallel \
+jevmlx eval --data benchmarks/cases.jsonl --track parallel \
     --limit 20 --out runs/smoke
 ```
 

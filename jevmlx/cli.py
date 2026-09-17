@@ -1,8 +1,8 @@
-"""openjev command-line interface.
+"""jevmlx command-line interface.
 
-openjev decide --preset fintech_fraud
-openjev decide --schema FILE --context FILE|-
-openjev decide --json --preset support_triage
+jevmlx decide --preset fintech_fraud
+jevmlx decide --schema FILE --context FILE|-
+jevmlx decide --json --preset support_triage
 """
 
 from __future__ import annotations
@@ -15,12 +15,12 @@ import os
 import sys
 from importlib import resources
 
-from openjev import __version__
-from openjev.api import DEFAULT_MODEL
-from openjev.engine import load_engine, run_parallel_generation
-from openjev.lint import lint_schema
-from openjev.log import configure
-from openjev.schema import StructuredSchema
+from jevmlx import __version__
+from jevmlx.api import DEFAULT_MODEL
+from jevmlx.engine import load_engine, run_parallel_generation
+from jevmlx.lint import lint_schema
+from jevmlx.log import configure
+from jevmlx.schema import StructuredSchema
 
 
 def load_preset(name: str) -> dict:
@@ -31,7 +31,7 @@ def load_preset(name: str) -> dict:
             return json.load(f)
     filename = name if name.endswith(".json") else f"{name}.json"
     return json.loads(
-        resources.files("openjev.presets").joinpath(filename).read_text(encoding="utf-8")
+        resources.files("jevmlx.presets").joinpath(filename).read_text(encoding="utf-8")
     )
 
 
@@ -78,8 +78,8 @@ def _rounded_json_payload(result: dict) -> dict:
 
 
 def main(argv=None) -> None:
-    ap = argparse.ArgumentParser(prog="openjev", description=__doc__)
-    ap.add_argument("--version", action="version", version=f"openjev {__version__}")
+    ap = argparse.ArgumentParser(prog="jevmlx", description=__doc__)
+    ap.add_argument("--version", action="version", version=f"jevmlx {__version__}")
     sub = ap.add_subparsers(dest="command", required=True)
 
     decide = sub.add_parser(
@@ -178,7 +178,7 @@ def main(argv=None) -> None:
         level = logging.INFO
     else:
         level = logging.INFO if args.verbose else logging.WARNING
-    configure(level=level, json_mode=os.environ.get("OPENJEV_LOG") == "json")
+    configure(level=level, json_mode=os.environ.get("JEVMLX_LOG") == "json")
 
     if args.command == "decide":
         if args.preset and (args.schema or args.context):
@@ -223,7 +223,7 @@ def main(argv=None) -> None:
             print_result(title, args.model, result)
 
     elif args.command == "calibrate":
-        from openjev import calibrate
+        from jevmlx import calibrate
 
         print(f"Loading {args.model} ...", flush=True)
         model, tokenizer = load_engine(args.model)
@@ -242,14 +242,14 @@ def main(argv=None) -> None:
         print(f"accuracy       : {acc:.4f}")
 
     elif args.command == "serve":
-        from openjev.serve import serve
+        from jevmlx.serve import serve
 
         serve(args.model, args.host, args.port)
 
     elif args.command == "report":
         # Offline: pure-python metrics over predictions.jsonl -> evalreport.
-        from openjev.evalmetrics import compute_metrics, load_predictions
-        from openjev.evalreport import environment, write_report
+        from jevmlx.evalmetrics import compute_metrics, load_predictions
+        from jevmlx.evalreport import environment, write_report
 
         records = load_predictions(args.predictions)
         write_report(args.out, {"environment": environment(), "metrics": compute_metrics(records)})
@@ -286,10 +286,10 @@ def main(argv=None) -> None:
 
 
 def _run_eval_command(args) -> None:
-    """openjev eval: batch labeled cases through one decision track."""
+    """jevmlx eval: batch labeled cases through one decision track."""
     import logging
 
-    from openjev import evalrun
+    from jevmlx import evalrun
 
     cases = evalrun.load_cases(args.data)
     if args.limit is not None:
@@ -322,7 +322,7 @@ def _run_eval_command(args) -> None:
         chat_template = None
         plan_provider = None
 
-    logging.getLogger("openjev.evalrun").setLevel(logging.INFO)
+    logging.getLogger("jevmlx.evalrun").setLevel(logging.INFO)
     run = evalrun.run_eval(
         cases,
         decide_fn,

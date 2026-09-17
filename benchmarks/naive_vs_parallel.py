@@ -38,9 +38,9 @@ def main() -> None:
     ap.add_argument("--outdir", default=os.path.join(ROOT, "results"))
     args = ap.parse_args()
 
-    from openjev.cli import load_preset
-    from openjev.engine import load_engine, run_naive_generation, run_parallel_generation
-    from openjev.schema import StructuredSchema
+    from jevmlx.cli import load_preset
+    from jevmlx.engine import load_engine, run_naive_generation, run_parallel_generation
+    from jevmlx.schema import StructuredSchema
 
     t0 = time.perf_counter()
     model, tokenizer = load_engine(args.model_id)

@@ -1,19 +1,19 @@
-"""Tests for the openjev CLI argument handling and version output."""
+"""Tests for the jevmlx CLI argument handling and version output."""
 
 import json
 
 import pytest
 
-from openjev import __version__
-from openjev.cli import main
+from jevmlx import __version__
+from jevmlx.cli import main
 
 
 def test_version(capsys):
-    """`openjev --version` exits 0 and prints `openjev <version>`."""
+    """`jevmlx --version` exits 0 and prints `jevmlx <version>`."""
     with pytest.raises(SystemExit) as exc:
         main(["--version"])
     assert exc.value.code == 0
-    assert f"openjev {__version__}" in capsys.readouterr().out
+    assert f"jevmlx {__version__}" in capsys.readouterr().out
 
 
 def test_decide_requires_preset_or_schema_and_context(capsys):
@@ -58,7 +58,7 @@ def test_decide_rejects_preset_with_context(capsys):
 
 
 def test_validate_exits_1_on_compile_error(tmp_path, capsys, monkeypatch):
-    """`openjev validate` exits 1 when the schema cannot compile (L1b)."""
+    """`jevmlx validate` exits 1 when the schema cannot compile (L1b)."""
 
     class FakeTok:
         name_or_path = "fake-cli-tok"

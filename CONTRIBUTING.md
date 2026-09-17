@@ -3,7 +3,7 @@
 ## Setup
 
 ```bash
-git clone https://github.com/bnsd55/openjev && cd openjev
+git clone https://github.com/bnsd55/jevmlx && cd jevmlx
 uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
 .venv/bin/pytest -q          # full suite (smoke test downloads a small model)
 ```

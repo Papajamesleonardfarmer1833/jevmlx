@@ -1,4 +1,4 @@
-"""Model compatibility matrix for openjev.
+"""Model compatibility matrix for jevmlx.
 
 Loads each model, runs the fintech_fraud and support_triage presets through
 run_parallel_generation, and prints a markdown table with load status,
@@ -16,9 +16,9 @@ import sys
 
 import mlx.core as mx
 
-from openjev.cli import load_preset
-from openjev.engine import load_engine, run_parallel_generation
-from openjev.schema import StructuredSchema
+from jevmlx.cli import load_preset
+from jevmlx.engine import load_engine, run_parallel_generation
+from jevmlx.schema import StructuredSchema
 
 MODELS = [
     "mlx-community/Qwen2.5-1.5B-Instruct-4bit",

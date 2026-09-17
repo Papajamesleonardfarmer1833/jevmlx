@@ -1,7 +1,7 @@
-"""Logging setup for the openjev CLI.
+"""Logging setup for the jevmlx CLI.
 
 Library modules only emit records via ``logging.getLogger(__name__)``; configuring
-handlers is the entry point's job (``openjev.cli.main``) and is never done on import.
+handlers is the entry point's job (``jevmlx.cli.main``) and is never done on import.
 """
 
 from __future__ import annotations

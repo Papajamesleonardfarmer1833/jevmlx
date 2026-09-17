@@ -4,10 +4,10 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
-import openjev
-from openjev.api import schema_from_model
-from openjev.cli import load_preset
-from openjev.schema import StructuredSchema
+import jevmlx
+from jevmlx.api import schema_from_model
+from jevmlx.cli import load_preset
+from jevmlx.schema import StructuredSchema
 
 
 class Severity(enum.Enum):
@@ -77,10 +77,10 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
             "elapsed_ms": 5.0,
         }
 
-    monkeypatch.setattr("openjev.api.load_engine", fake_load_engine)
-    monkeypatch.setattr("openjev.api.run_parallel_generation", fake_run_parallel)
+    monkeypatch.setattr("jevmlx.api.load_engine", fake_load_engine)
+    monkeypatch.setattr("jevmlx.api.run_parallel_generation", fake_run_parallel)
 
-    decisions = openjev.decide_many(
+    decisions = jevmlx.decide_many(
         TwoField,
         ["context one", "context two", "context three"],
         model="fake/model",
@@ -109,14 +109,14 @@ def test_decide_many_input_validation(monkeypatch):
         risk_tier: Literal["LOW", "HIGH"] = Field(description="Risk tier")
 
     load_calls: list[str] = []
-    monkeypatch.setattr("openjev.api.load_engine", lambda model_id: load_calls.append(model_id))
+    monkeypatch.setattr("jevmlx.api.load_engine", lambda model_id: load_calls.append(model_id))
 
     with pytest.raises(TypeError, match="sequence of str"):
-        openjev.decide_many(TwoField, "one lone context")
+        jevmlx.decide_many(TwoField, "one lone context")
     with pytest.raises(TypeError, match="sequence of str"):
-        openjev.decide_many(TwoField, b"bytes contexts")
+        jevmlx.decide_many(TwoField, b"bytes contexts")
     with pytest.raises(TypeError, match=r"contexts\[1\] must be str"):
-        openjev.decide_many(TwoField, ["fine", 123])
+        jevmlx.decide_many(TwoField, ["fine", 123])
     assert load_calls == []  # validation happens before the engine loads
 
 
@@ -129,8 +129,8 @@ def test_decide_many_empty_contexts_returns_empty_without_loading(monkeypatch):
     def fail_load(model_id):
         raise AssertionError("engine must not be loaded for empty contexts")
 
-    monkeypatch.setattr("openjev.api.load_engine", fail_load)
-    assert openjev.decide_many(TwoField, []) == []
+    monkeypatch.setattr("jevmlx.api.load_engine", fail_load)
+    assert jevmlx.decide_many(TwoField, []) == []
 
 
 def test_schema_from_model_rejects_non_string_literal_values():
@@ -179,7 +179,7 @@ def test_choice_values_rejects_duplicate_values_directly():
     Literal deduplicates at annotation level and Python enums alias members
     with equal values, so both collapse before _choice_values runs.
     """
-    from openjev.api import _choice_values
+    from jevmlx.api import _choice_values
 
     assert _choice_values("x", ["a", "b"]) == ["a", "b"]
     with pytest.raises(TypeError, match="duplicate"):
@@ -190,14 +190,14 @@ def test_choice_values_rejects_duplicate_values_directly():
 
 def test_clear_engine_cache_is_public_and_idempotent():
     """Y9: clear_engine_cache exists on the package and is safe to call twice."""
-    assert callable(openjev.clear_engine_cache)
-    openjev.clear_engine_cache()
-    openjev.clear_engine_cache()  # must not raise with nothing cached
+    assert callable(jevmlx.clear_engine_cache)
+    jevmlx.clear_engine_cache()
+    jevmlx.clear_engine_cache()  # must not raise with nothing cached
 
 
 def test_load_engine_cache_is_single_slot():
     """Y9: one model in unified memory at a time — maxsize=1."""
-    assert openjev.load_engine.cache_info().maxsize == 1
+    assert jevmlx.load_engine.cache_info().maxsize == 1
 
 
 def test_decide_end_to_end():
@@ -206,7 +206,7 @@ def test_decide_end_to_end():
         risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
 
     fraud_preset = load_preset("fintech_fraud")
-    d = openjev.decide(
+    d = jevmlx.decide(
         TwoField,
         fraud_preset["context"],
         model="mlx-community/Qwen2.5-0.5B-Instruct-4bit",

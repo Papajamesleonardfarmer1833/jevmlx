@@ -1,6 +1,6 @@
 # Bug report
 
-**openjev version** (output of `openjev --version`):
+**jevmlx version** (output of `jevmlx --version`):
 
 **macOS version + chip** (e.g. "macOS 15.2, M2 Pro"):
 

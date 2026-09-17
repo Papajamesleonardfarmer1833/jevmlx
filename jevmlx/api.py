@@ -3,13 +3,13 @@ constrained decisions and returns validated, typed results.
 
     from typing import Literal
     from pydantic import BaseModel, Field
-    import openjev
+    import jevmlx
 
     class Fraud(BaseModel):
         is_fraudulent: bool = Field(description="Whether the transaction is fraudulent")
         risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
 
-    d = openjev.decide(Fraud, context)
+    d = jevmlx.decide(Fraud, context)
     d.value        # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
     d.confidence   # {"is_fraudulent": 0.99, "risk_tier": 0.97}
     d.latency_ms
@@ -24,8 +24,8 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
-from openjev.engine import load_engine, run_parallel_generation
-from openjev.schema import StructuredSchema
+from jevmlx.engine import load_engine, run_parallel_generation
+from jevmlx.schema import StructuredSchema
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 

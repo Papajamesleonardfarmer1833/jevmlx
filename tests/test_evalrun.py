@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from openjev import evalrun
+from jevmlx import evalrun
 
 
 def _two_cases() -> list[dict]:
@@ -244,8 +244,8 @@ def test_split_and_dataset_lock(tmp_path):
 
 def test_naive_invalid_prediction_counts_wrong(tmp_path):
     """An unparseable naive output yields valid=false, correct=false (label present)."""
-    from openjev.baseline import parse_baseline_output
-    from openjev.schema import StructuredSchema
+    from jevmlx.baseline import parse_baseline_output
+    from jevmlx.schema import StructuredSchema
 
     schema = StructuredSchema({"flag": {"type": "boolean", "description": "urgent"}})
     strict, salvage, errors = parse_baseline_output("not json at all", schema)
@@ -296,7 +296,7 @@ def test_load_cases_skips_comments_and_blank(tmp_path):
 def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
     """Accessor reads finalized 'log_scores' (dict) first; falls back to
     legacy 'scores' (list in choice order)."""
-    from openjev import evalrun as er
+    from jevmlx import evalrun as er
 
     class FakeField:
         field_type = "enum"
@@ -313,7 +313,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
             return FakeSchema().fields  # not used
 
     # parallel_decide_fn returns decide(); we test decide() by monkeypatching
-    # run_parallel_generation inside openjev.engine.
+    # run_parallel_generation inside jevmlx.engine.
     calls = {}
 
     def fake_rpg(model, tokenizer, context, schema, temperature=1.0):
@@ -332,7 +332,7 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
             "passes": 1,
         }
 
-    import openjev.engine as engine_mod
+    import jevmlx.engine as engine_mod
 
     monkeypatch.setattr(engine_mod, "run_parallel_generation", fake_rpg)
     decide = er.parallel_decide_fn(model=object(), tokenizer=object())

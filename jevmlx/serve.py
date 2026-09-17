@@ -1,6 +1,6 @@
-"""`openjev serve`: HTTP wrapper around the parallel decision engine.
+"""`jevmlx serve`: HTTP wrapper around the parallel decision engine.
 
-    openjev serve --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --port 8000
+    jevmlx serve --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --port 8000
 
 POST /decide  {"schema": {...}, "context": "...", "temperature": 1.0}
 GET  /health  -> {"ok": true, "model": M, "busy": bool, "requests_served": n}
@@ -107,8 +107,8 @@ def make_handler(
 
 def serve(model_id: str, host: str = "127.0.0.1", port: int = 8000) -> None:
     """Load the model once, then serve decisions until interrupted."""
-    from openjev.engine import load_engine, run_parallel_generation
-    from openjev.schema import StructuredSchema
+    from jevmlx.engine import load_engine, run_parallel_generation
+    from jevmlx.schema import StructuredSchema
 
     logger.info("Loading %s ...", model_id)
     model, tokenizer = load_engine(model_id)
@@ -118,5 +118,5 @@ def serve(model_id: str, host: str = "127.0.0.1", port: int = 8000) -> None:
         return run_parallel_generation(model, tokenizer, context, schema, temperature=temperature)
 
     server = HTTPServer((host, port), make_handler(decide_fn, model_id, _ServerStats()))
-    logger.info("openjev serving %s on http://%s:%s", model_id, host, port)
+    logger.info("jevmlx serving %s on http://%s:%s", model_id, host, port)
     server.serve_forever()

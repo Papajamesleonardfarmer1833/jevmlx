@@ -1,6 +1,6 @@
 """Naive-JSON baseline for the eval harness (OpenAI-compatible chat API).
 
-The eval compares openjev's constrained path against the same model (or a
+The eval compares jevmlx's constrained path against the same model (or a
 bigger API model) writing the whole JSON object itself: same schema, same
 context, same information. Two modes: ``'text'`` (default, truly naive — no
 response_format) and ``'json'`` (response_format json_object). Parsing is
@@ -14,7 +14,7 @@ import time
 import urllib.error
 import urllib.request
 
-from openjev.schema import StructuredSchema
+from jevmlx.schema import StructuredSchema
 
 __all__ = [
     "BaselineError",

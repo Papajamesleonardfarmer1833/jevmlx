@@ -8,8 +8,8 @@ uniform probability and every row path executes.
 import mlx.core as mx
 import pytest
 
-from openjev.engine import run_parallel_generation
-from openjev.schema import StructuredSchema
+from jevmlx.engine import run_parallel_generation
+from jevmlx.schema import StructuredSchema
 
 
 class FakeModel:

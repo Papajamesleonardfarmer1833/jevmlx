@@ -1,8 +1,8 @@
-"""Hand-computable metrics tests for openjev.evalmetrics. No numpy, no model."""
+"""Hand-computable metrics tests for jevmlx.evalmetrics. No numpy, no model."""
 
 import math
 
-from openjev.evalmetrics import (
+from jevmlx.evalmetrics import (
     accuracy_cluster_bootstrap,
     any_flip_rate,
     brier_score,
@@ -368,17 +368,17 @@ class TestAssembly:
 
 
 class TestReportWiring:
-    def test_openjev_report_cli_writes_both_files(self, tmp_path, capsys, monkeypatch):
+    def test_jevmlx_report_cli_writes_both_files(self, tmp_path, capsys, monkeypatch):
         import json
 
-        from openjev import cli
+        from jevmlx import cli
 
         predictions = tmp_path / "predictions.jsonl"
         predictions.write_text("\n".join(json.dumps(r) for r in P) + "\n", encoding="utf-8")
         out = tmp_path / "report.json"
         monkeypatch.setattr(
             "sys.argv",
-            ["openjev", "report", "--predictions", str(predictions), "--out", str(out)],
+            ["jevmlx", "report", "--predictions", str(predictions), "--out", str(out)],
         )
         cli.main()
         run = json.loads(out.read_text())

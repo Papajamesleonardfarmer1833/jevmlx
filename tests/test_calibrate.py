@@ -1,7 +1,7 @@
 import math
 import random
 
-from openjev.calibrate import ece, fit_temperature
+from jevmlx.calibrate import ece, fit_temperature
 
 
 def _samples_from_true_temp(t_true: float, n: int = 400, k: int = 5, seed: int = 7):

@@ -1,6 +1,6 @@
 # NOTICE
 
-openjev is an unofficial, open-source Jev-style engine for Apple Silicon. It
+jevmlx is an unofficial, open-source Jev-style engine for Apple Silicon. It
 builds on two prior works:
 
 - [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)
@@ -9,7 +9,7 @@ builds on two prior works:
   decoding technique on Apple Silicon.
 - [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD)
   (Apache-2.0) — the original parallel constrained decoding engine whose
-  approach openjev reimplements.
+  approach jevmlx reimplements.
 
-Jev is a product of TypeSafe AI. openjev is not affiliated with, endorsed by,
+Jev is a product of TypeSafe AI. jevmlx is not affiliated with, endorsed by,
 or connected to TypeSafe AI.

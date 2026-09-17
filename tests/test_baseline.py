@@ -1,4 +1,4 @@
-"""Tests for openjev.baseline: prompt building, parsing, HTTP call. No network."""
+"""Tests for jevmlx.baseline: prompt building, parsing, HTTP call. No network."""
 
 import json
 import threading
@@ -6,14 +6,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from openjev.baseline import (
+from jevmlx.baseline import (
     BaselineError,
     baseline_decide,
     build_baseline_messages,
     call_chat_completions,
     parse_baseline_output,
 )
-from openjev.schema import StructuredSchema
+from jevmlx.schema import StructuredSchema
 
 SCHEMA = StructuredSchema(
     {

@@ -17,8 +17,8 @@ import re
 import time
 from typing import Any
 
-from openjev.schema import StructuredSchema
-from openjev.trie import build_trie, score_trie, softmax
+from jevmlx.schema import StructuredSchema
+from jevmlx.trie import build_trie, score_trie, softmax
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # itself fails with a low-level error, and the platform message is the useful one.
 if platform.system() != "Darwin" or platform.machine() != "arm64":
     raise RuntimeError(
-        "openjev requires Apple Silicon (macOS + arm64) with mlx-lm installed. "
+        "jevmlx requires Apple Silicon (macOS + arm64) with mlx-lm installed. "
         "The PyTorch/CUDA backend was removed."
     )
 

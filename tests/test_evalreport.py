@@ -1,11 +1,11 @@
-"""Tests for openjev.evalreport: environment probe + report writer. No model."""
+"""Tests for jevmlx.evalreport: environment probe + report writer. No model."""
 
 import json
 import sys
 
 import pytest
 
-from openjev import evalreport
+from jevmlx import evalreport
 
 REQUIRED_ENV_KEYS = {
     "machine_model",
@@ -15,7 +15,7 @@ REQUIRED_ENV_KEYS = {
     "python_version",
     "mlx_version",
     "mlx_lm_version",
-    "openjev_version",
+    "jevmlx_version",
     "git_sha",
     "timestamp_utc",
 }
@@ -56,7 +56,7 @@ class TestEnvironment:
         assert env["chip"] is None
         assert env["ram_gb"] is None
         assert env["mlx_version"] is None
-        assert env["openjev_version"] is None
+        assert env["jevmlx_version"] is None
 
     def test_ram_gb_parses_bytes(self, monkeypatch):
         monkeypatch.setattr(

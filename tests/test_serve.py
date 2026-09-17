@@ -9,7 +9,7 @@ from http.server import HTTPServer
 
 import pytest
 
-from openjev.serve import make_handler
+from jevmlx.serve import make_handler
 
 FAKE_RESULT = {"parsed_json": {"action": {"value": "APPROVE", "prob": 0.9}}, "elapsed_ms": 1.0}
 
@@ -138,6 +138,6 @@ def test_decide_emits_log_record(server, caplog):
     """T8b: a decide emits a log record through the logging module."""
     port, _ = server
     schema = {"action": {"type": "enum", "choices": ["APPROVE"], "description": "d"}}
-    with caplog.at_level(logging.INFO, logger="openjev.serve"):
+    with caplog.at_level(logging.INFO, logger="jevmlx.serve"):
         _post(port, {"schema": schema, "context": "ctx"})
     assert any(r.levelno >= logging.INFO for r in caplog.records)

@@ -1,7 +1,7 @@
 # TypeSafe-derived benchmark fetcher
 
 Downloads TypeSafe's published evaluation examples from
-https://evals.typesafe.ai/ and converts them to the openjev eval JSONL
+https://evals.typesafe.ai/ and converts them to the jevmlx eval JSONL
 contract (see `benchmarks/README.md` for the harness side).
 
 ```bash
@@ -29,7 +29,7 @@ fields. Two consequences:
   routing thresholds; use representative domain data for that.
 
 Nothing from TypeSafe is committed to this repository. Raw downloads are
-cached content-addressed under `~/.cache/openjev/typesafe/` (reruns are
+cached content-addressed under `~/.cache/jevmlx/typesafe/` (reruns are
 offline; `--refresh` re-downloads), and `dataset.lock.json` next to the
 output records source URLs, content sha256s, fetch timestamps, the parser
 version, and the hash of the written cases file.

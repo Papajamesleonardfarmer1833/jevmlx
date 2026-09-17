@@ -6,9 +6,9 @@ from typing import Literal
 import pytest
 from pydantic import BaseModel, Field
 
-from openjev.api import schema_from_model
-from openjev.engine import _fold_multi
-from openjev.schema import FieldDefinition, StructuredSchema
+from jevmlx.api import schema_from_model
+from jevmlx.engine import _fold_multi
+from jevmlx.schema import FieldDefinition, StructuredSchema
 
 
 class FakeTokenizer:

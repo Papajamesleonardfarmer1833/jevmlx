@@ -2,16 +2,16 @@
 
 import importlib.metadata
 
-__version__ = importlib.metadata.version("openjev")
+__version__ = importlib.metadata.version("jevmlx")
 
-from openjev.api import DEFAULT_MODEL, Decision, decide, decide_many, schema_from_model
-from openjev.engine import (
+from jevmlx.api import DEFAULT_MODEL, Decision, decide, decide_many, schema_from_model
+from jevmlx.engine import (
     clear_engine_cache,
     load_engine,
     run_naive_generation,
     run_parallel_generation,
 )
-from openjev.schema import FieldDefinition, StructuredSchema
+from jevmlx.schema import FieldDefinition, StructuredSchema
 
 __all__ = [
     "DEFAULT_MODEL",

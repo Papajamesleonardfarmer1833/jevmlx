@@ -2,8 +2,8 @@
 
 import pytest
 
-from openjev.engine import _rows_per_chunk, run_parallel_generation
-from openjev.schema import StructuredSchema
+from jevmlx.engine import _rows_per_chunk, run_parallel_generation
+from jevmlx.schema import StructuredSchema
 
 SCHEMA = {"action": {"type": "enum", "choices": ["A", "B"], "description": "d"}}
 

@@ -1,4 +1,4 @@
-"""Fetch TypeSafe's public evaluation examples as an openjev eval JSONL.
+"""Fetch TypeSafe's public evaluation examples as an jevmlx eval JSONL.
 
 This produces a *flattened, TypeSafe-derived* benchmark: each published
 workflow step (reference node) becomes eval fields sharing that step's exact
@@ -10,11 +10,11 @@ calibration or routing thresholds).
 Downloads the published eval viewer pages from https://evals.typesafe.ai/
 (no JavaScript rendering needed: each workflow ships a ``<workflow>-cases.js``
 file embedding a JSON payload in a ``__VIEWER_DATA__(...)`` call), converts
-them to openjev eval JSONL, and writes ``cases.jsonl`` plus a
+them to jevmlx eval JSONL, and writes ``cases.jsonl`` plus a
 ``dataset.lock.json`` (source URLs, content hashes, fetch timestamps, parser
 version, counts, and the hash of the written cases file). Nothing from
 TypeSafe is committed to this repository; raw downloads are cached
-content-addressed under ``~/.cache/openjev/typesafe/`` so reruns work offline.
+content-addressed under ``~/.cache/jevmlx/typesafe/`` so reruns work offline.
 
 Usage:
     python -m benchmarks.typesafe.fetch --out cases.jsonl [--workflow NAME] [--refresh]
@@ -32,7 +32,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 BASE_URL = "https://evals.typesafe.ai"
-CACHE_DIR = Path.home() / ".cache" / "openjev" / "typesafe"
+CACHE_DIR = Path.home() / ".cache" / "jevmlx" / "typesafe"
 
 # The workflows TypeSafe publishes today. A workflow that disappears from the
 # site fails loudly on download; pass --workflow to fetch a subset.
@@ -54,7 +54,7 @@ SCORE_CHOICES = ("0", "1", "2", "3")
 AMBIGUOUS_MARGIN = 0.1
 
 # The site rejects requests with the default Python urllib User-Agent (HTTP 403).
-USER_AGENT = "Mozilla/5.0 (compatible; openjev-eval-fetcher)"
+USER_AGENT = "Mozilla/5.0 (compatible; jevmlx-eval-fetcher)"
 
 _VIEWER_DATA_RE = re.compile(r"__VIEWER_DATA__\((\{.*\})\)", re.S)
 
@@ -129,7 +129,7 @@ def fetch_workflow(
 
 
 def _canonical_value(value, qtype: str):
-    """Canonicalize a published reference value to its openjev label form."""
+    """Canonicalize a published reference value to its jevmlx label form."""
     if qtype == "noul":
         if isinstance(value, bool):
             return value
@@ -237,7 +237,7 @@ def _label_from_key(key: str, qtype: str):
 
 
 def _field_schema(question: dict) -> dict | None:
-    """Map one catalog question to an openjev schema field, or None to skip.
+    """Map one catalog question to an jevmlx schema field, or None to skip.
 
     ``noul`` (yes/no) questions become boolean fields. ``choice`` and
     ``score`` questions become enum fields with the published options as
@@ -475,7 +475,7 @@ def write_outputs(records: list[dict], out_path: Path, sources: list[dict], coun
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m benchmarks.typesafe.fetch",
-        description="Fetch TypeSafe's public eval examples as openjev eval JSONL.",
+        description="Fetch TypeSafe's public eval examples as jevmlx eval JSONL.",
     )
     parser.add_argument("--out", required=True, help="output JSONL path")
     parser.add_argument(
