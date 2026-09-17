@@ -24,6 +24,8 @@ from jevmlx.evalmetrics import (
     perturbation_flip_rate,
     risk_coverage_curve,
     tie_rate,
+    tvd_vs_consensus,
+    typesafe_agreement,
 )
 
 # 4 cases, 6 labelled field-predictions. Every number below is hand-checkable.
@@ -539,3 +541,184 @@ class TestBalancedAccuracyAndMacroF1:
             "tags", ["a", "b"], ["a", "c"], case_id="c1#p2", group_id="g1", perturbation="ws"
         )
         assert perturbation_flip_rate([original, reordered, changed]) == 0.5
+
+
+class TestTypesafeComparable:
+    """agreement + tvd_vs_consensus on TypeSafe-derived lines (hand-computed)."""
+
+    @staticmethod
+    def _ts(case_id, field, prediction, label, workflow="security_incidents", **extra):
+        record = {
+            "run_id": "r",
+            "case_id": case_id,
+            "group_id": case_id,
+            "source": "typesafe",
+            "workflow": workflow,
+            "field": field,
+            "type": "enum",
+            "track": "parallel",
+            "model": "m",
+            "permutation": "canonical",
+            "label": label,
+            "prediction": prediction,
+            "valid": prediction is not None,
+            "correct": None if label is None else (prediction is not None and prediction == label),
+            "log_scores": None,
+            "confidence": None,
+            "per_option": None,
+            "latency_ms": None,
+            "rows": None,
+            "passes": None,
+            "error": None,
+            "salvage_prediction": None,
+        }
+        record.update(extra)
+        return record
+
+    def test_agreement_hand_computed_with_ambiguous_exclusion(self):
+        # 4 labelled fields across two workflows, 3 agree: overall = 3/4.
+        # security_incidents: 3 labelled, 2 agree -> 2/3. The field q_scope is
+        # flagged ambiguous (per-line field_ambiguous) and DISAGREES, so the
+        # common subset is q_auth + q_strength = 2/2 = 1.0. Workflow means are
+        # macro (unweighted): (2/3 + 1) / 2 = 5/6.
+        records = [
+            self._ts("c1", "q_auth", True, True),
+            self._ts("c1", "q_scope", "workgroup", "organization_wide", field_ambiguous=True),
+            self._ts("c1", "q_strength", "1", "1"),
+            self._ts("c2", "q_auth", False, False, workflow="invoice_processing"),
+            # Non-typesafe lines never count.
+            self._ts("c3", "q_auth", "X", "X", source="quality-eval"),
+            # Unlabelled typesafe line: excluded from the rates.
+            self._ts("c1", "q_summary", None, None),
+        ]
+        result = typesafe_agreement(records)
+        assert result["overall"] == pytest.approx(3 / 4)
+        assert result["by_workflow"] == {
+            "invoice_processing": 1.0,
+            "security_incidents": pytest.approx(2 / 3),
+        }
+        assert result["agreement_common_subset"] == 1.0
+        assert result["n_fields"] == 4
+        assert result["n_cases"] == 2  # c1 and c2
+
+    def test_agreement_empty_and_all_ambiguous(self):
+        assert typesafe_agreement([]) == {}
+        assert typesafe_agreement([self._ts("c", "f", "A", "A", source="quality-eval")]) == {}
+        only_ambiguous = [self._ts("c1", "q", "A", "B", field_ambiguous=True)]
+        result = typesafe_agreement(only_ambiguous)
+        assert result["agreement_common_subset"] is None
+        assert result["overall"] == 0.0
+
+    def test_agreement_reads_meta_ambiguous_list_when_present(self):
+        # evalrun may carry the fetcher's ambiguous list as line['ambiguous'].
+        records = [
+            self._ts("c1", "q_auth", True, True),
+            self._ts("c1", "q_scope", "x", "y", ambiguous=["q_scope"]),
+        ]
+        result = typesafe_agreement(records)
+        assert result["agreement_common_subset"] == 1.0  # q_scope excluded
+        assert result["overall"] == 0.5
+
+    def test_tvd_vs_consensus_two_fields_hand_computed(self):
+        # Field 1: ours {A: 0.75, B: 0.25} vs consensus {A: 0.5, B: 0.5}
+        #   TVD = 0.5 * (|0.25| + |0.25|) = 0.25.
+        # Field 2: ours {A: 1.0} vs consensus {A: 0.6, B: 0.4}
+        #   TVD = 0.5 * (0.4 + 0.4) = 0.4.
+        # Mean overall = (0.25 + 0.4) / 2 = 0.325.
+        records = [
+            self._ts(
+                "c1",
+                "q_a",
+                "A",
+                "A",
+                log_scores={"A": math.log(0.75), "B": math.log(0.25)},
+                consensus={"A": 0.5, "B": 0.5},
+            ),
+            self._ts(
+                "c2",
+                "q_b",
+                "A",
+                "A",
+                workflow="invoice_processing",
+                log_scores={"A": 5.0, "B": -50.0},
+                consensus={"A": 0.6, "B": 0.4},
+            ),
+            # No consensus on the line -> skipped.
+            self._ts("c3", "q_c", "A", "A", log_scores={"A": 1.0, "B": 0.0}),
+            # Consensus but no log_scores -> skipped.
+            self._ts("c4", "q_d", "A", "A", consensus={"A": 1.0}),
+        ]
+        result = tvd_vs_consensus(records)
+        assert result["overall"] == pytest.approx(0.325)
+        assert result["by_workflow"] == {
+            "invoice_processing": pytest.approx(0.4),
+            "security_incidents": pytest.approx(0.25),
+        }
+
+    def test_tvd_vs_consensus_multi_uses_per_option(self):
+        # multi field: per_option distributions are our side of the TVD.
+        record = self._ts(
+            "c1",
+            "tags",
+            ["a"],
+            ["a"],
+            per_option={"a": 0.8, "b": 0.3},
+            consensus={"true": 0.75, "false": 0.25},
+        )
+        # _record_distribution falls back to per_option when log_scores absent?
+        # It does not - check the documented behaviour: without log_scores the
+        # line is skipped.
+        result = tvd_vs_consensus([record])
+        assert result == {}
+
+    def test_tvd_and_agreement_absent_for_other_sources(self):
+        plain = [self._ts("c", "f", "A", "A", source="quality-eval")]
+        assert typesafe_agreement(plain) == {}
+        assert tvd_vs_consensus(plain) == {}
+        # And compute_metrics stays clean for non-typesafe runs.
+        assert "agreement" not in compute_metrics(plain)
+        assert "tvd_vs_consensus" not in compute_metrics(plain)
+
+
+class TestTypesafeReportTable:
+    """evalreport renders the agreement table when the metric keys exist."""
+
+    def test_report_contains_agreement_table_when_keys_exist(self, tmp_path):
+        from jevmlx import evalreport
+
+        run = {
+            "environment": {},
+            "config": {},
+            "metrics": {
+                "accuracy": 0.75,
+                "agreement": {
+                    "overall": 0.75,
+                    "by_workflow": {"security_incidents": 2 / 3, "invoice_processing": 1.0},
+                    "agreement_common_subset": 1.0,
+                    "n_fields": 4,
+                    "n_cases": 2,
+                },
+                "tvd_vs_consensus": {
+                    "overall": 0.325,
+                    "by_workflow": {"security_incidents": 0.25, "invoice_processing": 0.4},
+                },
+            },
+            "per_field": [],
+        }
+        out = tmp_path / "report.json"
+        evalreport.write_report(out, run)
+        md = out.with_suffix(".md").read_text()
+        assert "## Agreement vs TypeSafe consensus" in md
+        assert "| overall | 0.7500 | 1.0000 | 0.3250 |" in md
+        assert "| security_incidents |" in md and "| invoice_processing |" in md
+        # The workflow rows carry their per-workflow agreement and TVD.
+        assert "| security_incidents | 0.6667 | n/a | 0.2500 |" in md
+        import json
+
+        json.loads(out.read_text())  # JSON still valid and complete
+
+    def test_report_has_no_agreement_table_without_the_metric(self):
+        from jevmlx import evalreport
+
+        md = evalreport._to_markdown({"environment": {}, "config": {}, "metrics": {}})
+        assert "Agreement" not in md

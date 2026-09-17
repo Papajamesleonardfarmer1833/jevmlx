@@ -146,6 +146,39 @@ def _metric_rows(run: dict) -> list[tuple]:
     return rows
 
 
+def _agreement_table(run: dict) -> list[tuple]:
+    """Rows for the agreement-vs-consensus table, [] when not applicable.
+
+    Rendered when the run carries an ``agreement`` metric (TypeSafe-derived
+    records only): overall, common subset (non-ambiguous fields), and one
+    row per workflow; TVD vs consensus joins the table when present.
+    """
+    agreement = (run.get("metrics") or {}).get("agreement")
+    if not isinstance(agreement, dict) or "overall" not in agreement:
+        return []
+    tvd = (run.get("metrics") or {}).get("tvd_vs_consensus") or {}
+    by_workflow_tvd = tvd.get("by_workflow") or {}
+    rows: list[tuple] = [
+        (
+            "overall",
+            agreement["overall"],
+            agreement.get("agreement_common_subset"),
+            tvd.get("overall"),
+        )
+    ]
+    by_workflow = agreement.get("by_workflow") or {}
+    for workflow in sorted(by_workflow):
+        rows.append(
+            (
+                workflow,
+                by_workflow[workflow],
+                None,
+                by_workflow_tvd.get(workflow),
+            )
+        )
+    return rows
+
+
 def _to_markdown(run: dict) -> str:
     """Markdown summary: environment, run config, metrics, per-field accuracy."""
     environment_info = run.get("environment") or {}
@@ -173,6 +206,19 @@ def _to_markdown(run: dict) -> str:
         "",
         _table(["metric", "value"], _metric_rows(run)),
         "",
+    ]
+    agreement_rows = _agreement_table(run)
+    if agreement_rows:
+        parts += [
+            "## Agreement vs TypeSafe consensus",
+            "",
+            _table(
+                ["workflow", "agreement", "common subset", "TVD vs consensus"],
+                agreement_rows,
+            ),
+            "",
+        ]
+    parts += [
         "## Per-field accuracy",
         "",
         _table(

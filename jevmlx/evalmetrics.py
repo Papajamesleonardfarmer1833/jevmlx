@@ -19,6 +19,8 @@ __all__ = [
     "macro_f1",
     "perturbation_flip_rate",
     "compute_metrics",
+    "typesafe_agreement",
+    "tvd_vs_consensus",
 ]
 
 
@@ -525,6 +527,101 @@ def accuracy_cluster_bootstrap(
 # ------------------------------------------------------------------- assembly
 
 
+# ------------------------------------------------- TypeSafe-comparable metrics
+
+
+def _typesafe_lines(records: list[dict]) -> list[dict]:
+    """Records from TypeSafe-derived cases (source == 'typesafe')."""
+    return [r for r in records if r.get("source") == "typesafe"]
+
+
+def _is_ambiguous(record: dict) -> bool:
+    """Whether the line's field was flagged ambiguous by the fetcher.
+
+    The line-level ``ambiguous`` key (a list of field names, carried from
+    meta when requested) or a per-line ``field_ambiguous`` flag both count.
+    """
+    field = record.get("field")
+    flag = record.get("field_ambiguous")
+    if flag is not None:
+        return bool(flag)
+    ambiguous = record.get("ambiguous")
+    if isinstance(ambiguous, list):
+        return field in ambiguous
+    return False
+
+
+def typesafe_agreement(records: list[dict]) -> dict:
+    """Agreement with TypeSafe's published consensus (their headline metric).
+
+    For records whose case source is ``typesafe``: the share of labelled
+    fields whose prediction equals the consensus label — numerically the
+    accuracy restricted to that source, reported under TypeSafe's name.
+    Returns::
+
+        {"overall": float, "by_workflow": {workflow: float},
+         "agreement_common_subset": float, "n_fields": int,
+         "n_cases": int}
+
+    ``agreement_common_subset`` is computed only on fields that are not
+    flagged ambiguous (meta.ambiguous from the fetcher), the subset closest
+    to TypeSafe's own presentation; it is None when every field is flagged.
+    Records with no label are excluded from all rates; ``n_cases`` counts
+    distinct case_ids among the labelled lines.
+    """
+    lines = [r for r in _typesafe_lines(records) if _labelled([r])]
+    if not lines:
+        return {}
+    by_workflow: dict[str, list[dict]] = defaultdict(list)
+    common: list[dict] = []
+    for record in lines:
+        by_workflow[str(record.get("workflow"))].append(record)
+        if not _is_ambiguous(record):
+            common.append(record)
+    overall = field_accuracy(lines)
+    result = {
+        "overall": overall,
+        "by_workflow": macro_by(lines, "workflow"),
+        "agreement_common_subset": field_accuracy(common),
+        "n_fields": len(lines),
+        "n_cases": len({record.get("case_id") for record in lines}),
+    }
+    return result
+
+
+def tvd_vs_consensus(records: list[dict]) -> dict:
+    """Mean TVD between our choice distribution and the consensus one.
+
+    Our distribution is the same one the calibration metrics use (softmax
+    over ``log_scores`` at T=1, or ``per_option`` for multi); the reference
+    is the fetcher's ``consensus`` distribution carried on the line. Lines
+    without either side are skipped. Returns ``{"overall": float,
+    "by_workflow": {...}}`` (both absent when no line qualifies).
+    """
+    scored: list[tuple[str, float]] = []
+    for record in _typesafe_lines(records):
+        reference = record.get("consensus")
+        if not isinstance(reference, dict) or not reference:
+            continue
+        ours = _record_distribution(record)
+        if ours is None:
+            continue
+        workflow = str(record.get("workflow"))
+        scored.append((workflow, _tvd(ours, reference)))
+    if not scored:
+        return {}
+    by_workflow: dict[str, list[float]] = defaultdict(list)
+    for workflow, value in scored:
+        by_workflow[workflow].append(value)
+    result = {
+        "overall": sum(value for _w, value in scored) / len(scored),
+        "by_workflow": {
+            workflow: sum(values) / len(values) for workflow, values in sorted(by_workflow.items())
+        },
+    }
+    return result
+
+
 def compute_metrics(records: list[dict]) -> dict:
     """Assemble the metrics dict for evalreport.write_report.
 
@@ -580,4 +677,10 @@ def compute_metrics(records: list[dict]) -> dict:
     flips = perturbation_flip_rate(records)
     if flips is not None:
         metrics["perturbation_flip_rate"] = flips
+    agreement = typesafe_agreement(records)
+    if agreement:
+        metrics["agreement"] = agreement
+    tvd = tvd_vs_consensus(records)
+    if tvd:
+        metrics["tvd_vs_consensus"] = tvd
     return metrics
