@@ -14,8 +14,6 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 PY="$ROOT/.venv/bin/python"
-ARTIFACT="$ROOT/vendor/Qwen-2.5-1B-RLCD"
-[ -d "$ARTIFACT" ] || ARTIFACT="$ROOT/source/Qwen-2.5-1B-RLCD"
 CASES="$HERE/cases.json"
 OUTDIR="$HERE/results"
 MODELS=(
@@ -34,7 +32,6 @@ say() { echo "$*" | tee -a "$LOG"; }
 
 say "quality-eval driver $(date '+%Y-%m-%d %H:%M:%S')"
 say "python:   $PY"
-say "artifact: $ARTIFACT"
 say "cases:    $CASES (limit=$LIMIT)"
 
 "$PY" "$HERE/make_cases.py" --out "$CASES" 2>&1 | tee -a "$LOG"
@@ -55,7 +52,7 @@ for model in "${MODELS[@]}"; do
   say ""
   say "=== $model -> results/$tag.json (limit=$LIMIT) $(date '+%H:%M:%S') ==="
   "$PY" -u "$HERE/run_eval.py" \
-      --model "$model" --cases "$CASES" --artifact "$ARTIFACT" \
+      --model "$model" --cases "$CASES" \
       --outdir "$OUTDIR" --tag "$tag" --limit "$LIMIT" 2>&1 | tee -a "$LOG"
   rc=${PIPESTATUS[0]}
   if [ "$rc" -eq 0 ]; then

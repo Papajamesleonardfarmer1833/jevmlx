@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the labeled quality eval against one mlx-lm model, using the artifact's engine.
+"""Run the labeled quality eval against one mlx-lm model using the openjev engine.
 
 Usage:
     .venv/bin/python quality-eval/run_eval.py --model mlx-community/Qwen2.5-7B-Instruct-4bit
@@ -19,9 +19,6 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_ARTIFACT = os.path.abspath(os.path.join(HERE, "..", "source", "Qwen-2.5-1B-RLCD"))
-
-
 def tag_for(model_id: str) -> str:
     return model_id.split("/")[-1].lower()
 
@@ -30,8 +27,6 @@ def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Labeled quality eval for the parallel decision engine.")
     ap.add_argument("--model", required=True, help="Hugging Face model id served by mlx-lm")
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.json"))
-    ap.add_argument("--artifact", default=DEFAULT_ARTIFACT,
-                    help="path to the Qwen-2.5-1B-RLCD checkout (read only)")
     ap.add_argument("--outdir", default=os.path.join(HERE, "results"))
     ap.add_argument("--tag", default="", help="output tag; defaults to the model name")
     ap.add_argument("--limit", type=int, default=0, help="run only the first N cases (smoke tests)")
@@ -54,18 +49,15 @@ def main() -> int:
     if args.limit and args.limit > 0:
         order = order[:args.limit]
 
-    sys.path.insert(0, args.artifact)
-    import core.engine_mlx as engine_mlx  # noqa: E402
-    engine_mlx.MODEL_ID = args.model
-    from core.engine_mlx import get_engine, run_parallel_generation  # noqa: E402
-    from core.schema import StructuredSchema  # noqa: E402
+    from openjev.engine import load_engine, run_parallel_generation  # noqa: E402
+    from openjev.schema import StructuredSchema  # noqa: E402
 
     print(f"model: {args.model}", flush=True)
     print(f"cases: {len(order)} from {args.cases}", flush=True)
 
     t0 = time.perf_counter()
     try:
-        _, tokenizer = get_engine()
+        _, tokenizer = load_engine(args.model)
     except Exception as exc:  # keep run_all.sh going when a model cannot be loaded
         failure = {
             "kind": "rlcd-quality-eval",
@@ -151,7 +143,6 @@ def main() -> int:
         "tag": tag,
         "timestamp": dt.datetime.now().isoformat(timespec="seconds"),
         "cases_file": os.path.abspath(args.cases),
-        "artifact": os.path.abspath(args.artifact),
         "load_seconds": round(load_seconds, 1),
         "case_count": len(results),
         "ok_count": len(ok_cases),

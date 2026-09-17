@@ -9,19 +9,17 @@ Usage:
     .venv/bin/python tools/bench_model.py mlx-community/Qwen2.5-1.5B-Instruct-4bit
     .venv/bin/python tools/bench_model.py mlx-community/Qwen2.5-7B-Instruct-4bit --tag 7b
 
-The upstream engine is cloned into vendor/Qwen-2.5-1B-RLCD by setup.sh.
-Results are written to results/<tag>.json.
+Requires `uv pip install -e .` first. Results are written to results/<tag>.json.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
-import sys
 import time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_ARTIFACT = os.path.join(ROOT, "vendor", "Qwen-2.5-1B-RLCD")
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
 DEFAULT_PRESETS = [
     "fintech_fraud.json",
     "support_triage.json",
@@ -32,43 +30,28 @@ DEFAULT_PRESETS = [
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("model_id", help="Hugging Face model id (mlx-lm compatible)")
-    ap.add_argument("--artifact", default=DEFAULT_ARTIFACT, help="path to the cloned upstream engine")
     ap.add_argument("--presets", nargs="+", default=DEFAULT_PRESETS)
     ap.add_argument("--tag", default=None, help="output name (default: model id with '/' -> '_')")
     ap.add_argument("--outdir", default=os.path.join(ROOT, "results"))
     args = ap.parse_args()
 
-    artifact = os.path.abspath(args.artifact)
-    if not os.path.isdir(artifact):
-        sys.exit(f"engine not found at {artifact} - run ./setup.sh first")
-    sys.path.insert(0, artifact)
-
-    import core.engine_mlx as engine_mlx  # noqa: E402
-
-    engine_mlx.MODEL_ID = args.model_id
-    print(f"MODEL_ID -> {engine_mlx.MODEL_ID}", flush=True)
-
-    from core.engine_mlx import (  # noqa: E402
-        get_engine,
-        run_naive_generation,
-        run_parallel_generation,
-    )
-    from core.schema import StructuredSchema  # noqa: E402
+    from openjev.cli import load_preset
+    from openjev.engine import load_engine, run_naive_generation, run_parallel_generation
+    from openjev.schema import StructuredSchema
 
     t0 = time.perf_counter()
-    get_engine()  # loads the model + Metal warmup
+    model, tokenizer = load_engine(args.model_id)
     load_s = round(time.perf_counter() - t0, 1)
     print(f"[load+warmup] {load_s}s", flush=True)
 
     rows = []
     for rel in args.presets:
-        with open(os.path.join(artifact, "presets", rel), encoding="utf-8") as f:
-            preset = json.load(f)
+        preset = load_preset(rel)
         schema = StructuredSchema(preset["schema"])
         print(f"--> {preset['title']}", flush=True)
 
-        naive = run_naive_generation(preset["context"], schema)
-        parallel = run_parallel_generation(preset["context"], schema)
+        naive = run_naive_generation(model, tokenizer, preset["context"], schema)
+        parallel = run_parallel_generation(model, tokenizer, preset["context"], schema)
         speedup = naive["elapsed_ms"] / max(parallel["elapsed_ms"], 1.0)
 
         row = {
