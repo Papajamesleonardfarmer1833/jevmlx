@@ -179,6 +179,29 @@ def main(argv=None) -> None:
     eval_p.add_argument(
         "--out", required=True, help="output directory (predictions.jsonl, run.json)"
     )
+    bench_p = sub.add_parser(
+        "bench",
+        help="One command: complete PR-ready benchmark results folder.",
+    )
+    bench_p.add_argument("--model", required=True, help="Hugging Face model id for mlx-lm")
+    bench_p.add_argument(
+        "--datasets",
+        default="bundled,typesafe,perturbed",
+        help="comma list: bundled,typesafe,perturbed",
+    )
+    bench_p.add_argument("--scorers", default="trie,letters", help="comma list: trie,letters")
+    bench_p.add_argument(
+        "--tracks", default="parallel,naive_local", help="comma list: parallel,naive_local"
+    )
+    bench_p.add_argument("--out", default=None, help="results root (default benchmarks/results)")
+    bench_p.add_argument("--runs", type=int, default=2, help="eval runs per combo (last kept)")
+    bench_p.add_argument("--machine", default=None, help="override the machine tag")
+    bench_p.add_argument(
+        "--force",
+        action="store_true",
+        help="run despite battery power or busy Metal memory (reasons are printed)",
+    )
+
     report_p = sub.add_parser(
         "report",
         help="Build a JSON + markdown eval report from predictions.jsonl (offline)",
@@ -259,6 +282,29 @@ def main(argv=None) -> None:
         from jevmlx.serve import serve
 
         serve(args.model, args.host, args.port)
+
+    elif args.command == "bench":
+        from jevmlx.bench import main as bench_main
+
+        argv = [
+            "--model",
+            args.model,
+            "--datasets",
+            args.datasets,
+            "--scorers",
+            args.scorers,
+            "--tracks",
+            args.tracks,
+            "--runs",
+            str(args.runs),
+        ]
+        if args.out:
+            argv += ["--out", args.out]
+        if args.machine:
+            argv += ["--machine", args.machine]
+        if args.force:
+            argv.append("--force")
+        raise SystemExit(bench_main(argv))
 
     elif args.command == "report":
         # Offline: pure-python metrics over predictions.jsonl -> evalreport.
