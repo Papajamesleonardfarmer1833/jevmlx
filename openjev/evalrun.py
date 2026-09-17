@@ -1,0 +1,367 @@
+"""Evaluation runner: batch cases through a decision track, emit per-field
+prediction lines plus a run manifest.
+
+One line per (case, field, permutation) in ``predictions.jsonl`` and a
+``run.json`` manifest next to it — the shapes are the frozen eval-harness
+contract. The runner itself is a thin loop around a per-track
+``decide_fn(schema_dict, context) -> per-field results`` seam, so tests can
+drive it entirely with fakes.
+
+Tracks:
+- ``parallel``: the openjev engine (``run_parallel_generation`` at T=1),
+  log scores from field telemetry.
+- ``naive_local``: the same local model free-writes the whole JSON object
+  (``run_naive_generation``), parsed strictly by
+  :func:`openjev.baseline.parse_baseline_output`.
+- ``api_baseline``: an OpenAI-compatible chat API via
+  :func:`openjev.baseline.baseline_decide` (product-comparison track).
+
+Permutations (parallel track only) probe choice/field order sensitivity:
+``rotations`` cycles every enum field's choices, ``fieldperm`` permutes the
+field order; each permutation runs against a fresh schema and its
+predictions are remapped back to canonical choice strings.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import os
+import random
+from collections.abc import Callable
+from typing import Any
+
+from openjev.baseline import baseline_decide, parse_baseline_output
+from openjev.evalreport import environment
+from openjev.schema import StructuredSchema
+
+__all__ = [
+    "DecideFn",
+    "api_baseline_decide_fn",
+    "make_run_id",
+    "naive_local_decide_fn",
+    "parallel_decide_fn",
+    "rotations",
+    "run_eval",
+]
+
+# decide_fn(schema_dict, context) -> {field: {"prediction", "valid", "error",
+# "log_scores", "confidence", "per_option", "type"}, "_meta": {...}}.
+DecideFn = Callable[[dict, str], dict[str, Any]]
+
+logger = logging.getLogger(__name__)
+
+# Per-field result shape produced by every decide_fn: prediction (or None),
+# optional log_scores / per_option / confidence / error, plus a "_meta" entry
+# with run-level latency/rows/passes.
+DecideFn = Callable[[dict, str], dict[str, Any]]
+
+
+def make_run_id() -> str:
+    """Run id: UTC timestamp + short random suffix (sortable, collision-safe)."""
+    from datetime import UTC, datetime
+
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    return f"{stamp}-{os.urandom(3).hex()}"
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _sha256_file(path: str | None) -> str | None:
+    if not path or not os.path.exists(path):
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 16), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def parallel_decide_fn(model, tokenizer) -> DecideFn:
+    """Track ``parallel``: the openjev engine at T=1.
+
+    Log scores come from field telemetry. The engine exposes the raw
+    constrained-path log-probabilities per choice (choices order) under a key
+    that w3-trie renamed (``constrained_path_logp``; ``scores`` on main
+    today) — this accessor accepts whichever has landed, behind this one
+    function, so a rename does not touch the runner. Multi fields report
+    ``per_option`` instead; log_scores stays None for them.
+    """
+
+    def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
+        from openjev.engine import run_parallel_generation
+
+        schema = StructuredSchema(schema_dict)
+        result = run_parallel_generation(model, tokenizer, context, schema, temperature=1.0)
+        out: dict[str, dict[str, Any]] = {}
+        for fname, telemetry in result["field_telemetry"].items():
+            field = schema.fields.get(fname)
+            entry: dict[str, Any] = {
+                "prediction": telemetry["value"],
+                "confidence": telemetry.get("confidence"),
+                "per_option": telemetry.get("per_option"),
+                "type": telemetry.get("type") or (field.field_type if field else None),
+            }
+            if field is not None and field.field_type != "multi":
+                raw = telemetry.get("constrained_path_logp", telemetry.get("scores"))
+                if raw is not None:
+                    entry["log_scores"] = dict(zip(field.choices, raw, strict=True))
+            out[fname] = entry
+        out["_meta"] = {
+            "latency_ms": result.get("elapsed_ms"),
+            "rows": result.get("rows"),
+            "passes": result.get("passes"),
+        }
+        return out
+
+    return decide
+
+
+def naive_local_decide_fn(model, tokenizer) -> DecideFn:
+    """Track ``naive_local``: the same local model free-writes the JSON object.
+
+    Output is parsed strictly by :func:`openjev.baseline.parse_baseline_output`;
+    unsalvageable fields become invalid predictions (a measurement, not a
+    crash).
+    """
+
+    def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
+        from openjev.engine import run_naive_generation
+
+        schema = StructuredSchema(schema_dict)
+        result = run_naive_generation(model, tokenizer, context, schema)
+        values, errors = parse_baseline_output(result.get("raw_text", ""), schema)
+        out: dict[str, dict[str, Any]] = {}
+        for fname in schema.fields:
+            value = values.get(fname)
+            out[fname] = {
+                "prediction": value,
+                "valid": value is not None,
+                "error": next((e for e in errors if fname in e), None),
+            }
+        out["_meta"] = {
+            "latency_ms": result.get("elapsed_ms"),
+            "rows": None,
+            "passes": result.get("total_tokens"),
+        }
+        return out
+
+    return decide
+
+
+def api_baseline_decide_fn(
+    base_url: str, model: str, api_key: str | None
+) -> tuple[DecideFn, dict[str, str]]:
+    """Track ``api_baseline``: an OpenAI-compatible chat API decides.
+
+    Returns the decide_fn plus the request parameters to record in run.json.
+    """
+
+    def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
+        schema = StructuredSchema(schema_dict)
+        result = baseline_decide(base_url, model, api_key, schema, context)
+        out: dict[str, dict[str, Any]] = {}
+        for fname in schema.fields:
+            value = result["values"].get(fname)
+            out[fname] = {
+                "prediction": value,
+                "valid": value is not None,
+                "error": next((e for e in result["errors"] if fname in e), None),
+            }
+        out["_meta"] = {
+            "latency_ms": result.get("latency_ms"),
+            "rows": None,
+            "passes": None,
+        }
+        return out
+
+    return decide, {"api_base": base_url, "api_model": model}
+
+
+def rotations(choices: list[str]) -> list[list[str]]:
+    """Cyclic rotations of a choice list: every k in 1..n-1 for n <= 8, else 8
+    seeded rotations (deterministic for a given choice list)."""
+    n = len(choices)
+    if n <= 8:
+        return [choices[k:] + choices[:k] for k in range(1, n)]
+    rng = random.Random(0)
+    return [choices[k:] + choices[:k] for k in sorted(rng.sample(range(1, n), 7))]
+
+
+def _field_permutations(field_names: list[str], count: int = 3) -> list[list[str]]:
+    """``count`` seeded non-identity permutations of the field order."""
+    rng = random.Random(0)
+    perms: list[list[str]] = []
+    while len(perms) < count:
+        candidate = field_names[:]
+        rng.shuffle(candidate)
+        if candidate != field_names and candidate not in perms:
+            perms.append(candidate)
+    return perms
+
+
+def _schema_variants(
+    case: dict, schema: StructuredSchema, mode: str
+) -> list[tuple[str | None, dict]]:
+    """(permutation tag, schema dict) variants for one case.
+
+    ``canonical`` (tag None) first, then the tagged permutations: every cyclic
+    rotation of every enum field's choices for ``rotations``/``all``, and 3
+    seeded field-order permutations for ``fieldperm``/``all``.
+    """
+    variants: list[tuple[str | None, dict]] = [(None, case["schema"])]
+    if mode in ("rotations", "all"):
+        for fname, fdef in schema.fields.items():
+            if fdef.field_type != "enum" or len(fdef.choices) < 2:
+                continue
+            for k, perm in enumerate(rotations(fdef.choices), start=1):
+                variant = json.loads(json.dumps(case["schema"]))
+                variant[fname]["choices"] = perm
+                variants.append((f"rot{k}:{fname}", variant))
+    if mode in ("fieldperm", "all"):
+        base = case["schema"]
+        for k, order in enumerate(_field_permutations(list(schema.fields)), start=1):
+            variants.append((f"fieldperm{k}", {name: base[name] for name in order}))
+    return variants
+
+
+def run_eval(
+    cases: list[dict],
+    decide_fn: DecideFn,
+    *,
+    track: str,
+    model: str,
+    permutations: str = "none",
+    split: str = "all",
+    out_dir: str,
+    run_id: str | None = None,
+    extra_config: dict | None = None,
+    chat_template: str | None = None,
+    plan_provider: callable | None = None,
+    dataset_lock_path: str | None = None,
+    dataset_path: str | None = None,
+) -> dict:
+    """Run the batch and write ``predictions.jsonl`` + ``run.json`` into out_dir.
+
+    ``decide_fn(schema_dict, context) -> per-field results`` is the seam: each
+    per-field result carries ``prediction``, optionally ``valid``/``error``/
+    ``log_scores``/``confidence``/``per_option``; a ``"_meta"`` entry carries
+    run-level ``latency_ms``/``rows``/``passes``. Returns the run manifest.
+    """
+    run_id = run_id or make_run_id()
+    os.makedirs(out_dir, exist_ok=True)
+
+    selected = [c for c in cases if split == "all" or c.get("split", "train") == split]
+
+    lines: list[dict] = []
+    n_canonical = 0
+    for case in selected:
+        schema = StructuredSchema(case["schema"])
+        variants = (
+            _schema_variants(case, schema, permutations)
+            if track == "parallel" and permutations != "none"
+            else [(None, case["schema"])]
+        )
+        for tag, schema_dict in variants:
+            results = decide_fn(schema_dict, case["context"])
+            meta = results.pop("_meta", {})
+            if tag is None:
+                n_canonical += len(results)
+            for fname, res in results.items():
+                field_def = schema.fields.get(fname)
+                prediction = res.get("prediction")
+                # Rotated variants reorder the SAME canonical choice strings,
+                # so a prediction string is already canonical; the remap seam
+                # only validates membership (and would translate a positional
+                # encoding here if a future track produced one).
+                if tag and tag.startswith("rot") and field_def is not None:
+                    if isinstance(prediction, str) and prediction not in field_def.choices:
+                        prediction = None
+                label = case.get("labels", {}).get(fname)
+                lines.append(
+                    {
+                        "run_id": run_id,
+                        "case_id": case.get("id"),
+                        "group_id": case.get("group_id"),
+                        "source": case.get("source"),
+                        "workflow": case.get("workflow"),
+                        "field": fname,
+                        "type": res.get("type")
+                        or (field_def.field_type if field_def else None),
+                        "track": track,
+                        "model": model,
+                        "permutation": tag or "canonical",
+                        "label": label,
+                        "prediction": prediction,
+                        "valid": bool(res.get("valid", prediction is not None)),
+                        "correct": None
+                        if label is None
+                        else (prediction is not None and prediction == label),
+                        "log_scores": res.get("log_scores"),
+                        "confidence": res.get("confidence"),
+                        "per_option": res.get("per_option"),
+                        "latency_ms": meta.get("latency_ms"),
+                        "rows": meta.get("rows"),
+                        "passes": meta.get("passes"),
+                        "error": res.get("error"),
+                    }
+                )
+
+    config: dict[str, Any] = {
+        "model": model,
+        "temperature": 1.0,
+        "track": track,
+        "dataset_path": dataset_path,
+        "permutations": permutations if track == "parallel" else "none",
+        "split": split,
+    }
+    if extra_config:
+        config.update(extra_config)
+    if chat_template is not None:
+        config["tokenizer_chat_template_sha256"] = _sha256_text(chat_template)
+    if plan_provider is not None and selected:
+        plan_json = json.dumps(
+            plan_provider(StructuredSchema(selected[0]["schema"])), sort_keys=True
+        )
+        config["compiled_plan_sha256"] = hashlib.sha256(plan_json.encode()).hexdigest()
+    config["dataset_lock_sha256"] = _sha256_file(dataset_lock_path)
+
+    run = {
+        "run_id": run_id,
+        "environment": environment(),
+        "config": config,
+        "counts": {
+            "cases": len(selected),
+            "fields": n_canonical,
+            "prediction_lines": len(lines),
+        },
+    }
+
+    with open(os.path.join(out_dir, "predictions.jsonl"), "w", encoding="utf-8") as f:
+        for line in lines:
+            f.write(json.dumps(line, sort_keys=True) + "\n")
+    with open(os.path.join(out_dir, "run.json"), "w", encoding="utf-8") as f:
+        json.dump(run, f, indent=2, sort_keys=True)
+        f.write("\n")
+    logger.info(
+        "eval run %s: %d cases, %d prediction lines -> %s",
+        run_id,
+        len(selected),
+        len(lines),
+        out_dir,
+    )
+    return run
+
+
+def load_cases(path: str) -> list[dict]:
+    """Load the cases JSONL (one JSON object per line, # comments skipped)."""
+    cases = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                cases.append(json.loads(line))
+    return cases
