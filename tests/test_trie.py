@@ -63,7 +63,7 @@ def test_plan_uses_full_sequence_tokenization():
     )
     tok = NonCompositionalTokenizer()
     plan = schema.compile_batch_plan(tok)
-    remainders = plan["action"]["remainders"]
+    remainders = plan["fields"]["action"]["remainders"]
     # '  "action": "LOW"'+',\n' -> [7, _QUOTE, comma, newline]
     # '  "action": "LOWER"'+',\n' -> [999, _QUOTE, comma, newline]
     # (LOWER is ONE token; the old character-prefix plan would have produced
@@ -73,9 +73,9 @@ def test_plan_uses_full_sequence_tokenization():
     assert 8 not in flat
     # The shared lead-in is the '{\n  "action": "' structure, kept out of
     # shared_ids as the schema-wide prefix (the engine's prefill tail).
-    assert plan["_lead_in_ids"] == tok.encode('{\n  "action": "')
-    assert plan["action"]["shared_ids"] == []
-    assert 999 not in plan["_lead_in_ids"]
+    assert plan["lead_in_ids"] == tok.encode('{\n  "action": "')
+    assert plan["fields"]["action"]["shared_ids"] == []
+    assert 999 not in plan["lead_in_ids"]
 
 
 def test_plan_cache_is_per_tokenizer():
@@ -89,8 +89,8 @@ def test_plan_cache_is_per_tokenizer():
     tok_b = OtherTokenizer()
     plan_a = schema.compile_batch_plan(tok_a)
     plan_b = schema.compile_batch_plan(tok_b)
-    assert plan_a["action"]["remainders"] == [[7, _QUOTE, 44, 10], [999, _QUOTE, 44, 10]]
-    assert plan_b["action"]["remainders"] == [[3, _QUOTE, 44, 10], [555, _QUOTE, 44, 10]]
+    assert plan_a["fields"]["action"]["remainders"] == [[7, _QUOTE, 44, 10], [999, _QUOTE, 44, 10]]
+    assert plan_b["fields"]["action"]["remainders"] == [[3, _QUOTE, 44, 10], [555, _QUOTE, 44, 10]]
     assert len(schema._plans) == 2
     assert schema.compile_batch_plan(tok_a) is plan_a
     assert schema.compile_batch_plan(tok_b) is plan_b
@@ -216,9 +216,9 @@ def test_choice_with_double_quote_is_json_escaped():
         }
     )
     plan = schema.compile_batch_plan(tok)
-    lead_in = plan["_lead_in_ids"]
-    shared = plan["quote"]["shared_ids"]
-    remainders = plan["quote"]["remainders"]
+    lead_in = plan["lead_in_ids"]
+    shared = plan["fields"]["quote"]["shared_ids"]
+    remainders = plan["fields"]["quote"]["remainders"]
 
     bs_quote = chr(92) + chr(34)  # backslash + double quote, the JSON escape
     candidate_text = (
@@ -327,7 +327,7 @@ def test_single_choice_enum_scores_one_point_oh():
     schema = StructuredSchema({"only": {"type": "enum", "description": "d", "choices": ["ONLY"]}})
     tok = NonCompositionalTokenizer()
     plan = schema.compile_batch_plan(tok)
-    remainders = plan["only"]["remainders"]
+    remainders = plan["fields"]["only"]["remainders"]
     assert len(remainders) == 1
     nodes = build_trie(remainders)
     assert nodes == []  # single leaf: no branch points
@@ -353,12 +353,12 @@ def test_mixed_schema_rows_carry_lead_in_exactly_once():
         }
     )
     plan = schema.compile_batch_plan(tok)
-    lead_in = plan["_lead_in_ids"]
+    lead_in = plan["lead_in_ids"]
     assert lead_in, "fake tokenizer must produce a shared lead-in"
 
     # Assemble the rows exactly like the engine does.
     rows: list[list[int]] = []
-    for p in plan.values():
+    for p in plan["fields"].values():
         if not isinstance(p, dict):
             continue
         if "options" in p:
@@ -372,7 +372,7 @@ def test_mixed_schema_rows_carry_lead_in_exactly_once():
         assert row[: len(lead_in)] == lead_in
         assert row[len(lead_in) : len(lead_in) * 2] != lead_in  # not duplicated
     # And the enum candidate must still round-trip to its full text.
-    p = plan["action"]
+    p = plan["fields"]["action"]
     full = lead_in + p["shared_ids"] + p["remainders"][0]
     assert full == tok.encode('{\n  "action": "LOW",\n')
 
@@ -425,7 +425,7 @@ def test_mixed_enum_multi_lead_in_round_trip():
         }
     )
     plan = schema.compile_batch_plan(tok)
-    lead_in = plan["_lead_in_ids"]
+    lead_in = plan["lead_in_ids"]
 
     # With only one scalar field, the lead-in must NOT contain that field's
     # name (it is the common prefix of ALL row prefixes, multi included).
@@ -434,8 +434,8 @@ def test_mixed_enum_multi_lead_in_round_trip():
     ) or lead_in == tok.encode('{\n  "')
 
     rows: list[tuple[str, list[int], str]] = []  # (kind, row, full candidate text)
-    for fname, p in plan.items():
-        if fname == "_lead_in_ids" or not isinstance(p, dict):
+    for _fname, p in plan["fields"].items():
+        if not isinstance(p, dict):
             continue
         if "options" in p:
             for oi, ids in enumerate(p["suffix_ids_list"]):
@@ -555,3 +555,26 @@ def test_multi_option_key_never_collides_with_field_name():
                 "a": {"type": "multi", "description": "d", "choices": ["b.c", "c"]},
             }
         )
+
+
+def test_field_named_lead_in_ids_does_not_collide():
+    """D1: metadata lives beside field plans — a field named _lead_in_ids
+    (or lead_in_ids) cannot be clobbered by plan metadata."""
+    tok = NonCompositionalTokenizer()
+    schema = StructuredSchema(
+        {
+            "_lead_in_ids": {"type": "boolean", "description": "d"},
+            "lead_in_ids": {"type": "enum", "description": "d", "choices": ["A", "B"]},
+        }
+    )
+    plan = schema.compile_batch_plan(tok)
+    # Metadata key present and correct.
+    assert plan["lead_in_ids"] == tok.encode('{\n  "')
+    # Both fields have their own untouched plans.
+    assert "_lead_in_ids" in plan["fields"]
+    assert "lead_in_ids" in plan["fields"]
+    assert set(plan["fields"]["_lead_in_ids"]) == {"shared_ids", "remainders"}
+    assert set(plan["fields"]["lead_in_ids"]) == {"shared_ids", "remainders"}
+    # The fields' plans are exactly the per-field data, no metadata mixed in.
+    all_values = {v for p in plan["fields"].values() for v in p}
+    assert all_values <= {"shared_ids", "remainders", "options", "suffix_ids_list"}

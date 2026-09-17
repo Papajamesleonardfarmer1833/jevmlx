@@ -72,3 +72,35 @@ def test_validate_json_non_object_is_valid_but_no_match():
         assert match is False, text
     parsed, valid, _, _, _, match = _validate_json("[1, 2, 3]", schema)
     assert parsed == [1, 2, 3]
+
+
+def test_validate_json_boolean_and_enum_type_checks():
+    """D2: booleans must be real JSON bools; enums compare as str only."""
+    from openjev.engine import _validate_json
+
+    schema = StructuredSchema(
+        {
+            "flag": {"type": "boolean", "description": "d"},
+            "action": {"type": "enum", "description": "d", "choices": ["A", "B"]},
+        }
+    )
+
+    # Boolean given as the string "true" -> invalid.
+    _, _, _, _, invalid, match = _validate_json('{"flag": "true", "action": "A"}', schema)
+    assert not match and any("flag" in i for i in invalid)
+
+    # Boolean given as 1 -> invalid.
+    _, _, _, _, invalid, match = _validate_json('{"flag": 1, "action": "A"}', schema)
+    assert not match and any("flag" in i for i in invalid)
+
+    # Real boolean -> valid.
+    _, _, _, _, invalid, match = _validate_json('{"flag": true, "action": "A"}', schema)
+    assert match and not invalid
+
+    # Enum given as int -> invalid (no str coercion).
+    _, _, _, _, invalid, match = _validate_json('{"flag": true, "action": 1}', schema)
+    assert not match and any("action" in i for i in invalid)
+
+    # Enum given as a str that happens to stringify to a choice -> still invalid.
+    _, _, _, _, invalid, match = _validate_json('{"flag": true, "action": ["A"]}', schema)
+    assert not match and any("action" in i for i in invalid)

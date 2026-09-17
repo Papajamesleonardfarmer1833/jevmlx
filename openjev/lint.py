@@ -85,8 +85,8 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
         # raises on token-identical/prefix choices, but the lint must report
         # those as findings instead of crashing.
         try:
-            plan = schema.compile_batch_plan(tokenizer)
-            entry = plan[fname]
+            compiled = schema.compile_batch_plan(tokenizer)
+            entry = compiled["fields"][fname]
         except ValueError:
             continue
 

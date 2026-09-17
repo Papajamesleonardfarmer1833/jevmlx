@@ -29,7 +29,7 @@ def test_compile_batch_plan_expands_multi_field():
         }
     )
     plan = schema.compile_batch_plan(FakeTokenizer())
-    p = plan["categories"]
+    p = plan["fields"]["categories"]
 
     # One row per option, stable suffix '  "<field>.<option>": '.
     assert p["options"] == ["billing", "technical"]

@@ -136,10 +136,17 @@ def _validate_json(current_text: str, schema: StructuredSchema):
                     invalid_enums.append(f"{fname}={val!r}")
                 elif len(set(val)) != len(val) or set(val) - set(fdef.choices):
                     invalid_enums.append(f"{fname}={val!r}")
-            elif fdef.field_type != "boolean":
-                val = str(parsed_json[fname])
-                if val not in fdef.choices:
-                    invalid_enums.append(f"{fname}={val}")
+            elif fdef.field_type == "boolean":
+                # Booleans are type-checked: JSON true/false only — the
+                # string "true" or 1 is invalid (D2).
+                if not isinstance(parsed_json[fname], bool):
+                    invalid_enums.append(f"{fname}={parsed_json[fname]!r}")
+            else:
+                # Enums compare as str without coercion: a non-str value is
+                # invalid, never str()-coerced into a match (D2).
+                val = parsed_json[fname]
+                if not isinstance(val, str) or val not in fdef.choices:
+                    invalid_enums.append(f"{fname}={val!r}")
 
     schema_match = (
         is_valid_json and isinstance(parsed_json, dict) and not missing_keys and not invalid_enums
@@ -314,9 +321,10 @@ def run_parallel_generation(
     row_branch: dict[int, int] = {}  # row idx -> branch-node index within its field
     row_option: dict[int, int] = {}  # row idx -> option index (multi fields only)
     tries: dict[str, list[dict]] = {}
-    lead_in = plan["_lead_in_ids"]
+    lead_in = plan["lead_in_ids"]
+    field_plans = plan["fields"]
     for fname in schema.fields:
-        p = plan[fname]
+        p = field_plans[fname]
         if "options" in p:
             # multi: one boolean row per option. suffix_ids_list entries are
             # stored WITHOUT the schema-wide lead-in (one rule for every row
@@ -401,7 +409,7 @@ def run_parallel_generation(
         out = model(padded, cache=b_cache)
         mx.eval(out)
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
-            p = plan[row_field[ridx]]
+            p = field_plans[row_field[ridx]]
             if ridx in row_option:
                 # multi option row: true/false logits at the option row's last
                 # position (the row ends right before the true/false divergence).
@@ -429,7 +437,7 @@ def run_parallel_generation(
         field_rows.setdefault(fname, []).append(idx)
 
     for fname, fdef in schema.fields.items():
-        p = plan[fname]
+        p = field_plans[fname]
         idxs = field_rows.get(fname, [])
 
         if "options" in p:

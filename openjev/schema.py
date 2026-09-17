@@ -165,8 +165,11 @@ class StructuredSchema:
         Per multi field it carries one ``suffix_ids_list`` entry per option —
         that option's shared token prefix (everything before its true/false
         divergence, i.e. the row the engine runs) — and ``remainders`` with
-        the option's two true/false continuations. Plans are cached per
-        tokenizer identity (name_or_path + vocab size).
+        the option's two true/false continuations. The returned mapping is
+        ``{"lead_in_ids": [...], "fields": {field_name: plan}}`` — metadata
+        sits beside the field plans, never inside them (D1: a field could
+        legally be named "_lead_in_ids"). Plans are cached per tokenizer
+        identity (name_or_path + vocab size).
         """
         try:
             cached = self._plans.get(tokenizer)  # weakref: keyed by object identity
@@ -303,12 +306,12 @@ class StructuredSchema:
             ids for p in plan.values() if "suffix_ids_list" in p for ids in p["suffix_ids_list"]
         ]
         if not field_shared_prefixes:
-            plan["_lead_in_ids"] = []
+            wrapped: dict[str, Any] = {"lead_in_ids": [], "fields": plan}
             try:
-                self._plans[tokenizer] = plan
+                self._plans[tokenizer] = wrapped
             except TypeError:
-                self._plans_by_id[id(tokenizer)] = plan
-            return plan
+                self._plans_by_id[id(tokenizer)] = wrapped
+            return wrapped
         lead_in = _common_token_prefix(field_shared_prefixes)
         # An empty schema-wide lead-in is legal (e.g. char-level tokenizers
         # where '{\n' fuses with the field name): the engine then runs one row
@@ -325,10 +328,11 @@ class StructuredSchema:
         for p in plan.values():
             if "shared_ids" in p:
                 p["shared_ids"] = p["shared_ids"][len(lead_in) :]
-        plan["_lead_in_ids"] = list(lead_in)
-
+        # Metadata lives beside the field plans, never mixed into them (D1:
+        # a field could legally be named "_lead_in_ids").
+        result = {"lead_in_ids": list(lead_in), "fields": plan}
         try:
-            self._plans[tokenizer] = plan
+            self._plans[tokenizer] = result
         except TypeError:
-            self._plans_by_id[id(tokenizer)] = plan
-        return plan
+            self._plans_by_id[id(tokenizer)] = result
+        return result
