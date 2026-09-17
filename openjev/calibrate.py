@@ -16,9 +16,17 @@ Sample = tuple[list[float], int]  # (per-choice scores at T=1, labeled choice in
 def collect(model, tokenizer, cases: Sequence[dict]) -> list[Sample]:
     """Run run_parallel_generation once per case at T=1 and keep raw scores
     for every labeled field. Cases: [{"schema": {...}, "context": str,
-    "labels": {field: value}}] (labels may cover a subset of fields)."""
+    "labels": {field: value}}] (labels may cover a subset of fields).
+
+    multi fields are skipped with a logged warning: their scores are
+    per-option p_true values, not a choice distribution, so NLL fitting
+    does not apply to them."""
+    import logging
+
     from openjev.engine import run_parallel_generation
     from openjev.schema import StructuredSchema
+
+    logger = logging.getLogger(__name__)
 
     samples: list[Sample] = []
     for case in cases:
@@ -27,6 +35,9 @@ def collect(model, tokenizer, cases: Sequence[dict]) -> list[Sample]:
         for fname, label in case["labels"].items():
             telemetry = result["field_telemetry"][fname]
             fdef = schema[fname]
+            if fdef.field_type == "multi":
+                logger.warning("calibrate.collect: skipping multi field '%s'", fname)
+                continue
             choices = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
             label_str = (
                 str(label) if fdef.field_type != "boolean" else ("true" if label else "false")

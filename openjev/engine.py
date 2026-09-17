@@ -214,6 +214,22 @@ def run_naive_generation(
     }
 
 
+def _fold_multi(probs_true: dict[str, float], threshold: float = 0.5) -> tuple[list[str], float]:
+    """Fold per-option probabilities into a multi field's decision.
+
+    Returns (selected options, confidence): an option is selected when its
+    p_true >= threshold; confidence is the min p_true over the selected
+    options, or the min p_false (= 1 - p_true) over the rejected options
+    when nothing is selected.
+    """
+    selected = [option for option, p_true in probs_true.items() if p_true >= threshold]
+    if selected:
+        confidence = min(probs_true[option] for option in selected)
+    else:
+        confidence = min(1.0 - p_true for p_true in probs_true.values())
+    return selected, confidence
+
+
 def run_parallel_generation(
     model,
     tokenizer,
@@ -238,9 +254,20 @@ def run_parallel_generation(
     rows: list[list[int]] = []  # token ids per row
     row_field: list[str] = []  # field each row belongs to
     row_choice: list[int | None] = []  # choice index for choice-rows, else None
+    row_option: dict[int, int] = {}  # row idx -> option index (multi fields only)
     collides: dict[str, bool] = {}
     for fname in schema.fields:
         p = plan[fname]
+        if "options" in p:
+            # multi: one boolean row per option (same true/false token lists).
+            lists = p["choice_token_lists"]
+            collides[fname] = False
+            for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
+                rows.append(list(suffix_ids) + [lists[0][0]])
+                row_field.append(fname)
+                row_choice.append(None)
+                row_option[len(rows) - 1] = oi
+            continue
         lists = p["choice_token_lists"]
         # Collision = two choices share the FIRST token (not merely identical lists).
         collides[fname] = len({t[0] for t in lists}) < len(lists)
@@ -315,11 +342,18 @@ def run_parallel_generation(
         mx.eval(out)
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
             p = plan[row_field[ridx]]
-            s_len = len(p["suffix_ids"])
-            if row_choice[ridx] is None:
+            if ridx in row_option:
+                # multi option row: suffix '  "field.option": ', scored at its
+                # last position against the true/false first tokens.
+                s_len = len(p["suffix_ids_list"][row_option[ridx]])
+                lg = out[i, s_len - 1, :]
+                first_token_scores[ridx] = [float(lg[t[0]]) for t in p["choice_token_lists"]]
+            elif row_choice[ridx] is None:
+                s_len = len(p["suffix_ids"])
                 lg = out[i, s_len - 1, :]
                 first_token_scores[ridx] = [float(lg[t[0]]) for t in p["choice_token_lists"]]
             else:
+                s_len = len(p["suffix_ids"])
                 toks = p["choice_token_lists"][row_choice[ridx]]
                 total = 0.0
                 for step, tid in enumerate(toks):
@@ -343,6 +377,36 @@ def run_parallel_generation(
     for fname, fdef in schema.fields.items():
         p = plan[fname]
         idxs = field_rows[fname]
+
+        if "options" in p:
+            # multi: one p_true per option from its boolean row (first-token
+            # logit pair true/false, softmaxed at the decision position).
+            probs_true = {}
+            for oi, ridx in enumerate(idxs):
+                scores = first_token_scores[ridx]
+                probs = mx.softmax(mx.array(scores) / max(temperature, 1e-4))
+                mx.eval(probs)
+                probs_true[p["options"][oi]] = float(probs[0])
+            selected, confidence = _fold_multi(probs_true)
+            parsed_json[fname] = {
+                "value": selected,
+                "prob": round(confidence, 4),
+            }
+            field_telemetry[fname] = {
+                "value": selected,
+                "type": "multi",
+                "confidence": round(confidence, 4),
+                "cardinality": fdef.cardinality,
+                # p_true per option (NOT log-scores): calibrate skips multi.
+                "scores": [round(probs_true[o], 6) for o in p["options"]],
+                "per_option": {o: round(pt, 4) for o, pt in probs_true.items()},
+                "top_choices": [
+                    {"choice": o, "probability": round(pt, 4)}
+                    for o, pt in sorted(probs_true.items(), key=lambda kv: -kv[1])
+                ],
+            }
+            continue
+
         choice_token_lists = p["choice_token_lists"]
         n_choices = len(choice_token_lists)
 

@@ -1,6 +1,7 @@
 """Schema definitions and batch-plan compilation for parallel constrained decisions.
 
-Supports booleans and categorical enums with cardinality up to 255.
+Supports booleans, categorical enums (cardinality up to 255), and multi fields
+(subset of choices, 2-64 options, decided as one boolean decision per option).
 """
 
 import os
@@ -17,6 +18,15 @@ class FieldDefinition:
 
         if self.field_type == "boolean":
             self.choices = ["true", "false"]
+        elif self.field_type == "multi":
+            if not choices or len(choices) < 2:
+                raise ValueError(f"Field '{name}' of type multi must have at least 2 choices.")
+            if len(choices) > 64:
+                raise ValueError(
+                    f"Field '{name}' exceeds maximum cardinality of 64 choices "
+                    f"for type multi (got {len(choices)})."
+                )
+            self.choices = choices
         elif self.field_type in ("enum", "choice", "selection"):
             if not choices or len(choices) == 0:
                 raise ValueError(f"Field '{name}' of type enum must have choices defined.")
@@ -28,7 +38,8 @@ class FieldDefinition:
             self.choices = choices
         else:
             raise ValueError(
-                f"Unsupported field type '{field_type}'. Supported types: 'boolean' and 'enum'."
+                f"Unsupported field type '{field_type}'. "
+                "Supported types: 'boolean', 'enum' and 'multi'."
             )
 
     @property
@@ -71,6 +82,11 @@ class StructuredSchema:
         for name, field in self.fields.items():
             if field.field_type == "boolean":
                 lines.append(f'  "{name}": boolean, // {field.description}')
+            elif field.field_type == "multi":
+                choices_str = " | ".join(f'"{c}"' for c in field.choices)
+                lines.append(
+                    f'  "{name}": [{choices_str}], // {field.description} (select all that apply)'
+                )
             else:
                 choices_limit = 20 if len(field.choices) > 50 else len(field.choices)
                 choices_str = " | ".join(f'"{c}"' for c in field.choices[:choices_limit])
@@ -85,6 +101,8 @@ class StructuredSchema:
         lines = []
         for name, field in self.fields.items():
             desc = field.description.split("\n")[0].strip()
+            if field.field_type == "multi":
+                desc += " (select all that apply)"
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
@@ -103,6 +121,21 @@ class StructuredSchema:
 
         plan: dict[str, dict[str, Any]] = {}
         for fname, fdef in self.fields.items():
+            if fdef.field_type == "multi":
+                # One boolean row per option: suffix '  "<field>.<option>": '
+                # scored against the true/false literals. The engine folds the
+                # per-option probabilities back into the selected subset.
+                plan[fname] = {
+                    "options": list(fdef.choices),
+                    "suffix_ids_list": [
+                        tokenizer.encode(f'  "{fname}.{option}": ', add_special_tokens=False)
+                        for option in fdef.choices
+                    ],
+                    "choice_token_lists": [
+                        tokenizer.encode(v, add_special_tokens=False) for v in ("true", "false")
+                    ],
+                }
+                continue
             if fdef.field_type == "boolean":
                 prefix = ""
                 suffix_ids = tokenizer.encode(f'  "{fname}": ', add_special_tokens=False)

@@ -29,7 +29,10 @@ from openjev.schema import StructuredSchema
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 
-_SUPPORTED = "supported field types: bool, Literal[str, ...], enum.Enum with str values"
+_SUPPORTED = (
+    "supported field types: bool, Literal[str, ...], enum.Enum with str values, "
+    "list[Literal[...]] / set[Literal[...]] (multi)"
+)
 
 
 @dataclasses.dataclass
@@ -51,6 +54,15 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
         origin = typing.get_origin(ann)
         if ann is bool:
             schema[name] = {"type": "boolean", "description": _description(name, info)}
+        elif origin in (list, set) and typing.get_args(ann):
+            (lit,) = typing.get_args(ann)
+            if typing.get_origin(lit) is not typing.Literal:
+                raise TypeError(f"Field '{name}' has unsupported type {ann!r}. {_SUPPORTED}")
+            schema[name] = {
+                "type": "multi",
+                "choices": [str(c) for c in typing.get_args(lit)],
+                "description": _description(name, info),
+            }
         elif origin is typing.Literal:
             schema[name] = {
                 "type": "enum",
@@ -86,8 +98,11 @@ def _decide_once[T: BaseModel](
     for name, info in model_cls.model_fields.items():
         value = result["parsed_json"][name]["value"]
         ann = info.annotation
+        origin = typing.get_origin(ann)
         if isinstance(ann, type) and issubclass(ann, enum.Enum):
             value = ann(value)
+        elif origin in (list, set):
+            value = origin(value)  # list or set of the selected literal strings
         kwargs[name] = value
 
     return Decision(

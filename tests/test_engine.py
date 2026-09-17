@@ -77,3 +77,38 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
     )
     assert chunked["sequential_forward_passes"] == math.ceil(expected_rows / 5)
     assert full["sequential_forward_passes"] == 1
+
+
+@pytest.mark.slow
+def test_multi_field_returns_subset(engine):
+    """A multi field returns the subset of options whose boolean row passed 0.5."""
+    model, tokenizer = engine
+    schema_dict = {
+        "flags": {
+            "type": "multi",
+            "description": "every statement that applies to this support request",
+            "choices": ["billing_issue", "technical_issue", "account_issue"],
+        },
+    }
+    ctx = (
+        "Support request: since this morning the mobile app crashes whenever the "
+        "usage dashboard is opened. Reinstalling did not help, other pages load fine."
+    )
+    schema = StructuredSchema(schema_dict)
+    result = run_parallel_generation(model, tokenizer, ctx, schema)
+
+    parsed = result["parsed_json"]
+    assert list(parsed) == ["flags"]
+    value = parsed["flags"]["value"]
+    assert isinstance(value, list)
+    assert set(value) <= {"billing_issue", "technical_issue", "account_issue"}
+    assert "technical_issue" in value  # the app-crash context is clearly technical
+
+    telemetry = result["field_telemetry"]["flags"]
+    assert telemetry["type"] == "multi"
+    assert set(telemetry["per_option"]) == {"billing_issue", "technical_issue", "account_issue"}
+    assert all(0.0 <= p <= 1.0 for p in telemetry["per_option"].values())
+    assert len(telemetry["scores"]) == 3  # p_true per option, in choices order
+    selected = value
+    if selected:
+        assert telemetry["confidence"] == min(telemetry["per_option"][o] for o in selected)

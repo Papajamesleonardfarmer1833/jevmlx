@@ -53,7 +53,7 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 **01. One forward pass for every field.** The context is prefilled once, then the KV cache is broadcast so all schema fields are scored in a single batched pass. Latency grows with the longest suffix, not with field count.
 
-**02. Always-valid JSON.** The JSON object is assembled programmatically from per-field decisions — it is never generated token by token, so it cannot be malformed. Every value comes from the field's allowed choices.
+**02. Always-valid JSON.** The JSON object is assembled programmatically from per-field decisions — it is never generated token by token, so it cannot be malformed. Every value comes from the field's allowed choices; `multi` fields return the subset of options that apply, decided as one boolean decision per option.
 
 **03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, no rounding tricks. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
