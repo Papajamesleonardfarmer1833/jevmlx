@@ -1,20 +1,23 @@
 """
-Parallel Constrained Decision Engine on Apple Silicon (MLX) with broadcast
+Parallel constrained decision engine (MLX, Apple Silicon) with broadcast
 prefix KV-caching.
 
 - run_naive_generation / stream_naive_generation: autoregressive JSON baseline.
-- run_parallel_generation: all schema fields decided in one batched forward pass.
+- run_parallel_generation: all schema fields decided in one batched forward pass
+  (chunked automatically when the broadcast cache would not fit in memory).
 """
 
 import copy
 import functools
 import json
+import math
 import platform
 import re
 import time
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, List, Optional
 
 import mlx.core as mx
+from mlx.utils import tree_flatten
 from mlx_lm import load
 from mlx_lm.models.cache import make_prompt_cache
 
@@ -113,6 +116,22 @@ def _validate_json(current_text: str, schema: StructuredSchema):
     return parsed_json, is_valid_json, parse_error, missing_keys, invalid_enums, schema_match
 
 
+def _model_weight_bytes(model) -> int:
+    """Total bytes of all model parameters (quantized weights included)."""
+    return sum(int(p.nbytes) for _, p in tree_flatten(model.parameters()))
+
+
+def _cache_bytes_per_row(cache) -> int:
+    """KV-cache bytes a single batch row occupies across all layers."""
+    return sum(int(c.keys.nbytes) + int(c.values.nbytes) for c in cache
+               if hasattr(c, "keys") and c.keys is not None)
+
+
+def _max_recommended_working_set() -> int:
+    """Metal's max recommended working set size in bytes."""
+    return int(mx.metal.device_info()["max_recommended_working_set_size"])
+
+
 def run_naive_generation(
     model,
     tokenizer,
@@ -136,7 +155,7 @@ def run_naive_generation(
     input_ids = mx.array(prompt_ids)[None]
 
     t0 = time.perf_counter()
-    generated_tokens = []
+    generated_tokens: List[int] = []
     current_text = "{\n  "
     cache = make_prompt_cache(model)
 
@@ -278,31 +297,39 @@ def run_parallel_generation(
     context: str,
     schema: StructuredSchema,
     temperature: float = 1.0,
+    max_rows: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """
-    Parallel Constrained Decision Engine optimized for Apple Silicon (M4 Max):
-    1. Pre-Indexed Schema Metadata: Zero-overhead suffix and token compilation.
-    2. High-Density Semantic Prefill: Compact attribute prompt minimizes KV-cache latency.
-    3. Broadcast Cache & Batched Suffix Evaluation: all M field queries in one forward pass.
-    4. Fast Direct Cache Slice Disambiguation: zero re-allocation continuation for collisions.
-    5. Programmatic Assembly: 100% typed, validated JSON with calibrated confidence scores.
+    """Decide every schema field in one batched forward pass.
+
+    Each choice is scored as the sum of its tokens' log-probs (teacher forced);
+    choice probabilities are a softmax of those scores. The prefill KV cache is
+    broadcast across rows; colliding choices get one row per choice, everything
+    else one row. Batches larger than the memory guard allow run in chunks over
+    the same prefill cache.
     """
     t0 = time.perf_counter()
 
-    # 1. Pre-indexed schema metadata (cached on schema instance)
-    meta = schema.compile_parallel_metadata(tokenizer)
-    field_items = meta["field_items"]
-    suffix_lengths = meta["suffix_lengths"]
-    cands_per_field = meta["cands_per_field"]
-    prefixes = meta["prefixes"]
-    has_collisions = meta["has_collisions"]
-    suffixes_batch = meta["suffixes_batch"]
-    M = suffixes_batch.shape[0]
+    # 1. Batch plan: per field, suffix ids and per-choice token lists.
+    plan = schema.compile_batch_plan(tokenizer)
 
-    # 2. High-density semantic catalog for minimal prefill latency
+    rows: List[List[int]] = []          # token ids per row
+    row_field: List[str] = []           # field each row belongs to
+    row_choice: List[Optional[int]] = []  # choice index for choice-rows, else None
+    for fname, fdef in schema.fields.items():
+        p = plan[fname]
+        rows.append(list(p["suffix_ids"]))
+        row_field.append(fname)
+        row_choice.append(None)
+        if len({tuple(t) for t in p["choice_token_lists"]}) < len(p["choice_token_lists"]):
+            for ci, toks in enumerate(p["choice_token_lists"]):
+                rows.append(list(p["suffix_ids"]) + list(toks))
+                row_field.append(fname)
+                row_choice.append(ci)
+
+    suffix_arrs = rows  # token id lists; padded per chunk below
+
+    # 2. Prefill once (compact schema catalog + context).
     schema_str = schema.to_parallel_schema_str()
-    # Single user message: schema text + blank line + context. Works on every
-    # chat template (Gemma rejects the system role).
     base_ids = _chat_ids(
         tokenizer,
         f"Classify JSON attributes:\n{schema_str}\n\n{context}",
@@ -313,89 +340,86 @@ def run_parallel_generation(
     t_pre0 = time.perf_counter()
     cache = make_prompt_cache(model)
     model(base_arr, cache=cache)
-    mx.eval(*[c.keys for c in cache if hasattr(c, "keys")])
+    mx.eval(*[t for c in cache if hasattr(c, "keys") and c.keys is not None
+              for t in (c.keys, c.values)])
     t_prefill = (time.perf_counter() - t_pre0) * 1000
 
-    # 3. Broadcast KV cache across batch dimension M
-    b_cache = _broadcast_cache(cache, M)
-    to_eval = [t for c in b_cache if hasattr(c, "keys") and c.keys is not None
-               for t in (c.keys, c.values)]
-    if to_eval:
-        mx.eval(*to_eval)
+    # 3. Memory guard: rows are broadcast copies of the prefill cache.
+    bytes_per_row = _cache_bytes_per_row(cache)
+    budget = max(1, _max_recommended_working_set() // 2 - _model_weight_bytes(model))
+    if max_rows is not None:
+        budget = bytes_per_row * max_rows
+    auto_max_rows = max(1, budget // bytes_per_row) if bytes_per_row > 0 else len(rows)
+    num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
 
-    # 4. SINGLE BATCHED FORWARD PASS for all M suffixes
-    t_suf_start = time.perf_counter()
-    suffix_out = model(suffixes_batch, cache=b_cache)
-    mx.eval(suffix_out)
-    t_suffix_eval = (time.perf_counter() - t_suf_start) * 1000
+    # 4. Batched suffix forward passes (re-broadcast per chunk, no re-prefill).
+    #    Rows in a chunk are right-padded to a common length; scoring reads
+    #    positions from real lengths, and right-padding cannot affect logits at
+    #    earlier (real) positions under causal attention.
+    pad_id = tokenizer.pad_token_id or 0
+    t_suf0 = time.perf_counter()
+    row_logits: List[mx.array] = []
+    for chunk_start in range(0, len(rows), auto_max_rows):
+        chunk = rows[chunk_start:chunk_start + auto_max_rows]
+        chunk_len = len(chunk)
+        width = max(len(r) for r in chunk)
+        padded = mx.array([r + [pad_id] * (width - len(r)) for r in chunk], dtype=mx.int32)
+        b_cache = _broadcast_cache(cache, chunk_len)
+        mx.eval(*[t for c in b_cache if hasattr(c, "keys") and c.keys is not None
+                  for t in (c.keys, c.values)])
+        out = model(padded, cache=b_cache)
+        mx.eval(out)
+        row_logits.extend(out[i, :, :] for i in range(chunk_len))
 
-    # 5. Extract logits and compute calibrated decisions
-    parsed_json = {}
-    field_telemetry = {}
+    t_suffix_eval = (time.perf_counter() - t_suf0) * 1000
 
-    for i, (fname, fdef) in enumerate(field_items):
-        decision_idx = suffix_lengths[i] - 1
-        field_logits = suffix_out[i, decision_idx, :]
-        cand_tokens = cands_per_field[i]
+    # 5. One scoring rule for every field: sum of choice-token log-probs,
+    #    softmax over choices, confidence = max probability. No clamps.
+    parsed_json: Dict[str, Any] = {}
+    field_telemetry: Dict[str, Any] = {}
 
-        if not has_collisions[i]:
-            scores = [float(field_logits[tid]) for tid in cand_tokens]
-            scores_arr = mx.array(scores) / max(temperature, 1e-4)
-            probs = mx.softmax(scores_arr)
-            mx.eval(probs)
-            w_idx = int(mx.argmax(probs))
-            w_prob = float(probs[w_idx])
-            all_probs = probs.tolist()
+    field_rows: Dict[str, List[int]] = {}
+    for idx, fname in enumerate(row_field):
+        field_rows.setdefault(fname, []).append(idx)
 
-            raw_choice = ["true", "false"][w_idx] if fdef.field_type == "boolean" else fdef.choices[w_idx]
-            val = (raw_choice.lower() == "true") if fdef.field_type == "boolean" else raw_choice
+    for fname, fdef in schema.fields.items():
+        p = plan[fname]
+        idxs = field_rows[fname]
+        choice_token_lists = p["choice_token_lists"]
+        n_choices = len(choice_token_lists)
+
+        scores: List[float] = []
+        for ci in range(n_choices):
+            toks = choice_token_lists[ci]
+            if row_choice[idxs[0]] is None:
+                # Distinct first tokens: one row, score the first choice token
+                # at the field's last real suffix position (padding excluded).
+                logits = row_logits[idxs[0]][len(p["suffix_ids"]) - 1, :]
+                scores.append(float(logits[toks[0]]))
+            else:
+                # Collision: this choice has its own teacher-forced row.
+                r = idxs[ci]
+                row = rows[r]
+                total = 0.0
+                for step, tid in enumerate(toks):
+                    pos = len(p["suffix_ids"]) + step - 1
+                    logits = row_logits[r][pos, :]
+                    total += float(mx.logsoftmax(logits)[tid])
+                scores.append(total)
+
+        scores_arr = mx.array(scores) / max(temperature, 1e-4)
+        probs = mx.softmax(scores_arr)
+        mx.eval(probs)
+        probs_list = probs.tolist()
+        w_idx = int(mx.argmax(probs))
+        w_prob = float(probs_list[w_idx])
+
+        raw_choice = choice_token_lists[w_idx]
+        val = tokenizer.decode(raw_choice)
+        if fdef.field_type == "boolean":
+            val = (val.strip().lower() == "true")
         else:
-            # Fast direct cache slice disambiguation (zero re-allocation)
-            f_cache = []
-            for c in b_cache:
-                fc = copy.copy(c)
-                if hasattr(c, "keys") and c.keys is not None:
-                    fc.keys = c.keys[i:i + 1, ...]
-                    fc.values = c.values[i:i + 1, ...]
-                f_cache.append(fc)
-
-            cur_logits = field_logits
-            gen_toks = []
-            probs_prod = 1.0
-            for _ in range(4):
-                nxt = int(mx.argmax(cur_logits))
-                nxt_str = tokenizer.decode([nxt])
-                p_tok = float(mx.softmax(cur_logits)[nxt])
-                probs_prod *= p_tok
-                if '"' in nxt_str or '\n' in nxt_str or ',' in nxt_str:
-                    break
-                gen_toks.append(nxt)
-                out_step = model(mx.array([[nxt]]), cache=f_cache)
-                mx.eval(out_step)
-                cur_logits = out_step[0, -1, :]
-
-            prefix = prefixes[i]
-            gen_val = (prefix + tokenizer.decode(gen_toks)).replace('"', '').strip()
-            matched = None
-            for c in fdef.choices:
-                if gen_val.startswith(c) or c.startswith(gen_val):
-                    matched = c
-                    break
-            if matched is None:
-                digits = re.findall(r'\d+', gen_val)
-                if digits:
-                    target_idx = int(digits[0])
-                    if 0 <= target_idx < len(fdef.choices):
-                        matched = fdef.choices[target_idx]
-            if matched is None:
-                matched = fdef.choices[0]
-
-            val = matched
-            w_idx = fdef.choices.index(matched)
-            w_prob = round(max(min(probs_prod, 0.9999), 0.75), 4)
-
-            all_probs = [round((1.0 - w_prob) / max(len(fdef.choices) - 1, 1), 4)] * len(fdef.choices)
-            all_probs[w_idx] = w_prob
+            val = p["prefix"] + tokenizer.decode(raw_choice)
 
         parsed_json[fname] = {
             "value": val,
@@ -404,8 +428,8 @@ def run_parallel_generation(
 
         choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
         scored_choices = [
-            {"choice": c, "probability": round(p, 4)}
-            for c, p in zip(choices_list, all_probs)
+            {"choice": c, "probability": round(pr, 4)}
+            for c, pr in zip(choices_list, probs_list)
         ]
         scored_choices.sort(key=lambda x: x["probability"], reverse=True)
 
@@ -420,16 +444,13 @@ def run_parallel_generation(
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
 
     return {
-        "mode": "parallel_constrained_calibrated",
         "elapsed_ms": round(total_elapsed_ms, 2),
         "prefill_ms": round(t_prefill, 2),
         "suffix_eval_ms": round(t_suffix_eval, 2),
         "total_tokens_generated": 0,
-        "sequential_forward_passes": 1,
-        "is_valid_json": True,
-        "schema_match": True,
+        "sequential_forward_passes": num_passes,
+        "schema_match": True,  # keys/enums guaranteed by construction; bench_model comparison
         "parsed_json": parsed_json,
         "field_telemetry": field_telemetry,
-        "has_calibrated_probabilities": True,
         "num_fields": len(schema),
     }
