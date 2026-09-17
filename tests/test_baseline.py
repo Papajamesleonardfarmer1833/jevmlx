@@ -41,7 +41,7 @@ class TestBuildBaselineMessages:
                     '- "action" (one of exactly: "APPROVE", "REJECT", "ESCALATE")'
                     " — Decision on the transaction.\n"
                     '- "amount_valid" (boolean: true or false) — Is the amount plausible?\n'
-                    '- "tags" (array whose items are exactly one or more of: "fraud", "velocity")'
+                    '- "tags" (an array, possibly empty, of allowed strings: "fraud", "velocity")'
                     " — Risk tags.\n"
                     "\n"
                     "Context:\n"
@@ -54,62 +54,98 @@ class TestBuildBaselineMessages:
 
 class TestParseBaselineOutput:
     def test_valid_output(self):
-        values, errors = parse_baseline_output(
+        strict, salvage, errors = parse_baseline_output(
             '{"action": "APPROVE", "amount_valid": true, "tags": ["fraud"]}', SCHEMA
         )
         assert errors == []
-        assert values == {"action": "APPROVE", "amount_valid": True, "tags": ["fraud"]}
+        assert strict == {"action": "APPROVE", "amount_valid": True, "tags": ["fraud"]}
+        assert salvage == strict
 
-    def test_json_inside_prose_is_extracted(self):
-        values, errors = parse_baseline_output(
+    def test_object_followed_only_by_whitespace_is_valid(self):
+        _, _, errors = parse_baseline_output(
+            '{"action": "REJECT", "amount_valid": false, "tags": []}\n\n', SCHEMA
+        )
+        assert errors == []
+
+    def test_trailing_text_after_object_is_an_error(self):
+        strict, salvage, errors = parse_baseline_output(
+            '{"action": "REJECT", "amount_valid": false, "tags": []} Hope that helps!', SCHEMA
+        )
+        assert errors == ["trailing text after JSON object"]
+        assert all(value is None for value in strict.values())
+        # salvage still keeps the individually parseable fields
+        assert salvage == {"action": "REJECT", "amount_valid": False, "tags": []}
+
+    def test_json_inside_prose_is_parsed_then_salvage_only(self):
+        """Leading prose before the object is fine (raw_decode at first '{');
+        trailing text after it is not. Either way strict stays all-None."""
+        strict, salvage, errors = parse_baseline_output(
             'Sure! Here is the result:\n{"action": "REJECT", "amount_valid": false, "tags": []}\n',
             SCHEMA,
         )
         assert errors == []
-        assert values["action"] == "REJECT"
+        assert strict == {"action": "REJECT", "amount_valid": False, "tags": []}
+        assert salvage == strict
 
     def test_malformed_json_reports_error_and_never_raises(self):
-        values, errors = parse_baseline_output('{"action": "APPROVE", "amount_valid": tru}', SCHEMA)
-        assert values == {"action": None, "amount_valid": None, "tags": None}
+        strict, salvage, errors = parse_baseline_output(
+            '{"action": "APPROVE", "amount_valid": tru}', SCHEMA
+        )
+        assert strict == {"action": None, "amount_valid": None, "tags": None}
+        assert salvage == strict
         assert len(errors) == 1 and errors[0].startswith("invalid JSON")
 
     def test_no_braces_at_all(self):
-        values, errors = parse_baseline_output("I cannot help with that.", SCHEMA)
-        assert set(values) == {"action", "amount_valid", "tags"}
+        strict, salvage, errors = parse_baseline_output("I cannot help with that.", SCHEMA)
+        assert set(strict) == {"action", "amount_valid", "tags"}
+        assert salvage == strict
         assert errors == ["no JSON object found in output"]
 
     def test_wrong_enum_value(self):
-        values, errors = parse_baseline_output(
+        strict, salvage, errors = parse_baseline_output(
             '{"action": "MAYBE", "amount_valid": true, "tags": []}', SCHEMA
         )
-        assert values["action"] is None
+        assert strict["action"] is None and salvage["action"] is None
         assert any("invalid value for action" in e and "MAYBE" in e for e in errors)
 
-    def test_extra_keys_are_ignored_not_errors(self):
-        values, errors = parse_baseline_output(
+    def test_extra_keys_are_errors(self):
+        strict, salvage, errors = parse_baseline_output(
             '{"action": "APPROVE", "amount_valid": true, "tags": [], "notes": "hi"}', SCHEMA
         )
-        assert errors == []
-        assert "notes" not in values
+        assert errors == ["extra key: notes"]
+        assert all(value is None for value in strict.values())  # strict: schema fields only
+        # per-field values were individually fine, so salvage keeps them
+        assert salvage == {"action": "APPROVE", "amount_valid": True, "tags": []}
 
     def test_missing_key(self):
-        values, errors = parse_baseline_output('{"action": "APPROVE"}', SCHEMA)
-        assert values["amount_valid"] is None and values["tags"] is None
+        strict, salvage, errors = parse_baseline_output('{"action": "APPROVE"}', SCHEMA)
+        assert strict["amount_valid"] is None and strict["tags"] is None
+        assert salvage["amount_valid"] is None and salvage["tags"] is None
         assert sorted(errors) == ["missing key: amount_valid", "missing key: tags"]
 
     def test_boolean_wrong_type(self):
-        values, errors = parse_baseline_output(
+        _, _, errors = parse_baseline_output(
             '{"action": "APPROVE", "amount_valid": "yes", "tags": []}', SCHEMA
         )
-        assert values["amount_valid"] is None
         assert any("wrong type for amount_valid" in e for e in errors)
 
     def test_multi_item_not_in_choices(self):
-        values, errors = parse_baseline_output(
+        _, _, errors = parse_baseline_output(
             '{"action": "APPROVE", "amount_valid": true, "tags": ["fraud", "nope"]}', SCHEMA
         )
-        assert values["tags"] is None
         assert any("invalid items for tags" in e and "nope" in e for e in errors)
+
+    def test_multi_duplicate_items_are_errors(self):
+        _, _, errors = parse_baseline_output(
+            '{"action": "APPROVE", "amount_valid": true, "tags": ["fraud", "fraud"]}', SCHEMA
+        )
+        assert any("duplicate items for tags" in e and "fraud" in e for e in errors)
+
+    def test_multi_empty_array_is_allowed(self):
+        strict, _, errors = parse_baseline_output(
+            '{"action": "APPROVE", "amount_valid": true, "tags": []}', SCHEMA
+        )
+        assert errors == [] and strict["tags"] == []
 
 
 class _CannedHandler(BaseHTTPRequestHandler):
@@ -152,6 +188,33 @@ class TestCallChatCompletions:
         )
         assert content == '{"action": "APPROVE"}'
 
+    def test_text_mode_is_default_and_sends_no_response_format(self, server):
+        base_url, _ = server
+        call_chat_completions(base_url, "glm-5.3", [{"role": "user", "content": "x"}], api_key=None)
+        assert "response_format" not in _CannedHandler.last_body
+
+    def test_json_mode_sends_response_format(self, server):
+        base_url, _ = server
+        call_chat_completions(
+            base_url,
+            "glm-5.3",
+            [{"role": "user", "content": "x"}],
+            api_key=None,
+            mode="json",
+        )
+        assert _CannedHandler.last_body["response_format"] == {"type": "json_object"}
+
+    def test_invalid_mode_raises_value_error(self, server):
+        base_url, _ = server
+        with pytest.raises(ValueError, match="mode must be"):
+            call_chat_completions(
+                base_url,
+                "glm-5.3",
+                [{"role": "user", "content": "x"}],
+                api_key=None,
+                mode="yaml",
+            )
+
     def test_bearer_header_and_payload_shape(self, server):
         base_url, _ = server
         call_chat_completions(
@@ -159,7 +222,6 @@ class TestCallChatCompletions:
         )
         assert _CannedHandler.last_headers.get("Authorization") == "Bearer secret-key"
         assert _CannedHandler.last_body["model"] == "glm-5.3"
-        assert _CannedHandler.last_body["response_format"] == {"type": "json_object"}
         assert _CannedHandler.last_body["temperature"] == 0.0
 
     def test_no_bearer_header_without_api_key(self, server):
@@ -210,8 +272,9 @@ class TestBaselineDecide:
         finally:
             httpd.shutdown()
             httpd.server_close()
+        assert result["strict_valid"] is True
         assert result["schema_valid"] is True
-        assert result["errors"] == []
+        assert result["salvage_values"] == result["values"]
         assert result["values"] == {
             "action": "APPROVE",
             "amount_valid": True,
