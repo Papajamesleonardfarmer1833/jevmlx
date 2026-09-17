@@ -683,3 +683,80 @@ def test_cache_evicts_entry_when_tokenizer_dies():
     gc.collect()
     assert ref() is None
     assert cache_key not in schema._plans
+
+
+def test_compile_slot_plan_reads_the_cache():
+    """C2: compile_slot_plan must READ the plan cache like compile_labels_plan
+    does — two calls with the same tokenizer return the same object and add
+    no new weakrefs (previously it recompiled and stacked a finalizer per
+    call); a different tokenizer recompiles."""
+
+    class CountingTokenizer:
+        name_or_path = "fake-count"
+
+        def __init__(self):
+            self.encodes = 0
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            self.encodes += 1
+            return [ord(c) % 65536 for c in text]
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    tok = CountingTokenizer()
+    import weakref as _weakref
+
+    plan1 = schema.compile_slot_plan(tok)
+    encodes_after_first = tok.encodes
+    weakrefs_after_first = _weakref.getweakrefcount(tok)
+
+    plan2 = schema.compile_slot_plan(tok)
+    assert plan2 is plan1  # same object: served from the cache
+    assert tok.encodes == encodes_after_first  # nothing re-encoded
+    assert _weakref.getweakrefcount(tok) == weakrefs_after_first  # no new finalizers
+
+    # A different tokenizer (same schema) recompiles.
+    tok2 = CountingTokenizer()
+    plan3 = schema.compile_slot_plan(tok2)
+    assert plan3 is not plan1
+    assert tok2.encodes > 0
+
+
+def test_labels_plan_cache_hit_is_the_same_object():
+    """C2: labels path via the shared helper — same object, flat weakrefs."""
+    import weakref as _weakref
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    tok = NonCompositionalTokenizer()
+    plan1 = schema.compile_labels_plan(tok)
+    weakrefs_after_first = _weakref.getweakrefcount(tok)
+    plan2 = schema.compile_labels_plan(tok)
+    assert plan2 is plan1
+    assert _weakref.getweakrefcount(tok) == weakrefs_after_first
+
+
+def test_re_storing_a_plan_does_not_stack_finalizers():
+    """C2: _cache_plan registers the eviction finalizer only when the key is
+    new — re-storing must not accumulate finalizer objects."""
+    import gc
+    import weakref as _weakref
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    tok = NonCompositionalTokenizer()
+    schema.compile_labels_plan(tok)
+    n = _weakref.getweakrefcount(tok)
+    schema.compile_labels_plan(tok)  # hit: no new weakrefs
+    assert _weakref.getweakrefcount(tok) == n
+    # Force a re-store on the same key (evict-less overwrite path).
+    schema._cache_plan(tok, {"lead_in_ids": [], "fields": {}}, mode="labels")
+    assert _weakref.getweakrefcount(tok) == n
+    # The eviction still works.
+    cache_key = (id(tok), "labels")
+    del tok
+    gc.collect()
+    assert cache_key not in schema._plans
