@@ -18,6 +18,7 @@ Output: evals/full_eval.json
   }
 }
 """
+
 from __future__ import annotations
 
 import json
@@ -28,7 +29,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 T = os.path.join(HERE, "typesafe")
 OUT = os.path.join(HERE, "full_eval.json")
 
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
 LABELS = {
     "security_incidents": "Security Incidents",
     "agent_trace_observability": "Agent Trace Observability",
@@ -39,7 +45,9 @@ LABELS = {
 
 def load(wf: str) -> dict:
     raw = open(os.path.join(T, f"{wf}-cases.js"), encoding="utf-8", errors="replace").read()
-    m = re.search(r"__VIEWER_DATA__\((.*)\)\s*;?\s*$", raw, re.S) or re.search(r"__VIEWER_DATA__\((.*)\)", raw, re.S)
+    m = re.search(r"__VIEWER_DATA__\((.*)\)\s*;?\s*$", raw, re.S) or re.search(
+        r"__VIEWER_DATA__\((.*)\)", raw, re.S
+    )
     return json.loads(m.group(1))["eval"]
 
 
@@ -131,37 +139,41 @@ def main() -> None:
             reference = {}
             for node_answers in case.get("reference_answers", {}).values():
                 for qid, entry in node_answers.items():
-                    val, probs = consensus(entry, entry["type"])
-                    reference[qid] = {"value": val, "probs": probs, "type": entry["type"]}
+                    val, _probs = consensus(entry, entry["type"])
+                    reference[qid] = {"value": val, "probs": _probs, "type": entry["type"]}
 
             questions = []
-            for qid, ref in reference.items():
+            for qid in reference:
                 idx = wf_qmap.get(qid)
                 if idx is None or not (0 <= idx < len(catalog)):
                     print(f"  WARN {wf}/{cid}: no catalog entry for {qid}")
                     continue
                 q = catalog[idx]
-                questions.append({
-                    "qid": qid,
-                    "type": q["type"],
-                    "instructions": q["instructions"],
-                    "criteria": q["criteria"],
-                    "catalog_index": idx,
-                })
+                questions.append(
+                    {
+                        "qid": qid,
+                        "type": q["type"],
+                        "instructions": q["instructions"],
+                        "criteria": q["criteria"],
+                        "catalog_index": idx,
+                    }
+                )
 
             input_text = "\n\n".join(
                 f"## Document {i}\n{render(docs[i])}" for i in sorted(doc_idx) if 0 <= i < len(docs)
             )
 
-            cases.append({
-                "case_id": cid,
-                "name": ex.get("name", cid),
-                "doc_indices": sorted(doc_idx),
-                "input_text": input_text,
-                "input_chars": len(input_text),
-                "questions": questions,
-                "reference": reference,
-            })
+            cases.append(
+                {
+                    "case_id": cid,
+                    "name": ex.get("name", cid),
+                    "doc_indices": sorted(doc_idx),
+                    "input_text": input_text,
+                    "input_chars": len(input_text),
+                    "questions": questions,
+                    "reference": reference,
+                }
+            )
             total_cases += 1
             total_pairs += len(reference)
 
@@ -173,8 +185,10 @@ def main() -> None:
         pairs = sum(len(c["reference"]) for c in data["cases"])
         chars = [c["input_chars"] for c in data["cases"]]
         missing = sum(1 for c in data["cases"] if len(c["questions"]) != len(c["reference"]))
-        print(f"  {wf:30} cases={len(data['cases']):2} pairs={pairs:3} "
-              f"inputs={min(chars)}-{max(chars)} chars, mapping gaps={missing}")
+        print(
+            f"  {wf:30} cases={len(data['cases']):2} pairs={pairs:3} "
+            f"inputs={min(chars)}-{max(chars)} chars, mapping gaps={missing}"
+        )
     print(f"TOTAL: {total_cases} cases, {total_pairs} reference pairs")
 
 

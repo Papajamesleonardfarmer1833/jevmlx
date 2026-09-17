@@ -18,5 +18,10 @@ jobs:
       - name: Install (setup-uv already created .venv)
         run: uv pip install --python .venv/bin/python -e '.[dev]'
 
+      - name: Lint (ruff)
+        run: |
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check .
+
       - name: Fast tests (no model downloads)
         run: .venv/bin/pytest -m "not slow" -q

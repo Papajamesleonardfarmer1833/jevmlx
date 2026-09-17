@@ -9,6 +9,7 @@ Usage:
   .venv/bin/python evals/eval_local_chunked.py --model mlx-community/Qwen3-8B-4bit \
       --tag qwen3-8b --chunk-size 6 --workflow invoice_processing
 """
+
 from __future__ import annotations
 
 import argparse
@@ -26,22 +27,31 @@ def build_schema_dict(questions: list[dict]) -> dict:
         crit = q["criteria"]
         if q["type"] == "noul":
             if isinstance(crit, dict):
-                desc = f"{q['instructions']} (true: {crit.get('true','')}; false: {crit.get('false','')})"
+                desc = f"{q['instructions']} (true: {crit.get('true', '')}; false:"
+                f"{crit.get('false', '')})"
             else:
                 desc = q["instructions"]
             schema[q["qid"]] = {"type": "boolean", "description": desc}
         elif q["type"] == "score":
-            levels = "; ".join(f"{i}={v}" for i, v in enumerate(crit)) if isinstance(crit, list) else ""
-            schema[q["qid"]] = {"type": "enum", "choices": ["0", "1", "2", "3"],
-                                "description": f"{q['instructions']} Levels: {levels}"}
+            levels = (
+                "; ".join(f"{i}={v}" for i, v in enumerate(crit)) if isinstance(crit, list) else ""
+            )
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": ["0", "1", "2", "3"],
+                "description": f"{q['instructions']} Levels: {levels}",
+            }
         else:
             if isinstance(crit, dict):
                 opts = "; ".join(f"{k}={v}" for k, v in crit.items())
                 choices = list(crit.keys())
             else:
                 opts, choices = "", []
-            schema[q["qid"]] = {"type": "enum", "choices": choices,
-                                "description": f"{q['instructions']} Options: {opts}"}
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": choices,
+                "description": f"{q['instructions']} Options: {opts}",
+            }
     return schema
 
 
@@ -76,9 +86,15 @@ def main() -> None:
             if args.case and cid != args.case:
                 continue
             questions = case["questions"]
-            chunks = [questions[i:i + args.chunk_size] for i in range(0, len(questions), args.chunk_size)]
-            print(f"[{wf}/{cid}] {len(questions)} q in {len(chunks)} chunk(s), "
-                  f"{case['input_chars']} chars ...", flush=True)
+            chunks = [
+                questions[i : i + args.chunk_size]
+                for i in range(0, len(questions), args.chunk_size)
+            ]
+            print(
+                f"[{wf}/{cid}] {len(questions)} q in {len(chunks)} chunk(s), "
+                f"{case['input_chars']} chars ...",
+                flush=True,
+            )
 
             answers: dict = {}
             tot_ms = tot_pre = tot_suf = 0.0
@@ -94,19 +110,30 @@ def main() -> None:
                     qid = q["qid"]
                     entry = res["field_telemetry"][qid]
                     if q["type"] == "noul":
-                        p_true = next((float(c["probability"]) for c in entry["top_choices"]
-                                       if str(c["choice"]).lower() == "true"),
-                                      1.0 - float(entry["confidence"]))
+                        p_true = next(
+                            (
+                                float(c["probability"])
+                                for c in entry["top_choices"]
+                                if str(c["choice"]).lower() == "true"
+                            ),
+                            1.0 - float(entry["confidence"]),
+                        )
                         answers[qid] = {"raw": p_true, "kind": "noul"}
                     else:
                         answers[qid] = {"raw": entry["value"], "kind": q["type"]}
-                print(f"    chunk {ci}/{len(chunks)}: {dt:.0f} ms "
-                      f"(prefill {res['prefill_ms']:.0f} + pass {res['suffix_eval_ms']:.0f})", flush=True)
+                print(
+                    f"    chunk {ci}/{len(chunks)}: {dt:.0f} ms "
+                    f"(prefill {res['prefill_ms']:.0f} + pass {res['suffix_eval_ms']:.0f})",
+                    flush=True,
+                )
 
             out[wf][cid] = answers
             timings[f"{wf}/{cid}"] = {
-                "total_ms": tot_ms, "prefill_ms": tot_pre, "suffix_eval_ms": tot_suf,
-                "chunks": len(chunks), "fields": len(questions),
+                "total_ms": tot_ms,
+                "prefill_ms": tot_pre,
+                "suffix_eval_ms": tot_suf,
+                "chunks": len(chunks),
+                "fields": len(questions),
             }
             print(f"    -> case total {tot_ms:.0f} ms, {len(answers)} answers", flush=True)
 
@@ -120,8 +147,11 @@ def main() -> None:
         merged_answers.setdefault(wf, {}).update(cases)
     merged_timings = existing.get("timings", {})
     merged_timings.update(timings)
-    json.dump({"model": args.model, "timings": merged_timings, "answers": merged_answers},
-              open(path, "w"), indent=1)
+    json.dump(
+        {"model": args.model, "timings": merged_timings, "answers": merged_answers},
+        open(path, "w"),
+        indent=1,
+    )
     n = sum(len(v) for wf in merged_answers.values() for v in wf.values())
     print(f"saved {path} ({n} answers total)")
 

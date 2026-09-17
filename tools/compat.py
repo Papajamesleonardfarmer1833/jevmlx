@@ -13,7 +13,6 @@ Usage: .venv/bin/python tools/compat.py [model_id ...]
 import json
 import subprocess
 import sys
-import time
 
 import mlx.core as mx
 
@@ -32,8 +31,14 @@ MODELS = [
 
 PRESETS = ["fintech_fraud", "support_triage"]
 
-EMPTY_ROW = {"loads": "n", "presets": "", "latency_ms": "-", "prompt_tokens": "-",
-             "peak_mem_gb": "-", "error": ""}
+EMPTY_ROW = {
+    "loads": "n",
+    "presets": "",
+    "latency_ms": "-",
+    "prompt_tokens": "-",
+    "peak_mem_gb": "-",
+    "error": "",
+}
 
 
 def probe_row(model_id: str) -> dict:
@@ -49,7 +54,6 @@ def probe_row(model_id: str) -> dict:
             preset = load_preset(name)
             schema = StructuredSchema(preset["schema"])
             run_parallel_generation(model, tokenizer, preset["context"], schema)  # warmup
-            t0 = time.perf_counter()
             result = run_parallel_generation(model, tokenizer, preset["context"], schema)
             latencies.append(result["elapsed_ms"])
             valid = all(
@@ -85,24 +89,34 @@ def main() -> None:
         # process-wide peak, so later models would inherit earlier peaks.
         proc = subprocess.run(
             [sys.executable, __file__, "--row", model_id],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         row = None
         for line in proc.stdout.splitlines():
             if line.startswith("ROW_JSON="):
-                row = json.loads(line[len("ROW_JSON="):])
+                row = json.loads(line[len("ROW_JSON=") :])
         if row is None:
             first_err = (proc.stderr or "unknown error").strip().splitlines()
-            row = {"model": model_id, **EMPTY_ROW,
-                   "error": (first_err[-1] if first_err else "unknown error")[:60]}
+            row = {
+                "model": model_id,
+                **EMPTY_ROW,
+                "error": (first_err[-1] if first_err else "unknown error")[:60],
+            }
         rows.append(row)
 
     print()
-    print("| Model | loads | presets valid | warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |")
+    print(
+        "| Model | loads | presets valid "
+        "| warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |"
+    )
     print("|---|---|---|---|---|---|")
     for r in rows:
         if r["loads"] == "y":
-            print(f"| `{r['model']}` | y | {r['presets']} | {r['latency_ms']} | {r['prompt_tokens']} | {r['peak_mem_gb']} |")
+            print(
+                f"| `{r['model']}` | y | {r['presets']} | {r['latency_ms']} "
+                f"| {r['prompt_tokens']} | {r['peak_mem_gb']} |"
+            )
         else:
             print(f"| `{r['model']}` | n | - | - | - | {r['error']} |")
 

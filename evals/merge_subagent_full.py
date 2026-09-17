@@ -6,6 +6,7 @@ Input:  evals/subagent_full/<label>.json   -- raw JSON object returned by the mo
         Label is one of the 4 workflow names, or an invoice case id (ap_*).
 Output: evals/results/full-deepseek-v4.1-flash.json   (published_answers shape)
 """
+
 from __future__ import annotations
 
 import glob
@@ -17,7 +18,12 @@ SRC = os.path.join(HERE, "subagent_full")
 FULL = os.path.join(HERE, "full_eval.json")
 OUT = os.path.join(HERE, "results", "full-deepseek-v4.1-flash.json")
 
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
 
 
 def main() -> None:
@@ -58,7 +64,11 @@ def main() -> None:
             out[wf][case_id] = norm
 
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    json.dump({"model": "deepseek-v4.1-flash (opencode-go, max)", "answers": out}, open(OUT, "w"), indent=1)
+    json.dump(
+        {"model": "deepseek-v4.1-flash (opencode-go, max)", "answers": out},
+        open(OUT, "w"),
+        indent=1,
+    )
 
     for wf in WORKFLOWS:
         n = sum(len(a) for a in out[wf].values())

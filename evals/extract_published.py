@@ -4,6 +4,7 @@
 Output: evals/published_answers.json
   {"<wf>": {"<case_id>": {"opus": {qid: raw}, "sol": {...}, "typesafe": {...}}}}
 """
+
 from __future__ import annotations
 
 import json
@@ -13,12 +14,19 @@ import re
 HERE = os.path.dirname(os.path.abspath(__file__))
 T = os.path.join(HERE, "typesafe")
 OUT = os.path.join(HERE, "published_answers.json")
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
 
 
 def load(wf: str) -> dict:
     raw = open(os.path.join(T, f"{wf}-cases.js"), encoding="utf-8", errors="replace").read()
-    m = re.search(r"__VIEWER_DATA__\((.*)\)\s*;?\s*$", raw, re.S) or re.search(r"__VIEWER_DATA__\((.*)\)", raw, re.S)
+    m = re.search(r"__VIEWER_DATA__\((.*)\)\s*;?\s*$", raw, re.S) or re.search(
+        r"__VIEWER_DATA__\((.*)\)", raw, re.S
+    )
     return json.loads(m.group(1))["eval"]
 
 

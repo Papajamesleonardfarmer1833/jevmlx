@@ -9,6 +9,7 @@ Loads exactly one model, runs all cases from cases.json (24 by default), writes
 results/<tag>.json with per-case predictions, per-field correctness, confidences
 and timings. One process per model; run models sequentially.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,12 +20,16 @@ import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
 def tag_for(model_id: str) -> str:
     return model_id.split("/")[-1].lower()
 
 
 def parse_args() -> argparse.Namespace:
-    ap = argparse.ArgumentParser(description="Labeled quality eval for the parallel decision engine.")
+    ap = argparse.ArgumentParser(
+        description="Labeled quality eval for the parallel decision engine."
+    )
     ap.add_argument("--model", required=True, help="Hugging Face model id served by mlx-lm")
     ap.add_argument("--cases", default=os.path.join(HERE, "cases.json"))
     ap.add_argument("--outdir", default=os.path.join(HERE, "results"))
@@ -47,7 +52,7 @@ def main() -> int:
         for case in fam["cases"]:
             order.append((family_key, case))
     if args.limit and args.limit > 0:
-        order = order[:args.limit]
+        order = order[: args.limit]
 
     from openjev.engine import load_engine, run_parallel_generation  # noqa: E402
     from openjev.schema import StructuredSchema  # noqa: E402
@@ -99,7 +104,10 @@ def main() -> int:
         predicted = {name: out["parsed_json"][name]["value"] for name in case["labels"]}
         confidence = {name: out["parsed_json"][name]["prob"] for name in case["labels"]}
         top = {
-            name: [[c["choice"], c["probability"]] for c in out["field_telemetry"][name]["top_choices"][:3]]
+            name: [
+                [c["choice"], c["probability"]]
+                for c in out["field_telemetry"][name]["top_choices"][:3]
+            ]
             for name in case["labels"]
         }
         field_correct, field_acceptable, on_alt = {}, {}, []
@@ -111,29 +119,38 @@ def main() -> int:
             if not hit and predicted[name] in alt:
                 on_alt.append(name)
 
-        entry.update({
-            "status": "ok",
-            "context_tokens": len(tokenizer.encode(case["context"])),
-            "elapsed_ms": out["elapsed_ms"],
-            "prefill_ms": out["prefill_ms"],
-            "suffix_eval_ms": out["suffix_eval_ms"],
-            "predicted": predicted,
-            "confidence": confidence,
-            "top_choices": top,
-            "field_correct": field_correct,
-            "field_correct_or_acceptable": field_acceptable,
-            "fields_on_acceptable_alternative": on_alt,
-            "all_fields_correct": all(field_correct.values()),
-            "all_fields_correct_or_acceptable": all(field_acceptable.values()),
-        })
+        entry.update(
+            {
+                "status": "ok",
+                "context_tokens": len(tokenizer.encode(case["context"])),
+                "elapsed_ms": out["elapsed_ms"],
+                "prefill_ms": out["prefill_ms"],
+                "suffix_eval_ms": out["suffix_eval_ms"],
+                "predicted": predicted,
+                "confidence": confidence,
+                "top_choices": top,
+                "field_correct": field_correct,
+                "field_correct_or_acceptable": field_acceptable,
+                "fields_on_acceptable_alternative": on_alt,
+                "all_fields_correct": all(field_correct.values()),
+                "all_fields_correct_or_acceptable": all(field_acceptable.values()),
+            }
+        )
         results.append(entry)
 
-        wrong = [f"{k}={entry['predicted'][k]}(want {entry['labels'][k]})"
-                 for k in case["labels"] if not field_correct[k]]
+        wrong = [
+            f"{k}={entry['predicted'][k]}(want {entry['labels'][k]})"
+            for k in case["labels"]
+            if not field_correct[k]
+        ]
         alt = f" on-alternative:{','.join(on_alt)}" if on_alt else ""
-        print(f"  {case['id']}: {'OK ' if not wrong else 'MISS'} "
-              f"{entry['elapsed_ms']:.0f}ms conf={min(confidence.values()):.2f}-{max(confidence.values()):.2f}"
-              f"{alt}{' ' + '; '.join(wrong) if wrong else ''}", flush=True)
+        print(
+            f"  {case['id']}: {'OK ' if not wrong else 'MISS'} "
+            f"{entry['elapsed_ms']:.0f}ms "
+            f"conf={min(confidence.values()):.2f}-{max(confidence.values()):.2f}"
+            f"{alt}{' ' + '; '.join(wrong) if wrong else ''}",
+            flush=True,
+        )
 
     ok_cases = [r for r in results if r.get("status") == "ok"]
     payload = {

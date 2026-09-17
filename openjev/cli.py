@@ -1,8 +1,8 @@
 """openjev command-line interface.
 
-    openjev decide --preset fintech_fraud
-    openjev decide --schema FILE --context FILE|-
-    openjev decide --json --preset support_triage
+openjev decide --preset fintech_fraud
+openjev decide --schema FILE --context FILE|-
+openjev decide --json --preset support_triage
 """
 
 from __future__ import annotations
@@ -25,7 +25,9 @@ def load_preset(name: str) -> dict:
         with open(name, encoding="utf-8") as f:
             return json.load(f)
     filename = name if name.endswith(".json") else f"{name}.json"
-    return json.loads(resources.files("openjev.presets").joinpath(filename).read_text(encoding="utf-8"))
+    return json.loads(
+        resources.files("openjev.presets").joinpath(filename).read_text(encoding="utf-8")
+    )
 
 
 def print_result(preset_title: str, model_id: str, result: dict) -> None:
@@ -33,8 +35,10 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
     print()
     print(f"Preset : {preset_title}")
     print(f"Model  : {model_id}")
-    print(f"Latency: {result['elapsed_ms']:.1f} ms "
-          f"(prefill {result['prefill_ms']:.1f} + batched pass {result['suffix_eval_ms']:.1f})")
+    print(
+        f"Latency: {result['elapsed_ms']:.1f} ms "
+        f"(prefill {result['prefill_ms']:.1f} + batched pass {result['suffix_eval_ms']:.1f})"
+    )
     print()
 
     rows = [
@@ -57,25 +61,41 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="openjev", description=__doc__)
     sub = ap.add_subparsers(dest="command", required=True)
 
-    decide = sub.add_parser("decide", help="Run parallel constrained decisions on a preset or schema/context")
+    decide = sub.add_parser(
+        "decide", help="Run parallel constrained decisions on a preset or schema/context"
+    )
     decide.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
-    decide.add_argument("--preset", help="preset name (bundled: fintech_fraud, support_triage, ...) or path to a .json file")
+    decide.add_argument(
+        "--preset",
+        help="preset name (bundled: fintech_fraud, support_triage, ...) or path to a .json file",
+    )
     decide.add_argument("--schema", help="path to a schema .json file")
     decide.add_argument("--context", help="path to a context .txt file, or - for stdin")
-    decide.add_argument("--json", action="store_true", dest="as_json",
-                        help="print the assembled JSON only")
-    decide.add_argument("--temperature", type=float, default=1.0,
-                        help="softmax temperature for choice probabilities (1.0 = raw)")
+    decide.add_argument(
+        "--json", action="store_true", dest="as_json", help="print the assembled JSON only"
+    )
+    decide.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="softmax temperature for choice probabilities (1.0 = raw)",
+    )
 
-    calib = sub.add_parser("calibrate", help="Fit a temperature on labeled JSONL cases and report ECE")
+    calib = sub.add_parser(
+        "calibrate", help="Fit a temperature on labeled JSONL cases and report ECE"
+    )
     calib.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
-    calib.add_argument("--data", required=True, help="JSONL file: {schema, context, labels} per line")
+    calib.add_argument(
+        "--data", required=True, help="JSONL file: {schema, context, labels} per line"
+    )
     calib.add_argument("--bins", type=int, default=10, help="ECE bin count")
     args = ap.parse_args(argv)
 
     if args.command == "decide":
         if bool(args.preset) == bool(args.schema or args.context):
-            decide.error("use --preset NAME  or  --schema FILE --context FILE|- (not both, not neither)")
+            decide.error(
+                "use --preset NAME  or  --schema FILE --context FILE|- (not both, not neither)"
+            )
 
         if args.preset:
             preset = load_preset(args.preset)
@@ -96,8 +116,9 @@ def main(argv=None) -> None:
         model, tokenizer = load_engine(args.model)
 
         schema = StructuredSchema(schema_dict)
-        result = run_parallel_generation(model, tokenizer, context, schema,
-                                         temperature=args.temperature)
+        result = run_parallel_generation(
+            model, tokenizer, context, schema, temperature=args.temperature
+        )
 
         if args.as_json:
             print(json.dumps(result["parsed_json"], indent=2, default=str))

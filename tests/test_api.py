@@ -24,9 +24,20 @@ class Case(BaseModel):
 
 def test_schema_from_model_exact_dict():
     assert schema_from_model(Case) == {
-        "is_fraudulent": {"type": "boolean", "description": "Whether the transaction is fraudulent"},
-        "risk_tier": {"type": "enum", "choices": ["LOW", "MEDIUM", "HIGH", "CRITICAL"], "description": "Risk tier"},
-        "severity": {"type": "enum", "choices": ["LOW", "MEDIUM", "HIGH"], "description": "Case severity"},
+        "is_fraudulent": {
+            "type": "boolean",
+            "description": "Whether the transaction is fraudulent",
+        },
+        "risk_tier": {
+            "type": "enum",
+            "choices": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+            "description": "Risk tier",
+        },
+        "severity": {
+            "type": "enum",
+            "choices": ["LOW", "MEDIUM", "HIGH"],
+            "description": "Case severity",
+        },
         "notes": {"type": "boolean", "description": "notes"},
     }
 

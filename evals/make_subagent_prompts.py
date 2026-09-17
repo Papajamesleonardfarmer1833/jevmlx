@@ -5,6 +5,7 @@ Each file contains: the alert, its context records, the question catalog entries
 that the reference answers cover, and the exact JSON output contract.
 Only the input state is included -- never the reference or other models' answers.
 """
+
 import json
 import os
 
@@ -14,7 +15,8 @@ OUT = os.path.join(HERE, "prompts")
 
 HEADER = """You are a Security Operations decision engine.
 You will be given an alert and the context records joined to it, then a catalog of questions.
-Answer every question using ONLY the provided state. Be precise. Do not refuse. Do not use any tools.
+Answer every question using ONLY the provided state. Be precise. Do not refuse.
+Do not use any tools.
 
 === INPUT ===
 
@@ -43,7 +45,6 @@ Expected keys and types:
 def main() -> None:
     mini = json.load(open(MINI))
     os.makedirs(OUT, exist_ok=True)
-    contract_lines = []
 
     for i, case in enumerate(mini["cases"], 1):
         doc = case["docs"][0]

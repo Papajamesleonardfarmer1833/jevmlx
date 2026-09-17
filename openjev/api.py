@@ -20,7 +20,6 @@ from __future__ import annotations
 import dataclasses
 import enum
 import typing
-from typing import Dict, Type, TypeVar
 
 from pydantic import BaseModel
 
@@ -29,15 +28,13 @@ from openjev.schema import StructuredSchema
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 
-T = TypeVar("T", bound=BaseModel)
-
 _SUPPORTED = "supported field types: bool, Literal[str, ...], enum.Enum with str values"
 
 
 @dataclasses.dataclass
-class Decision(typing.Generic[T]):
+class Decision[T: BaseModel]:
     value: T
-    confidence: Dict[str, float]
+    confidence: dict[str, float]
     latency_ms: float
 
 
@@ -67,14 +64,12 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
                 "description": _description(name, info),
             }
         else:
-            raise TypeError(
-                f"Field '{name}' has unsupported type {ann!r}. {_SUPPORTED}"
-            )
+            raise TypeError(f"Field '{name}' has unsupported type {ann!r}. {_SUPPORTED}")
     return schema
 
 
-def decide(
-    model_cls: Type[T],
+def decide[T: BaseModel](
+    model_cls: type[T],
     context: str,
     *,
     model: str = DEFAULT_MODEL,
@@ -83,8 +78,9 @@ def decide(
     """Run parallel constrained decisions and return a validated model instance."""
     engine_model, tokenizer = load_engine(model)
     schema = StructuredSchema(schema_from_model(model_cls))
-    result = run_parallel_generation(engine_model, tokenizer, context, schema,
-                                     temperature=temperature)
+    result = run_parallel_generation(
+        engine_model, tokenizer, context, schema, temperature=temperature
+    )
 
     kwargs = {}
     for name, info in model_cls.model_fields.items():

@@ -5,6 +5,7 @@ For each workflow, the majority baseline answers the most common reference value
 question type (or per question id where there is only one question id). This gives the
 floor that a trivial model would reach, so the real numbers can be read against it.
 """
+
 from __future__ import annotations
 
 import json
@@ -14,7 +15,12 @@ from collections import Counter, defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 FULL = os.path.join(HERE, "full_eval.json")
 
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
 
 
 def main() -> None:
@@ -47,9 +53,7 @@ def main() -> None:
         per_qid_ok = sum(1 for qid, v, t in scoreable if v == by_qid[qid].most_common(1)[0][0])
         per_type_ok = sum(1 for qid, v, t in scoreable if v == by_type[t].most_common(1)[0][0])
         n = len(scoreable)
-        print(f"{wf:<30} {n:>6} "
-              f"{per_qid_ok / n * 100:>16.1f}% "
-              f"{per_type_ok / n * 100:>18.1f}%")
+        print(f"{wf:<30} {n:>6} {per_qid_ok / n * 100:>16.1f}% {per_type_ok / n * 100:>18.1f}%")
 
     # value distribution per workflow to spot degenerate answer sets
     print()

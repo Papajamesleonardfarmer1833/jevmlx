@@ -7,6 +7,7 @@ Metric: agreement with the consensus argmax (mean of the two reference models).
 
 Output: evals/results/full-summary.json + printed tables.
 """
+
 from __future__ import annotations
 
 import json
@@ -21,9 +22,18 @@ EXTRA = {
     "local-qwen3-8b": os.path.join(RESULTS, "full-local-qwen3-8b.json"),
     "local-qwen2.5-7b": os.path.join(RESULTS, "full-local-qwen2.5-7b.json"),
 }
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
-LABEL = {"security_incidents": "Security", "agent_trace_observability": "AgentTrace",
-         "invoice_processing": "Invoice", "customer_service": "CustomerSvc"}
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
+LABEL = {
+    "security_incidents": "Security",
+    "agent_trace_observability": "AgentTrace",
+    "invoice_processing": "Invoice",
+    "customer_service": "CustomerSvc",
+}
 
 
 def canonical(value, kind: str, qtype: str) -> str | None:
@@ -219,8 +229,10 @@ def main() -> None:
         common_rows[name] = {"overall": [ok_all, n_all], "per_workflow": per_wf}
 
     out = {
-        "rows": [{"model": n, "overall": [ok, tot], "per_workflow": {w: list(v) for w, v in s.items()}}
-                 for n, s, ok, tot in rows],
+        "rows": [
+            {"model": n, "overall": [ok, tot], "per_workflow": {w: list(v) for w, v in s.items()}}
+            for n, s, ok, tot in rows
+        ],
         "common_subset": common_rows,
         "common_subset_size": {w: len(p) for w, p in common.items()},
     }

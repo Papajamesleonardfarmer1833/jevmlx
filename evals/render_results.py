@@ -4,6 +4,7 @@
 Reads evals/results/full-summary.json (produced by score_full.py) and emits
 evals/RESULTS.md with the two tables and a short interpretation.
 """
+
 from __future__ import annotations
 
 import json
@@ -13,7 +14,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SUMMARY = os.path.join(HERE, "results", "full-summary.json")
 OUT = os.path.join(HERE, "RESULTS.md")
 
-WORKFLOWS = ["security_incidents", "agent_trace_observability", "invoice_processing", "customer_service"]
+WORKFLOWS = [
+    "security_incidents",
+    "agent_trace_observability",
+    "invoice_processing",
+    "customer_service",
+]
 LABEL = {
     "security_incidents": "Security",
     "agent_trace_observability": "AgentTrace",
@@ -40,8 +46,12 @@ def main() -> None:
 
     lines = []
     lines.append("# Full head-to-head results\n")
-    lines.append("Agreement with TypeSafe's reference (consensus of GPT-6 Astra + Fable 5.1) on all")
-    lines.append("publicly shipped cases of their four workflows: 20 cases, 373 reference question-pairs.\n")
+    lines.append(
+        "Agreement with TypeSafe's reference (consensus of GPT-6 Astra + Fable 5.1) on all"
+    )
+    lines.append(
+        "publicly shipped cases of their four workflows: 20 cases, 373 reference question-pairs.\n"
+    )
 
     lines.append("## All answered pairs\n")
     lines.append("| Model | Overall | " + " | ".join(LABEL[w] for w in WORKFLOWS) + " |")

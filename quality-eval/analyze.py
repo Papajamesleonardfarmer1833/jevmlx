@@ -8,6 +8,7 @@ Reads every rlcd-quality-eval result file in the results directory, computes
 accuracy / calibration / latency metrics, prints markdown and ASCII tables, and
 answers "is the larger model worth it?" in the generated SUMMARY.md.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,9 +21,11 @@ import statistics
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_OUTDIR = os.path.join(HERE, "results")
 
-BUCKETS = [("<0.70", lambda p: p < 0.70),
-           ("0.70-0.90", lambda p: 0.70 <= p <= 0.90),
-           (">0.90", lambda p: p > 0.90)]
+BUCKETS = [
+    ("<0.70", lambda p: p < 0.70),
+    ("0.70-0.90", lambda p: 0.70 <= p <= 0.90),
+    (">0.90", lambda p: p > 0.90),
+]
 
 # A model is "clearly better" only if it wins by at least this many cases on the
 # primary fields (24 cases total, so 2 cases ~= 8 percentage points).
@@ -54,16 +57,18 @@ def field_rows(run: dict) -> list[dict]:
         for name, label in case["labels"].items():
             pred = case["predicted"][name]
             alt = case["acceptable"].get(name, [])
-            rows.append({
-                "case": case["id"],
-                "family": case["family"],
-                "primary": name == case["primary_field"],
-                "field": name,
-                "correct": pred == label,
-                "correct_or_acceptable": pred == label or pred in alt,
-                "on_alt": pred != label and pred in alt,
-                "confidence": float(case["confidence"][name]),
-            })
+            rows.append(
+                {
+                    "case": case["id"],
+                    "family": case["family"],
+                    "primary": name == case["primary_field"],
+                    "field": name,
+                    "correct": pred == label,
+                    "correct_or_acceptable": pred == label or pred in alt,
+                    "on_alt": pred != label and pred in alt,
+                    "confidence": float(case["confidence"][name]),
+                }
+            )
     return rows
 
 
@@ -121,7 +126,8 @@ def metrics(run: dict) -> dict:
         "mean_confidence_correct": statistics.fmean(correct_conf) if correct_conf else None,
         "mean_confidence_incorrect": statistics.fmean(wrong_conf) if wrong_conf else None,
         "confidence_gap": (statistics.fmean(correct_conf) - statistics.fmean(wrong_conf))
-                          if correct_conf and wrong_conf else None,
+        if correct_conf and wrong_conf
+        else None,
         "overconfident_misses": len(overconfident),
         "missing_fields": len(rows) - sum(r["correct"] for r in rows),
         "missed_cases": missed_cases,
@@ -147,7 +153,7 @@ def majority_baseline(runs: list[dict]) -> dict:
     for c in cases:
         fam = c["family"]
         by_family.setdefault(fam, []).append(c)
-    for fam, cs in by_family.items():
+    for _fam, cs in by_family.items():
         primary = cs[0]["primary_field"]
         values = [c["labels"][primary] for c in cs]
         majority = max(set(values), key=values.count)
@@ -168,16 +174,15 @@ def num(x, digits: int = 0) -> str:
 def ascii_table(headers: list[str], rows: list[list[str]]) -> str:
     table = [headers] + rows
     widths = [max(len(str(row[i])) for row in table) for i in range(len(headers))]
-    lines = ["  ".join(str(h).ljust(w) for h, w in zip(headers, widths))]
+    lines = ["  ".join(str(h).ljust(w) for h, w in zip(headers, widths, strict=False))]
     lines.append("  ".join("-" * w for w in widths))
     for row in rows:
-        lines.append("  ".join(str(c).ljust(w) for c, w in zip(row, widths)))
+        lines.append("  ".join(str(c).ljust(w) for c, w in zip(row, widths, strict=False)))
     return "\n".join(lines)
 
 
 def md_table(headers: list[str], rows: list[list[str]]) -> str:
-    lines = ["| " + " | ".join(headers) + " |",
-             "|" + "|".join("---" for _ in headers) + "|"]
+    lines = ["| " + " | ".join(headers) + " |", "|" + "|".join("---" for _ in headers) + "|"]
     for row in rows:
         lines.append("| " + " | ".join(str(c) for c in row) + " |")
     return "\n".join(lines)
@@ -207,18 +212,27 @@ def verdict(model_metrics: list[dict]) -> dict:
             "pair": f"{a['tag']} vs {b['tag']}",
             "label": label,
             "primary_diff_pp": round(100.0 * (a["primary_accuracy"] - b["primary_accuracy"]), 1),
-            "all_fields_diff_pp": round(100.0 * (a["all_fields_accuracy"] - b["all_fields_accuracy"]), 1),
+            "all_fields_diff_pp": round(
+                100.0 * (a["all_fields_accuracy"] - b["all_fields_accuracy"]), 1
+            ),
             "a_primary_clearly_better": (a["primary_accuracy"] - b["primary_accuracy"]) >= margin,
-            "a_all_fields_clearly_better": (a["all_fields_accuracy"] - b["all_fields_accuracy"]) >= margin,
-            "latency_ratio": (a["mean_latency_ms"] / b["mean_latency_ms"]) if b["mean_latency_ms"] else None,
+            "a_all_fields_clearly_better": (a["all_fields_accuracy"] - b["all_fields_accuracy"])
+            >= margin,
+            "latency_ratio": (a["mean_latency_ms"] / b["mean_latency_ms"])
+            if b["mean_latency_ms"]
+            else None,
         }
         comparisons.append(entry)
         return entry
 
     mid_vs_small = pair(mid, small, "mid vs small")
     large_vs_mid = pair(large, mid, "large vs mid")
-    return {"margin_cases": WIN_MARGIN_CASES, "comparisons": comparisons,
-            "mid_vs_small": mid_vs_small, "large_vs_mid": large_vs_mid}
+    return {
+        "margin_cases": WIN_MARGIN_CASES,
+        "comparisons": comparisons,
+        "mid_vs_small": mid_vs_small,
+        "large_vs_mid": large_vs_mid,
+    }
 
 
 def confidence_notes(mm: list[dict]) -> list[str]:
@@ -227,12 +241,17 @@ def confidence_notes(mm: list[dict]) -> list[str]:
         if m["confidence_gap"] is None:
             notes.append(f"- {m['tag']}: no incorrect fields, confidence gap not measurable.")
             continue
-        share = (100.0 * m["overconfident_misses"] / m["missing_fields"]) if m["missing_fields"] else 0.0
+        share = (
+            (100.0 * m["overconfident_misses"] / m["missing_fields"])
+            if m["missing_fields"]
+            else 0.0
+        )
         notes.append(
             f"- {m['tag']}: mean confidence {num(m['mean_confidence_correct'], 2)} on correct vs "
             f"{num(m['mean_confidence_incorrect'], 2)} on incorrect fields (gap "
-            f"{num(m['confidence_gap'], 2)}); {m['overconfident_misses']} of {m['missing_fields']} wrong "
-            f"fields ({share:.0f}%) were reported above 0.90 confidence.")
+            f"{num(m['confidence_gap'], 2)}); {m['overconfident_misses']} of {m['missing_fields']} "
+            f"wrong fields ({share:.0f}%) were reported above 0.90 confidence."
+        )
     return notes
 
 
@@ -245,96 +264,181 @@ def verdict_sentence(mm: list[dict], cmp: dict) -> str:
 
     parts = []
     if c_sm["a_primary_clearly_better"]:
-        parts.append(f"**Yes: the step up from {small['tag']} to {mid['tag']} is clearly worth it.** "
-                     f"{mid['tag']} gains {c_sm['primary_diff_pp']:+.1f} points on the primary field "
-                     f"({pct(mid['primary_accuracy'])} vs {pct(small['primary_accuracy'])}) and "
-                     f"{c_sm['all_fields_diff_pp']:+.1f} points on all-fields exact "
-                     f"({pct(mid['all_fields_accuracy'])} vs {pct(small['all_fields_accuracy'])}) "
-                     f"for {num(c_sm['latency_ratio'], 1)}x the latency")
+        parts.append(
+            f"**Yes: the step up from {small['tag']} to {mid['tag']} is clearly worth it.** "
+            f"{mid['tag']} gains {c_sm['primary_diff_pp']:+.1f} points on the primary field "
+            f"({pct(mid['primary_accuracy'])} vs {pct(small['primary_accuracy'])}) and "
+            f"{c_sm['all_fields_diff_pp']:+.1f} points on all-fields exact "
+            f"({pct(mid['all_fields_accuracy'])} vs {pct(small['all_fields_accuracy'])}) "
+            f"for {num(c_sm['latency_ratio'], 1)}x the latency"
+        )
     else:
-        parts.append(f"**No clear win for {mid['tag']} over {small['tag']} on this eval:** "
-                     f"primary field {c_sm['primary_diff_pp']:+.1f} points, all fields "
-                     f"{c_sm['all_fields_diff_pp']:+.1f} points, for {num(c_sm['latency_ratio'], 1)}x the latency")
+        parts.append(
+            f"**No clear win for {mid['tag']} over {small['tag']} on this eval:** "
+            f"primary field {c_sm['primary_diff_pp']:+.1f} points, all fields "
+            f"{c_sm['all_fields_diff_pp']:+.1f} points, "
+            f"for {num(c_sm['latency_ratio'], 1)}x the latency"
+        )
 
     if c_ml:
         if c_ml["a_all_fields_clearly_better"] and not c_ml["a_primary_clearly_better"]:
-            parts.append(f"the {large['tag']} is a wash on the primary field "
-                         f"({c_ml['primary_diff_pp']:+.1f} points, inside the "
-                         f"{cmp['margin_cases']}-case margin of this eval) but clearly more consistent overall: "
-                         f"{c_ml['all_fields_diff_pp']:+.1f} points on all-fields exact "
-                         f"({pct(large['all_fields_accuracy'])} vs {pct(mid['all_fields_accuracy'])}) "
-                         f"at {num(c_ml['latency_ratio'], 2)}x the latency")
+            parts.append(
+                f"the {large['tag']} is a wash on the primary field "
+                f"({c_ml['primary_diff_pp']:+.1f} points, inside the "
+                f"{cmp['margin_cases']}-case margin of this eval) "
+                f"but clearly more consistent overall: "
+                f"{c_ml['all_fields_diff_pp']:+.1f} points on all-fields exact "
+                f"({pct(large['all_fields_accuracy'])} vs {pct(mid['all_fields_accuracy'])}) "
+                f"at {num(c_ml['latency_ratio'], 2)}x the latency"
+            )
         elif c_ml["a_all_fields_clearly_better"] and c_ml["a_primary_clearly_better"]:
-            parts.append(f"the {large['tag']} beats the {mid['tag']} on both metrics "
-                         f"({c_ml['primary_diff_pp']:+.1f} primary, {c_ml['all_fields_diff_pp']:+.1f} all fields), "
-                         f"so it is the accuracy ceiling at {num(c_ml['latency_ratio'], 2)}x the latency")
+            parts.append(
+                f"the {large['tag']} beats the {mid['tag']} on both metrics "
+                f"({c_ml['primary_diff_pp']:+.1f} primary, "
+                f"{c_ml['all_fields_diff_pp']:+.1f} all fields), "
+                f"so it is the accuracy ceiling at {num(c_ml['latency_ratio'], 2)}x the latency"
+            )
         else:
-            parts.append(f"the {large['tag']} adds nothing over the {mid['tag']} "
-                         f"({c_ml['primary_diff_pp']:+.1f} primary, {c_ml['all_fields_diff_pp']:+.1f} all fields) "
-                         f"and costs {num(c_ml['latency_ratio'], 2)}x the latency")
+            parts.append(
+                f"the {large['tag']} adds nothing over the {mid['tag']} "
+                f"({c_ml['primary_diff_pp']:+.1f} primary, "
+                f"{c_ml['all_fields_diff_pp']:+.1f} all fields) "
+                f"and costs {num(c_ml['latency_ratio'], 2)}x the latency"
+            )
     return "; ".join(parts) + "."
 
 
-def build_summary_md(runs: list[dict], mm: list[dict], baseline: dict, skipped: list[dict], cmp: dict) -> str:
+def build_summary_md(
+    runs: list[dict], mm: list[dict], baseline: dict, skipped: list[dict], cmp: dict
+) -> str:
     small, mid, large = _pick(mm)
-    main_headers = ["Model", "Primary acc", "Primary acc (alt)", "All-fields exact",
-                    "All-fields exact (alt)", "Mean conf correct", "Mean conf incorrect",
-                    "Latency/case", "Load (warm)"]
+    main_headers = [
+        "Model",
+        "Primary acc",
+        "Primary acc (alt)",
+        "All-fields exact",
+        "All-fields exact (alt)",
+        "Mean conf correct",
+        "Mean conf incorrect",
+        "Latency/case",
+        "Load (warm)",
+    ]
     main_rows = []
     for m in mm:
-        main_rows.append([
-            m["tag"],
-            pct(m["primary_accuracy"]),
-            pct(m["primary_accuracy_or_acceptable"]),
-            pct(m["all_fields_accuracy"]),
-            pct(m["all_fields_accuracy_or_acceptable"]),
-            num(m["mean_confidence_correct"], 2),
-            num(m["mean_confidence_incorrect"], 2),
-            f"{num(m['mean_latency_ms'])} ms",
-            f"{num(m['load_seconds'])} s",
-        ])
-    main_rows.append(["majority-class baseline", pct(baseline["primary_accuracy"]), "n/a", "n/a",
-                      "n/a", "n/a", "n/a", "n/a", "n/a"])
+        main_rows.append(
+            [
+                m["tag"],
+                pct(m["primary_accuracy"]),
+                pct(m["primary_accuracy_or_acceptable"]),
+                pct(m["all_fields_accuracy"]),
+                pct(m["all_fields_accuracy_or_acceptable"]),
+                num(m["mean_confidence_correct"], 2),
+                num(m["mean_confidence_incorrect"], 2),
+                f"{num(m['mean_latency_ms'])} ms",
+                f"{num(m['load_seconds'])} s",
+            ]
+        )
+    main_rows.append(
+        [
+            "majority-class baseline",
+            pct(baseline["primary_accuracy"]),
+            "n/a",
+            "n/a",
+            "n/a",
+            "n/a",
+            "n/a",
+            "n/a",
+            "n/a",
+        ]
+    )
     main_ascii = ascii_table(
-        ["model", "prim-acc", "prim-alt", "all-exact", "all-alt", "conf-ok", "conf-miss", "lat/case", "load*"],
-        [[r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]] for r in main_rows])
+        [
+            "model",
+            "prim-acc",
+            "prim-alt",
+            "all-exact",
+            "all-alt",
+            "conf-ok",
+            "conf-miss",
+            "lat/case",
+            "load*",
+        ],
+        [[r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8]] for r in main_rows],
+    )
     main_md = md_table(main_headers, main_rows)
 
-    field_headers = ["Model"] + [f"A.{f}" for f in ("fraud", "risk", "action")] + \
-                    [f"B.{f}" for f in ("category", "priority", "needs_human")]
-    field_rows_md = [[m["tag"]] + [pct(m["per_field_accuracy"].get(f)) for f in
-                                   ("fraud", "risk", "action", "category", "priority", "needs_human")]
-                     for m in mm]
+    field_headers = (
+        ["Model"]
+        + [f"A.{f}" for f in ("fraud", "risk", "action")]
+        + [f"B.{f}" for f in ("category", "priority", "needs_human")]
+    )
+    field_rows_md = [
+        [m["tag"]]
+        + [
+            pct(m["per_field_accuracy"].get(f))
+            for f in ("fraud", "risk", "action", "category", "priority", "needs_human")
+        ]
+        for m in mm
+    ]
     field_md = md_table(field_headers, field_rows_md)
 
-    fam_rows = [[m["tag"],
-                 pct(m["per_family"].get("payment_risk", {}).get("primary_accuracy")),
-                 pct(m["per_family"].get("support_triage", {}).get("primary_accuracy")),
-                 pct(m["per_family"].get("payment_risk", {}).get("all_fields_accuracy")),
-                 pct(m["per_family"].get("support_triage", {}).get("all_fields_accuracy"))] for m in mm]
-    fam_md = md_table(["Model", "A primary acc", "B primary acc", "A all-fields", "B all-fields"], fam_rows)
+    fam_rows = [
+        [
+            m["tag"],
+            pct(m["per_family"].get("payment_risk", {}).get("primary_accuracy")),
+            pct(m["per_family"].get("support_triage", {}).get("primary_accuracy")),
+            pct(m["per_family"].get("payment_risk", {}).get("all_fields_accuracy")),
+            pct(m["per_family"].get("support_triage", {}).get("all_fields_accuracy")),
+        ]
+        for m in mm
+    ]
+    fam_md = md_table(
+        ["Model", "A primary acc", "B primary acc", "A all-fields", "B all-fields"], fam_rows
+    )
 
-    bucket_headers = ["Model", "<0.70 (fields / acc)", "0.70-0.90 (fields / acc)", ">0.90 (fields / acc)"]
+    bucket_headers = [
+        "Model",
+        "<0.70 (fields / acc)",
+        "0.70-0.90 (fields / acc)",
+        ">0.90 (fields / acc)",
+    ]
     bucket_rows = []
     for m in mm:
         cells = [f"{b['fields']} / {pct(b['accuracy'])}" for b in m["confidence_buckets"]]
         bucket_rows.append([m["tag"]] + cells)
     buckets_md = md_table(bucket_headers, bucket_rows)
 
-    lat_headers = ["Model", "Mean latency", "Median latency", "Mean prefill", "Mean suffix", "Load (warm)"]
-    lat_rows = [[m["tag"], f"{num(m['mean_latency_ms'])} ms", f"{num(m['median_latency_ms'])} ms",
-                 f"{num(m['mean_prefill_ms'])} ms", f"{num(m['mean_suffix_eval_ms'])} ms",
-                 f"{num(m['load_seconds'])} s"] for m in mm]
+    lat_headers = [
+        "Model",
+        "Mean latency",
+        "Median latency",
+        "Mean prefill",
+        "Mean suffix",
+        "Load (warm)",
+    ]
+    lat_rows = [
+        [
+            m["tag"],
+            f"{num(m['mean_latency_ms'])} ms",
+            f"{num(m['median_latency_ms'])} ms",
+            f"{num(m['mean_prefill_ms'])} ms",
+            f"{num(m['mean_suffix_eval_ms'])} ms",
+            f"{num(m['load_seconds'])} s",
+        ]
+        for m in mm
+    ]
     lat_md = md_table(lat_headers, lat_rows)
 
     # Verdict text, driven by the comparison numbers above.
     lines = []
     for c in cmp.get("comparisons", []):
-        lines.append(f"- `{c['pair']}` ({c['label']}): primary-field accuracy differs by "
-                     f"{c['primary_diff_pp']:+.1f} points, all-fields exact by "
-                     f"{c['all_fields_diff_pp']:+.1f} points; latency ratio {num(c['latency_ratio'], 2)}x; "
-                     f"clearly better only at a margin of >= {cmp['margin_cases']} cases "
-                     f"({100.0 * cmp['margin_cases'] / (mm[0]['cases'] or 1):.1f} points).")
+        lines.append(
+            f"- `{c['pair']}` ({c['label']}): primary-field accuracy differs by "
+            f"{c['primary_diff_pp']:+.1f} points, all-fields exact by "
+            f"{c['all_fields_diff_pp']:+.1f} points; latency ratio {num(c['latency_ratio'], 2)}x; "
+            f"clearly better only at a margin of >= {cmp['margin_cases']} cases "
+            f"({100.0 * cmp['margin_cases'] / (mm[0]['cases'] or 1):.1f} points)."
+        )
     verdict_block = verdict_sentence(mm, cmp) + ("\n\n" + "\n".join(lines) if lines else "")
 
     confidence_note = confidence_notes(mm)
@@ -345,22 +449,33 @@ def build_summary_md(runs: list[dict], mm: list[dict], baseline: dict, skipped: 
         if not m["missed_cases"]:
             fail_rows.append([m["tag"], str(m["missing_fields"]), "none"])
             continue
-        detail = "; ".join(f"{cid}: {', '.join(fs)}" for cid, fs in sorted(m["missed_cases"].items()))
+        detail = "; ".join(
+            f"{cid}: {', '.join(fs)}" for cid, fs in sorted(m["missed_cases"].items())
+        )
         fail_rows.append([m["tag"], str(m["missing_fields"]), detail])
     fail_md = md_table(["Model", "Wrong fields (of 72)", "Strict misses per case"], fail_rows)
 
     anomaly = []
     for m in mm:
         if m["all_fields_accuracy"] == 0 and m["fields"] > 0:
-            anomaly.append(f"- {m['tag']}: every field decision was wrong; treat this run as broken, not as a quality signal.")
+            anomaly.append(
+                f"- {m['tag']}: every field decision was wrong; "
+                f"treat this run as broken, not as a quality signal."
+            )
         if m["errors"]:
             anomaly.append(f"- {m['tag']}: {m['errors']} case(s) errored during generation.")
     for s in skipped:
         anomaly.append(f"- {s['model']}: model failed to load ({s.get('error', 'unknown error')}).")
     anomaly_block = "\n".join(anomaly) if anomaly else "- No broken runs, no errored cases."
 
-    amb_rows = [[m["tag"], str(m["fields_on_acceptable_alternative"]),
-                 ", ".join(m["cases_with_acceptable_alternative"]) or "-"] for m in mm]
+    amb_rows = [
+        [
+            m["tag"],
+            str(m["fields_on_acceptable_alternative"]),
+            ", ".join(m["cases_with_acceptable_alternative"]) or "-",
+        ]
+        for m in mm
+    ]
 
     return f"""# Quality evaluation: is the larger model worth it?
 
@@ -394,7 +509,7 @@ Plain-text version:
 All-fields exact accuracy counts a case correct only if all three fields match the
 strict label, so it is the strictest column here. Majority-class baseline is the
 best constant answer for the primary fields (predict the most frequent label per
-family): {pct(baseline['primary_accuracy'])}. `Load` is the model load time in this
+family): {pct(baseline["primary_accuracy"])}. `Load` is the model load time in this
 run, measured with the weights already in the OS page cache (all three models had
 been benchmarked earlier the same day); cold loads on this machine are ~40 s (1.5B),
 ~188 s (7B) and ~259 s (8B) per `knowledge-base/08-model-upgrade-path.md`.
@@ -446,13 +561,13 @@ the deployment question; a wrong `action` on family A is the expensive kind of e
 
 Recommended reading of the data above:
 
-1. `{small['tag'] if small else '1.5B'}`: keep it for UI/engine work and latency-critical
+1. `{small["tag"] if small else "1.5B"}`: keep it for UI/engine work and latency-critical
    paths only, not for real triage decisions — its primary-field accuracy sits close to
    the majority-class baseline, and its confidence is low across the board.
-2. `{mid['tag'] if mid else '7B'}`: the best on the primary field in this eval and
-   the best latency/quality trade at ~{num((mid or {}).get('mean_latency_ms'), 0)} ms per case;
+2. `{mid["tag"] if mid else "7B"}`: the best on the primary field in this eval and
+   the best latency/quality trade at ~{num((mid or {}).get("mean_latency_ms"), 0)} ms per case;
    prefer it when the one primary field is what you act on.
-3. `{large['tag'] if large else '8B'}`: prefer it when all fields must be jointly right
+3. `{large["tag"] if large else "8B"}`: prefer it when all fields must be jointly right
    (typed payloads written to a system of record), since its all-fields exactness and its
    per-field consistency beat the 7B at nearly the same latency on this 16 GB machine.
 
@@ -496,6 +611,7 @@ def _pick(mm: list[dict]):
             if needle in m["tag"]:
                 return m
         return None
+
     return find("1.5b"), find("7b"), find("8b")
 
 
@@ -503,11 +619,11 @@ def per_field_accuracy(runs: list[dict]) -> dict:
     out = {}
     for run in runs:
         acc = {}
-        for fam in run["results"]:
-            if fam.get("status") != "ok":
+        for entry in run["results"]:
+            if entry.get("status") != "ok":
                 continue
-            for name, label in fam["labels"].items():
-                hit = fam["predicted"][name] == label
+            for name, label in entry["labels"].items():
+                hit = entry["predicted"][name] == label
                 acc.setdefault(name, []).append(hit)
         out[run["tag"]] = {k: (sum(v) / len(v)) for k, v in acc.items()}
     return out
@@ -552,21 +668,43 @@ def main() -> int:
     print(f"wrote {args.summary_md}")
 
     print()
-    headers = ["model", "cases", "prim-acc", "prim-alt", "all-exact", "field-acc",
-               "conf-ok", "conf-miss", "lat/case", "load"]
-    rows = [[m["tag"], str(m["cases"]), pct(m["primary_accuracy"]),
-             pct(m["primary_accuracy_or_acceptable"]), pct(m["all_fields_accuracy"]),
-             pct(m["field_accuracy"]), num(m["mean_confidence_correct"], 2),
-             num(m["mean_confidence_incorrect"], 2), f"{num(m['mean_latency_ms'])}ms",
-             f"{num(m['load_seconds'])}s"] for m in mm]
+    headers = [
+        "model",
+        "cases",
+        "prim-acc",
+        "prim-alt",
+        "all-exact",
+        "field-acc",
+        "conf-ok",
+        "conf-miss",
+        "lat/case",
+        "load",
+    ]
+    rows = [
+        [
+            m["tag"],
+            str(m["cases"]),
+            pct(m["primary_accuracy"]),
+            pct(m["primary_accuracy_or_acceptable"]),
+            pct(m["all_fields_accuracy"]),
+            pct(m["field_accuracy"]),
+            num(m["mean_confidence_correct"], 2),
+            num(m["mean_confidence_incorrect"], 2),
+            f"{num(m['mean_latency_ms'])}ms",
+            f"{num(m['load_seconds'])}s",
+        ]
+        for m in mm
+    ]
     print(ascii_table(headers, rows))
     print()
     print(f"majority-class baseline on primary fields: {pct(baseline['primary_accuracy'])}")
     print()
     print(verdict_sentence(mm, cmp))
     for c in cmp.get("comparisons", []):
-        print(f"  {c['pair']}: primary {c['primary_diff_pp']:+.1f} pp, all-fields "
-              f"{c['all_fields_diff_pp']:+.1f} pp, latency x{num(c['latency_ratio'], 2)}")
+        print(
+            f"  {c['pair']}: primary {c['primary_diff_pp']:+.1f} pp, all-fields "
+            f"{c['all_fields_diff_pp']:+.1f} pp, latency x{num(c['latency_ratio'], 2)}"
+        )
     print()
     for line in confidence_notes(mm):
         print(line)

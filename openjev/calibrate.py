@@ -8,28 +8,29 @@ from __future__ import annotations
 
 import json
 import math
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
 
-Sample = Tuple[List[float], int]  # (per-choice scores at T=1, labeled choice index)
+Sample = tuple[list[float], int]  # (per-choice scores at T=1, labeled choice index)
 
 
-def collect(model, tokenizer, cases: Sequence[dict]) -> List[Sample]:
+def collect(model, tokenizer, cases: Sequence[dict]) -> list[Sample]:
     """Run run_parallel_generation once per case at T=1 and keep raw scores
     for every labeled field. Cases: [{"schema": {...}, "context": str,
     "labels": {field: value}}] (labels may cover a subset of fields)."""
     from openjev.engine import run_parallel_generation
     from openjev.schema import StructuredSchema
 
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for case in cases:
         schema = StructuredSchema(case["schema"])
-        result = run_parallel_generation(model, tokenizer, case["context"], schema,
-                                         temperature=1.0)
+        result = run_parallel_generation(model, tokenizer, case["context"], schema, temperature=1.0)
         for fname, label in case["labels"].items():
             telemetry = result["field_telemetry"][fname]
             fdef = schema[fname]
             choices = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
-            label_str = str(label) if fdef.field_type != "boolean" else ("true" if label else "false")
+            label_str = (
+                str(label) if fdef.field_type != "boolean" else ("true" if label else "false")
+            )
             if label_str not in choices:
                 raise ValueError(f"case label {fname}={label!r} not in choices {choices}")
             samples.append((list(telemetry["scores"]), choices.index(label_str)))
@@ -43,9 +44,11 @@ def _nll(scores: Sequence[float], label_idx: int, t: float) -> float:
     return log_z - scaled[label_idx]
 
 
-def fit_temperature(samples: Sequence[Sample], lo: float = 0.05, hi: float = 20.0,
-                    iters: int = 60) -> float:
+def fit_temperature(
+    samples: Sequence[Sample], lo: float = 0.05, hi: float = 20.0, iters: int = 60
+) -> float:
     """Golden-section search for the T in [lo, hi] minimizing mean NLL."""
+
     def mean_nll(t: float) -> float:
         return sum(_nll(s, y, t) for s, y in samples) / len(samples)
 
@@ -66,7 +69,7 @@ def fit_temperature(samples: Sequence[Sample], lo: float = 0.05, hi: float = 20.
     return round((a + b) / 2, 4)
 
 
-def _probs(scores: Sequence[float], t: float) -> List[float]:
+def _probs(scores: Sequence[float], t: float) -> list[float]:
     scaled = [s / t for s in scores]
     m = max(scaled)
     exps = [math.exp(s - m) for s in scaled]
