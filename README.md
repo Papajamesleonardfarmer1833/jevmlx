@@ -93,7 +93,7 @@ Two scoring modes: slots (default) and labels (`--scoring labels`). Slots list e
 
 1. **One decision pass for every field.** The KV cache is broadcast so all schema fields are scored in one batched suffix pass; latency grows with the longest suffix, not field count.
 2. **Always-valid JSON.** The object is assembled from per-field decisions, never generated token by token, so it cannot be malformed; `multi` fields return the subset of options that apply.
-3. **Honest confidence.** Each field's probabilities come from restricted branch distributions over a token trie and sum to 1 at full precision; log_scores are keyed by the real choice string in both scoring modes; `jevmlx calibrate` fits one temperature to correct overconfidence.
+3. **Honest confidence.** Each field's probabilities come from restricted branch distributions over a token trie and sum to 1 at full precision; log_scores are keyed by the real choice string in both scoring modes; multi fields claim no field-level probability (per-option P(yes) only); `jevmlx calibrate` fits one temperature to correct overconfidence.
 4. **Typed Python API.** Pass a Pydantic model, get a validated instance with per-field confidences — `jevmlx.decide` for one context, `jevmlx.decide_many` for many with one model load.
 5. **HTTP server.** `jevmlx serve --model M` loads the model once and serves one decision per request on `POST /decide` (serial — one Metal GPU).
 6. **Temperature calibration.** `jevmlx calibrate` fits one scalar temperature on labeled JSONL by minimizing NLL and reports binned ECE before and after.
@@ -259,12 +259,12 @@ d.value  # validated Support instance
 d.latency_ms  # end-to-end wall time for this decision
 fr = d.fields["category"]  # FieldResult for one field
 fr.value  # decided value, e.g. "TECHNICAL"
-fr.probability  # P of the winner (see below)
-fr.score  # constrained-path log P of the winner
-fr.margin  # top-1 minus top-2 log score
+fr.probability  # P of the winner (see below); None for multi fields
+fr.score  # constrained-path log P of the winner (enum/boolean)
+fr.margin  # top-1 minus top-2 log score; multi: min |P(yes) - threshold|
 fr.calibrated  # False unless a fitted temperature was applied
 fr.model  # "slots" or "labels": which scorer produced it
-fr.alternatives  # top-3 (choice, probability) pairs
+fr.alternatives  # top-3 (choice, probability) pairs; multi: per-option P(yes)
 
 # Many contexts, one model load:
 results = jevmlx.decide_many(Support, [context_1, context_2])
@@ -277,6 +277,18 @@ distribution that sums to 1 across the field's choices. What it is **not**:
 a probability that the answer is *correct*. Correctness calibration is a
 separate step — `probability` is overconfident by default, and
 `calibrated` is `False` until you apply a fitted temperature (next section).
+
+**Multi fields** (`list[Literal[...]]`, "select all that apply") are decided
+as one independent yes/no decision per option — each entry of `per_option`
+is P(yes) for that option. No field-level probability is claimed:
+`probability` is `None` for a multi field, because an exact-set probability
+is not defined by per-option yeses. `margin` is `min |P(yes) - threshold|`
+over the options (how close the closest call was), and `alternatives` lists
+the per-option pairs sorted by P(yes). An option is selected when its P(yes)
+is at or above the threshold — `0.5` by default, tunable with
+`decide(..., multi_threshold=...)` / `--multi-threshold` (validated to the
+open interval (0, 1); lower the threshold to be more inclusive, raise it to
+be more conservative).
 
 ### 5. Scoring modes
 

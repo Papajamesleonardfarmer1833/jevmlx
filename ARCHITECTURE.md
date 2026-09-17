@@ -22,7 +22,7 @@ over this document when they drift.
 | [`jevmlx/baseline.py`](jevmlx/baseline.py) | OpenAI-compatible chat client used by the `naive_local`/API tracks. |
 | [`jevmlx/bench.py`](jevmlx/bench.py) | Dataset × scorer × track matrix runner writing results directories. |
 | [`jevmlx/log.py`](jevmlx/log.py) | Logging configuration (`-v`, `JEVMLX_LOG=json`). |
-| `jevmlx/openai_slots.py` *(lands with A1)* | OpenAI-compatible slot backend: per-field requests, top-20 logprobs. Linked here only if present on main at merge time. |
+| [`jevmlx/openai_slots.py`](jevmlx/openai_slots.py) | OpenAI-compatible slot backend: one request per option, top-k logprobs with an explicit floor and a `truncated` flag. |
 | [`benchmarks/to_jsonl.py`](benchmarks/to_jsonl.py) | Bundled `cases.json` → eval JSONL (+ lock). |
 | [`benchmarks/typesafe/fetch.py`](benchmarks/typesafe/fetch.py) | TypeSafe public pages → eval JSONL (+ lock, `benchmark_only`). |
 | [`benchmarks/perturb.py`](benchmarks/perturb.py) | Deterministic label-preserving context perturbations. |
