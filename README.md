@@ -294,11 +294,11 @@ keywords the model should match on). The failure mode *slots* avoids is
 spelling bias: when choices share long first tokens (`BLOCK_TRANSACTION` vs
 `BLOCK_USER`), the branch probabilities can be dominated by the shared
 prefix rather than the distinguishing part. The failure mode *labels*
-avoids nothing extra but its own weakness is alias position bias — models
-can prefer early aliases (A/B) somewhat regardless of content.
-`jevmlx validate` reports such collisions; as a rule of thumb, run slots
-when the lint is noisy and labels when the choices are few, short, and
-distinct.
+avoids is alias position bias — models can prefer early aliases (A/B)
+somewhat regardless of content, so with labels every choice competes on its
+text alone. `jevmlx validate` reports tokenization collisions; as a rule of
+thumb, run slots when the lint is noisy and labels when the choices are
+few, short, and distinct.
 
 ### 6. Calibration
 
@@ -372,14 +372,18 @@ jevmlx decide --backend openai --base-url http://localhost:11434/v1 \
     --api-model llama3.2 --schema support.json --context ticket.txt
 ```
 
-Works with anything speaking the chat-completions protocol: Ollama, oMLX,
-MTPLX, vLLM, or a hosted API (`--api-key-env` names the environment variable
-holding the key; the default is `OPENAI_API_KEY`). What is lost versus the
-native engine: one request per field instead of one batched pass (latency
-scales with field count), and the alias distribution comes from the API's
-top-20 logprobs — choices outside the top-20 get a floor probability and
-the telemetry flags the field as truncated. `--model` is only required for
-the native backend.
+Works with anything speaking the chat-completions protocol and returning
+logprobs: Ollama, oMLX, MTPLX, vLLM, or a hosted API. Flags: `--backend
+openai`, `--base-url` (chat-completions base URL), `--api-model` (the model
+name sent to the API), `--api-key-env` (env var holding the key, default
+`OPENAI_API_KEY`), and `--timeout` (per-request seconds, default 120). The
+track name is `openai_slots`. What is lost versus the native engine: one
+request per field instead of one batched pass (latency scales with field
+count), and the alias distribution comes from the endpoint's `top_logprobs`
+— aliases outside the returned top-k get a floor probability
+(`exp(min returned logprob)`), probabilities renormalize to sum to 1, and
+the field's telemetry flags `truncated: true`. `--model` is only required
+for the native backend.
 
 ### 10. Evaluating and benchmarking
 
@@ -410,7 +414,8 @@ the caveat paragraph in [benchmarks/typesafe/README.md](benchmarks/typesafe/READ
 
 - **Out of Metal memory** — the engine logs a `chunking` line when it splits
   the batched pass; if you still hit the limit, use a smaller model or pass
-  a lower `--max-rows` to cap rows per chunk. Quit other GPU apps first.
+  a lower `max_rows` from Python (`jevmlx.decide(..., max_rows=...)`) to cap
+  rows per chunk. Quit other GPU apps first.
 - **Model fails to load** — update mlx-lm (`uv pip install -U mlx-lm`);
   quantization formats move between mlx-lm versions.
 - **Template without a system role** — nothing to fix; the schema goes into
