@@ -4,7 +4,7 @@ openjev is an unofficial, open-source Jev-style engine for Apple Silicon. It
 builds on two prior works:
 
 - [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)
-  (MIT) — the research repository this project was forked from: benchmarks,
+  (MIT) — the research repository this project started from: benchmarks,
   evaluation methodology, and documentation of the parallel constrained
   decoding technique on Apple Silicon.
 - [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD)
