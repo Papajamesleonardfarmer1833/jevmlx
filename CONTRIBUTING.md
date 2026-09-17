@@ -11,7 +11,6 @@ uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
 ## Rules
 
 - Apple Silicon (Darwin/arm64) only; engine code fails fast elsewhere.
-- Branches: `p<task>-<name>` off `main`, pushed, no direct commits to `main`.
+- Branches: short descriptive branch off `main`, pushed, no direct commits to `main`.
 - KISS / YAGNI: delete more than you add; no plugin systems, registries, or config files.
 - No new dependencies without an issue describing why.
-- Commit author: Ben Shaharizad <bnsd55@gmail.com>.

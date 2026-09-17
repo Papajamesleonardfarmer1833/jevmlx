@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from importlib import resources
 
@@ -18,8 +19,9 @@ from openjev.schema import StructuredSchema
 
 
 def load_preset(name: str) -> dict:
-    """Load a preset by name ('fintech_fraud'), filename ('fintech_fraud.json'), or path."""
-    if name.endswith(".json") and (name.startswith(".") or "/" in name):
+    """Load a preset: a filesystem path if it exists, else a bundled preset
+    by name ('fintech_fraud' or 'fintech_fraud.json')."""
+    if os.path.isfile(name):
         with open(name, encoding="utf-8") as f:
             return json.load(f)
     filename = name if name.endswith(".json") else f"{name}.json"
