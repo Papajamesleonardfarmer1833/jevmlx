@@ -9,11 +9,11 @@ First release.
 - Multi-select fields decided as per-option yes/no rows with an exposed threshold (`--multi-threshold`); no field-level probability claimed, a threshold margin instead.
 - Typed Python API: `jevmlx.decide(PydanticModel, context)` returns a validated instance plus per-field provenance (probability, score, margin, top alternatives, calibration state, scoring mode); `decide_many` for batches.
 - Temperature calibration on labeled JSONL data (`jevmlx calibrate`).
-- New backend: the same decision semantics through any OpenAI-compatible chat endpoint that returns logprobs (`jevmlx decide --backend openai`), one request per field.
+- New backend: the same decision semantics through any OpenAI-compatible chat endpoint that returns logprobs (`jevmlx decide --backend openai --base-url URL --api-model M`), one request per field; missing candidates in the endpoint's top-k get an explicit floor probability and are flagged in the output.
 - `jevmlx doctor`: environment checks (platform, versions, memory, power, Metal, model cache, network) before filing an issue or running a benchmark.
 - `jevmlx eval` / `jevmlx report`: labeled-case evaluation with per-field predictions and run manifests, offline report summaries, TypeSafe-consensus agreement metrics.
 - `jevmlx bench`: one command producing a complete, PR-ready results folder (compatibility table inputs, eval reports, environment metadata), single model or a comma-separated list run sequentially.
 - Chat-template handling that works across model families (no hand-built prompts, no system-role assumptions).
-- Schema linting (`jevmlx lint`) for structural problems before a run.
-- `jevmlx serve`: OpenAI-compatible HTTP server in front of the engine.
+- Schema validation (`jevmlx validate`) for structural problems before a run.
+- `jevmlx serve`: a local HTTP server exposing `POST /decide` (`{"schema": {...}, "context": "..."}`) so one Metal GPU can back several clients, serially.
 - Typesafe fetcher (`benchmarks.typesafe.fetch`) for the published eval examples, plus synthetic labeled cases covering known failure modes.

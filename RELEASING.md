@@ -7,7 +7,7 @@ Silicon Mac with a green `main`.
 ## Prereq (once)
 
 ```bash
-uv tool install twine   # or: brew install twine
+uv tool install twine
 ```
 
 ## Steps (run from a clone of `main`, up to date)
@@ -18,6 +18,9 @@ pytest -m "not slow" -q && pytest -m slow -q && ruff check . && ruff format --ch
 
 # 1. Version must already read X.Y.Z in pyproject.toml and CHANGELOG.md must
 #    have the matching "## [X.Y.Z] - YYYY-MM-DD" section (edit + commit if not).
+#    In the SAME release commit, switch the README install lines to the PyPI
+#    names (pip install jevmlx / uv tool install jevmlx — they are a lie until
+#    the upload in step 4 lands, which is why the commit goes out with the tag).
 
 # 2. Build distributions and validate them
 rm -rf dist && uv build
