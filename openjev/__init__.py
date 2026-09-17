@@ -1,6 +1,8 @@
-"""
-Parallel Constrained Structured Generation Engine.
-"""
+"""Parallel Constrained Structured Generation Engine."""
+
+import importlib.metadata
+
+__version__ = importlib.metadata.version("openjev")
 
 from openjev.api import DEFAULT_MODEL, Decision, decide, decide_many, schema_from_model
 from openjev.engine import (

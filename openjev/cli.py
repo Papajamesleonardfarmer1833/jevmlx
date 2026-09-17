@@ -14,6 +14,7 @@ import os
 import sys
 from importlib import resources
 
+from openjev import __version__
 from openjev.api import DEFAULT_MODEL
 from openjev.engine import load_engine, run_parallel_generation
 from openjev.log import configure
@@ -61,6 +62,7 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
 
 def main(argv=None) -> None:
     ap = argparse.ArgumentParser(prog="openjev", description=__doc__)
+    ap.add_argument("--version", action="version", version=f"openjev {__version__}")
     sub = ap.add_subparsers(dest="command", required=True)
 
     decide = sub.add_parser(
@@ -107,9 +109,17 @@ def main(argv=None) -> None:
     configure(level=level, json_mode=os.environ.get("OPENJEV_LOG") == "json")
 
     if args.command == "decide":
-        if bool(args.preset) == bool(args.schema or args.context):
+        if args.preset and (args.schema or args.context):
+            decide.error("--preset cannot be combined with --schema/--context")
+        if not args.preset and not (args.schema and args.context):
+            missing = [
+                flag
+                for flag, given in (("--schema", args.schema), ("--context", args.context))
+                if not given
+            ]
             decide.error(
-                "use --preset NAME  or  --schema FILE --context FILE|- (not both, not neither)"
+                "exactly one of --preset or --schema AND --context is required; "
+                f"missing: {', '.join(missing)}"
             )
 
         if args.preset:
