@@ -13,8 +13,10 @@ git clone https://github.com/bnsd55/jevmlx && cd jevmlx
 ## 2. Run the bench
 
 ```bash
-jevmlx bench --model mlx-community/Qwen2.5-0.5B-Instruct-4bit
+.venv/bin/jevmlx bench --model mlx-community/Qwen2.5-0.5B-Instruct-4bit
 ```
+
+(or `source .venv/bin/activate` first, then plain `jevmlx bench ...`)
 
 Plug in first; the command refuses to run on battery (override: `--force`).
 It preflights the machine, builds the datasets into `~/.cache/jevmlx/bench/`,
