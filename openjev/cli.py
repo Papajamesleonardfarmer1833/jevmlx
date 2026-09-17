@@ -71,6 +71,11 @@ def main(argv=None) -> None:
     calib.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
     calib.add_argument("--data", required=True, help="JSONL file: {schema, context, labels} per line")
     calib.add_argument("--bins", type=int, default=10, help="ECE bin count")
+
+    serve_p = sub.add_parser("serve", help="Serve decisions over HTTP (one Metal GPU, serial)")
+    serve_p.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
+    serve_p.add_argument("--host", default="127.0.0.1")
+    serve_p.add_argument("--port", type=int, default=8000)
     args = ap.parse_args(argv)
 
     if args.command == "decide":
@@ -122,3 +127,8 @@ def main(argv=None) -> None:
         print(f"ECE before     : {ece_before:.4f}  (T=1.0)")
         print(f"ECE after      : {ece_after:.4f}  (T={t_fit})")
         print(f"accuracy       : {acc:.4f}")
+
+    elif args.command == "serve":
+        from openjev.serve import serve
+
+        serve(args.model, args.host, args.port)

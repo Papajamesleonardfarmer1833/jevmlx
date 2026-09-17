@@ -158,6 +158,17 @@ Strict like-for-like — the 343 pairs answered by every model:
 
 Where this is going next: [ROADMAP.md](ROADMAP.md) (calibration, evaluation expansion, packaging, integrations).
 
+## HTTP server
+
+`openjev serve --model mlx-community/Qwen2.5-1.5B-Instruct-4bit` loads the model once and serves one decision per request on `POST /decide` (stdlib `http.server`, serial — one Metal GPU).
+
+```bash
+curl -s localhost:8000/decide -H 'Content-Type: application/json' \
+  -d '{"schema": {"action": {"type": "enum", "description": "The action to take", "choices": ["APPROVE", "BLOCK_TRANSACTION"]}}, "context": "payment from a verified customer, all checks passed", "temperature": 1.0}'
+```
+
+`GET /health` returns `{"ok": true, "model": M}`. Bad JSON, missing keys, and invalid schemas return 400; anything else returns 500 with the exception's first line.
+
 ## Repo layout
 
 ```
