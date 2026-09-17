@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import json
 import time
-import urllib.error
-import urllib.request
 
+from jevmlx.http import BaselineError, chat_completions_raw, extract_content
 from jevmlx.schema import StructuredSchema
 
 __all__ = [
@@ -23,15 +22,6 @@ __all__ = [
     "call_chat_completions",
     "parse_baseline_output",
 ]
-
-
-class BaselineError(RuntimeError):
-    """A chat-completions call failed (non-2xx response)."""
-
-    def __init__(self, status: int, body: str):
-        self.status = status
-        snippet = body[:200]
-        super().__init__(f"chat/completions returned {status}: {snippet}")
 
 
 def _field_line(name: str, field) -> str:
@@ -83,40 +73,25 @@ def call_chat_completions(
 ) -> str:
     """POST to ``{base_url}/chat/completions`` and return the assistant content.
 
-    stdlib only. ``mode='text'`` (default) sends no response_format — truly
-    naive; ``mode='json'`` adds ``response_format={'type': 'json_object'}``
+    Thin wrapper over the shared client in :mod:`jevmlx.http`.
+    ``mode='text'`` (default) sends no response_format — truly naive;
+    ``mode='json'`` adds ``response_format={'type': 'json_object'}``
     best-effort. Raises BaselineError on any non-2xx response with the status
     and the first 200 chars of the body.
     """
-    url = base_url.rstrip("/") + "/chat/completions"
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-    }
-    if mode == "json":
-        payload["response_format"] = {"type": "json_object"}
-    elif mode != "text":
+    extra = {"response_format": {"type": "json_object"}} if mode == "json" else None
+    if mode not in ("text", "json"):
         raise ValueError(f"mode must be 'text' or 'json', got {mode!r}")
-    headers = {"Content-Type": "application/json"}
-    if api_key is not None:
-        headers["Authorization"] = f"Bearer {api_key}"
-    request = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
+    choice = chat_completions_raw(
+        base_url,
+        model,
+        messages,
+        api_key=api_key,
+        timeout=timeout,
+        temperature=temperature,
+        extra_payload=extra,
     )
-    try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            body = response.read().decode("utf-8")
-    except urllib.error.HTTPError as e:
-        raise BaselineError(e.code, e.read().decode("utf-8", errors="replace")) from e
-    choices = json.loads(body).get("choices") or []
-    if not choices:
-        raise BaselineError(200, f"no choices in response body: {body[:200]}")
-    message = choices[0].get("message") or {}
-    return message.get("content") or ""
+    return extract_content(choice)
 
 
 def _validate_field(name: str, field, raw) -> tuple[bool, object, str | None]:

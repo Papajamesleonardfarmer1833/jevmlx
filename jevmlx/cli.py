@@ -109,6 +109,33 @@ def main(argv=None) -> None:
         "alias candidates; default) or labels (real choice text through the "
         "token trie)",
     )
+    decide.add_argument(
+        "--backend",
+        choices=["native", "openai"],
+        default="native",
+        help="decision executor: native (local MLX engine, default) or "
+        "openai (any OpenAI-compatible chat endpoint with logprobs; slower, "
+        "degraded — one request per field, top_logprobs only)",
+    )
+    decide.add_argument(
+        "--base-url",
+        help="chat-completions base URL (openai backend)",
+    )
+    decide.add_argument(
+        "--api-model",
+        help="model name sent to the API (openai backend)",
+    )
+    decide.add_argument(
+        "--api-key-env",
+        default="OPENAI_API_KEY",
+        help="env var holding the API key (openai backend)",
+    )
+    decide.add_argument(
+        "--timeout",
+        type=float,
+        default=120.0,
+        help="per-request timeout in seconds (openai backend)",
+    )
 
     calib = sub.add_parser(
         "calibrate", help="Fit a temperature on labeled JSONL cases and report ECE"
@@ -147,7 +174,7 @@ def main(argv=None) -> None:
     eval_p.add_argument(
         "--track",
         required=True,
-        choices=["parallel", "naive_local", "api_baseline"],
+        choices=["parallel", "naive_local", "api_baseline", "openai_slots"],
         help="decision track to run",
     )
     eval_p.add_argument("--api-base", help="chat-completions base URL (api_baseline track)")
@@ -155,7 +182,13 @@ def main(argv=None) -> None:
     eval_p.add_argument(
         "--api-key-env",
         default="OPENAI_API_KEY",
-        help="env var holding the API key (api_baseline track)",
+        help="env var holding the API key (api_baseline and openai_slots tracks)",
+    )
+    eval_p.add_argument(
+        "--timeout",
+        type=float,
+        default=120.0,
+        help="per-request timeout in seconds (openai_slots track)",
     )
     eval_p.add_argument(
         "--scoring",
@@ -263,18 +296,40 @@ def main(argv=None) -> None:
                     context = f.read()
             title = args.schema
 
-        print(f"Loading {args.model} ...", flush=True)
-        model, tokenizer = load_engine(args.model)
+        if args.backend == "openai":
+            from jevmlx.openai_slots import decide_openai
 
-        schema = StructuredSchema(schema_dict)
-        result = run_parallel_generation(
-            model, tokenizer, context, schema, temperature=args.temperature, scoring=args.scoring
-        )
+            if not (args.base_url and args.api_model):
+                decide.error("--backend openai requires --base-url and --api-model")
+            schema = StructuredSchema(schema_dict)
+            result = decide_openai(
+                args.base_url,
+                args.api_model,
+                os.environ.get(args.api_key_env),
+                schema,
+                context,
+                timeout=args.timeout,
+            )
+            model_label = args.api_model
+        else:
+            print(f"Loading {args.model} ...", flush=True)
+            model, tokenizer = load_engine(args.model)
+
+            schema = StructuredSchema(schema_dict)
+            result = run_parallel_generation(
+                model,
+                tokenizer,
+                context,
+                schema,
+                temperature=args.temperature,
+                scoring=args.scoring,
+            )
+            model_label = args.model
 
         if args.as_json:
             print(json.dumps(_rounded_json_payload(result), indent=2))
         else:
-            print_result(title, args.model, result)
+            print_result(title, model_label, result)
 
     elif args.command == "calibrate":
         from jevmlx import calibrate
@@ -395,6 +450,16 @@ def _run_eval_command(args) -> None:
         decide_fn = evalrun.naive_local_decide_fn(model, tokenizer)
         chat_template = getattr(tokenizer, "chat_template", None)
         plan_provider = None
+    elif args.track == "openai_slots":
+        if not (args.api_base and args.api_model):
+            raise SystemExit("openai_slots track requires --api-base and --api-model")
+        api_key = os.environ.get(args.api_key_env)
+        decide_fn, api_params = evalrun.openai_slots_decide_fn(
+            args.api_base, args.api_model, api_key, timeout=args.timeout
+        )
+        extra.update(api_params)
+        chat_template = None
+        plan_provider = None
     else:
         if not (args.api_base and args.api_model):
             eval_p_error = "api_baseline track requires --api-base and --api-model"
@@ -412,7 +477,7 @@ def _run_eval_command(args) -> None:
         cases,
         decide_fn,
         track=args.track,
-        model=args.api_model if args.track == "api_baseline" else args.model,
+        model=args.api_model if args.track in ("api_baseline", "openai_slots") else args.model,
         permutations=args.permutations,
         split=args.split,
         out_dir=args.out,

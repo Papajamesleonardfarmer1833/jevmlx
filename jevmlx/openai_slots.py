@@ -1,0 +1,316 @@
+"""OpenAI-compatible "slots" backend: the native slots decision semantics
+through any chat-completions endpoint that returns logprobs.
+
+Same prompt (V1's prompt builder), same aliases, same result-dict shape as
+:func:`jevmlx.engine.run_parallel_generation` — different executor. Per field
+ONE ``max_tokens=1`` request reads the next-token distribution at the field's
+decision row and renormalises it over the quoted alias candidates. Works for
+Ollama, oMLX, MTPLX, vLLM, and hosted APIs.
+
+Slower (one request per field instead of one batched pass) and degraded (only
+the endpoint's ``top_logprobs`` candidates are observable). Degradation is
+explicit: aliases missing from the returned top-k get a floor probability of
+``exp(min returned logprob)`` and the field's telemetry flags
+``truncated: true``. Probabilities still sum to 1 after renormalisation.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import math
+import time
+from typing import Any
+
+from jevmlx.baseline import BaselineError  # noqa: F401 — re-exported for callers
+from jevmlx.engine import PROMPT_V2_SYSTEM
+from jevmlx.http import BaselineError as _BaselineErrorImported  # noqa: F401
+from jevmlx.http import chat_completions_raw
+from jevmlx.schema import StructuredSchema
+
+__all__ = [
+    "BaselineError",
+    "OPENAI_SLOTS_PROMPT_VERSION",
+    "decide_openai",
+]
+
+logger = logging.getLogger(__name__)
+
+OPENAI_SLOTS_PROMPT_VERSION = "jevmlx-openai-slots-v1"
+
+_TOP_LOGPROBS = 20
+
+
+def _user_content(schema: StructuredSchema, context: str) -> str:
+    """The prompt-v2 user turn: alias schema block + delimited context.
+
+    Identical text to the native slots mode's prefill prompt (the system
+    paragraph travels in the system message; here and natively).
+    """
+    schema_str = schema.to_alias_schema_str()
+    return f"Classify the following fields.\n\n{schema_str}\n\n<<<CONTEXT\n{context}\nCONTEXT>>>"
+
+
+def _scalar_messages(schema: StructuredSchema, context: str, name: str) -> list[dict]:
+    """Messages for one scalar field: system + user + assistant row prefill.
+
+    The assistant prefix is the JSON decision row, byte-identical to the
+    native slots row (``'{\\n  "<field>": '``); the scored next token is the
+    quoted alias. Endpoints without assistant-prefill support will treat the
+    assistant turn as ordinary history — the payload is still well-formed and
+    the top-k read just degrades (logged once per field).
+    """
+    row = "{\n" + f"  {json.dumps(name)}: "
+    return [
+        {"role": "system", "content": PROMPT_V2_SYSTEM},
+        {"role": "user", "content": _user_content(schema, context)},
+        {"role": "assistant", "content": row, "prefix": True},
+    ]
+
+
+def _alias_logprob(entries: list[dict], alias: str) -> float | None:
+    """Logprob of a quoted alias in a top_logprobs list, or None.
+
+    Token text varies by endpoint: ``"A``, ``"A``, `` A``, A. Quoted-first
+    because the decision row ends with a colon+space inside a JSON string.
+    """
+    by_text = {e.get("token", ""): float(e.get("logprob", -math.inf)) for e in entries}
+    for variant in (f'"{alias}"', f'"{alias}', alias, f" {alias}"):
+        if variant in by_text:
+            return by_text[variant]
+    return None
+
+
+def _renormalise(logprobs: dict[str, float], aliases: list[str]) -> tuple[dict[str, float], bool]:
+    """Renormalise found alias logprobs; floor the missing ones.
+
+    Returns ({alias: probability}, truncated). The floor is exp(min found
+    logprob); with nothing found at all the mass splits evenly (full
+    truncation) and truncated is True.
+    """
+    found = {a: lp for a in aliases if (lp := logprobs.get(a)) is not None}
+    truncated = len(found) < len(aliases)
+    if found:
+        floor = math.exp(min(found.values()))
+    else:
+        floor = 1.0 / len(aliases)
+    weights = {a: math.exp(logprobs[a]) if a in logprobs else floor for a in aliases}
+    total = sum(weights.values())
+    return {a: w / total for a, w in weights.items()}, truncated
+
+
+def _decide_scalar_field(
+    base_url: str,
+    model: str,
+    api_key: str | None,
+    schema: StructuredSchema,
+    context: str,
+    name: str,
+    field,
+    timeout: float,
+) -> tuple[dict, dict]:
+    """One request for one enum/boolean field. Returns (parsed, telemetry)."""
+    choices_list = ["true", "false"] if field.field_type == "boolean" else list(field.choices)
+    aliases = [schema.alias_for_index(i) for i in range(len(choices_list))]
+
+    messages = _scalar_messages(schema, context, name)
+    t0 = time.perf_counter()
+    choice = chat_completions_raw(
+        base_url,
+        model,
+        messages,
+        api_key=api_key,
+        timeout=timeout,
+        temperature=0.0,
+        extra_payload={"max_tokens": 1, "logprobs": True, "top_logprobs": _TOP_LOGPROBS},
+    )
+    request_ms = (time.perf_counter() - t0) * 1000
+
+    logprobs_block = choice.get("logprobs") or {}
+    content = logprobs_block.get("content") or []
+    top_entries = content[0].get("top_logprobs") if content else []
+    by_text = {e.get("token", ""): float(e.get("logprob", -math.inf)) for e in (top_entries or [])}
+
+    alias_probs, truncated = _renormalise(
+        {a: lp for a in aliases if (lp := _alias_logprob(top_entries or [], a)) is not None},
+        aliases,
+    )
+    if truncated:
+        logger.debug(
+            "openai_slots: field '%s' truncated at top-%d (floor applied)", name, _TOP_LOGPROBS
+        )
+
+    prob_by_choice = {
+        choice_text: alias_probs[alias]
+        for alias, choice_text in zip(aliases, choices_list, strict=True)
+    }
+    winner = max(prob_by_choice, key=prob_by_choice.__getitem__)
+    probability = prob_by_choice[winner]
+    value = (winner.lower() == "true") if field.field_type == "boolean" else winner
+    log_scores = {c: math.log(p) if p > 0 else float("-inf") for c, p in prob_by_choice.items()}
+    ranked = sorted(log_scores.items(), key=lambda kv: -kv[1])
+    alternatives = tuple((c, prob_by_choice[c]) for c, _ in ranked[:3])
+
+    parsed = {"value": value, "prob": probability}
+    telemetry = {
+        "value": value,
+        "type": field.field_type,
+        "probability": probability,
+        "log_scores": log_scores,
+        "alternatives": alternatives,
+        "rows": 1,
+        "truncated": truncated,
+        "request_ms": round(request_ms, 2),
+        "top_logprobs_seen": sorted(by_text, key=lambda t: -by_text[t])[:5],
+    }
+    return parsed, telemetry
+
+
+def _yes_no_probabilities(entries: list[dict]) -> tuple[dict[str, float], bool]:
+    """Renormalised P(yes)/P(no) from a top_logprobs list.
+
+    Token text varies: "yes"/yes/" Yes/true and their negatives. Missing
+    sides floor at exp(min found logprob) (0.01 when nothing is found).
+    """
+    by_text = {e.get("token", ""): float(e.get("logprob", -math.inf)) for e in entries}
+
+    def lp_of(variants: list[str]) -> float | None:
+        for v in variants:
+            if v in by_text:
+                return by_text[v]
+        return None
+
+    yes_lp = lp_of(['"yes"', "yes", " Yes", '"Yes"', "true", "True"])
+    no_lp = lp_of(['"no"', "no", " No", '"No"', "false"])
+    truncated = yes_lp is None or no_lp is None
+    if truncated:
+        floor = (
+            math.exp(min(v for v in (yes_lp, no_lp) if v is not None))
+            if (yes_lp is not None or no_lp is not None)
+            else 0.01
+        )
+        yes_lp = math.log(floor) if yes_lp is None else yes_lp
+        no_lp = math.log(floor) if no_lp is None else no_lp
+    w_yes, w_no = math.exp(yes_lp), math.exp(no_lp)
+    total = w_yes + w_no
+    return {"yes": w_yes / total, "no": w_no / total}, truncated
+
+
+def _decide_multi_field(
+    base_url: str,
+    model: str,
+    api_key: str | None,
+    schema: StructuredSchema,
+    context: str,
+    name: str,
+    field,
+    timeout: float,
+) -> tuple[dict, dict, int]:
+    """One yes/no request per option. Returns (parsed, telemetry, n_requests)."""
+    per_option: dict[str, float] = {}
+    truncated_any = False
+    n_requests = 0
+    for option in field.choices:
+        # The option row as assistant prefill: the value is a one-element
+        # array — the model answers the same yes/no question the native
+        # multi rows pose ("does this option apply?").
+        row = "{\n" + f"  {json.dumps(name)}: {json.dumps([option])}"
+        messages = [
+            {"role": "system", "content": PROMPT_V2_SYSTEM},
+            {"role": "user", "content": _user_content(schema, context)},
+            {"role": "assistant", "content": row, "prefix": True},
+        ]
+        choice = chat_completions_raw(
+            base_url,
+            model,
+            messages,
+            api_key=api_key,
+            timeout=timeout,
+            temperature=0.0,
+            extra_payload={"max_tokens": 1, "logprobs": True, "top_logprobs": _TOP_LOGPROBS},
+        )
+        n_requests += 1
+        logprobs_block = choice.get("logprobs") or {}
+        content = logprobs_block.get("content") or []
+        top_entries = content[0].get("top_logprobs") if content else []
+        probs, truncated = _yes_no_probabilities(top_entries or [])
+        per_option[option] = probs["yes"]
+        truncated_any = truncated_any or truncated
+    selected = [option for option, p in per_option.items() if p >= 0.5]
+    weakest = min(per_option.values()) if per_option else 0.0
+    parsed = {"value": selected, "prob": weakest}
+    telemetry = {
+        "value": selected,
+        "type": "multi",
+        "probability": weakest,
+        "per_option": per_option,
+        "alternatives": tuple(
+            (o, p) for o, p in sorted(per_option.items(), key=lambda kv: -kv[1])[:3]
+        ),
+        "rows": len(field.choices),
+        "truncated": truncated_any,
+    }
+    return parsed, telemetry, n_requests
+
+
+def decide_openai(
+    base_url: str,
+    model: str,
+    api_key: str | None,
+    schema: StructuredSchema,
+    context: str,
+    *,
+    timeout: float = 120.0,
+) -> dict[str, Any]:
+    """Decide every schema field through an OpenAI-compatible endpoint.
+
+    Same result-dict shape as :func:`jevmlx.engine.run_parallel_generation`:
+    ``parsed_json``, ``field_telemetry`` (``probability``, ``log_scores``,
+    ``alternatives``, ``rows``, ``passes``), ``confidence_model:
+    "openai_slots"``, ``prompt_version``, ``prompt_sha256``, ``elapsed_ms``.
+    One ``max_tokens=1`` request per scalar field; one yes/no request per
+    multi option. Raises BaselineError on non-2xx responses.
+    """
+    t0 = time.perf_counter()
+    parsed_json: dict[str, Any] = {}
+    field_telemetry: dict[str, Any] = {}
+    n_requests = 0
+    for name, field in schema.fields.items():
+        if field.field_type == "multi":
+            parsed, telemetry, n = _decide_multi_field(
+                base_url, model, api_key, schema, context, name, field, timeout
+            )
+            n_requests += n
+        else:
+            parsed, telemetry = _decide_scalar_field(
+                base_url, model, api_key, schema, context, name, field, timeout
+            )
+            n_requests += 1
+        parsed_json[name] = parsed
+        field_telemetry[name] = telemetry
+
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    user_content = _user_content(schema, context)
+    return {
+        "elapsed_ms": round(elapsed_ms, 2),
+        "prefill_ms": None,
+        "suffix_eval_ms": None,
+        "total_tokens_generated": 0,
+        "sequential_forward_passes": n_requests,
+        "schema_match": True,
+        "confidence_model": "openai_slots",
+        # The prompt TEXT is identical for every field's request (the decision
+        # row travels as the assistant prefill); the sha covers the rendered
+        # user turn. Native mode hashes the full prompt token ids — a
+        # different tokenization path, so the two hashes are not comparable.
+        "prompt_sha256": hashlib.sha256(user_content.encode("utf-8")).hexdigest(),
+        "prompt_version": OPENAI_SLOTS_PROMPT_VERSION,
+        "probability_status": (
+            "renormalised top_logprobs mass at T=0; degraded (top-k only, "
+            "floor for missing aliases), uncalibrated as decision confidence"
+        ),
+        "parsed_json": parsed_json,
+        "field_telemetry": field_telemetry,
+        "num_fields": len(schema),
+    }

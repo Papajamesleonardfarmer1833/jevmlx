@@ -104,6 +104,10 @@ Every preset field is decided in one batched pass — measured on a MacBook Pro 
 | `mlx-community/Mistral-7B-Instruct-v0.3-4bit` | y | ok, ok | 5519 | 557 | 10.32 |
 | `mlx-community/Phi-3.5-mini-instruct-4bit` | y | ok, ok | 7562 | 569 | 13.73 |
 
+## Using a server (Ollama, oMLX, MTPLX, vLLM, any OpenAI-compatible API)
+
+The same decision semantics run through any OpenAI-compatible chat-completions endpoint that returns logprobs — no local model, no Apple Silicon required: `jevmlx decide --backend openai --base-url http://localhost:11434/v1 --api-model NAME [--api-key-env VAR]`. Same prompt (the alias schema block), same neutral aliases, same result shape with per-field `probability`/`log_scores`/`alternatives`. The tradeoffs are explicit: one request per field instead of one batched pass (slower), and only the endpoint's `top_logprobs` candidates are observable — aliases missing from the top-k get an explicit floor probability and the field's telemetry flags `truncated: true`. On eval, run it as the `openai_slots` track: `jevmlx eval --data cases.jsonl --track openai_slots --api-base URL --api-model NAME --out DIR`.
+
 ## Evaluate and benchmark
 
 Build the labeled JSONL, run it through a track, then summarize offline:

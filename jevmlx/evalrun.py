@@ -40,6 +40,7 @@ __all__ = [
     "DecideFn",
     "api_baseline_decide_fn",
     "make_run_id",
+    "openai_slots_decide_fn",
     "naive_local_decide_fn",
     "parallel_decide_fn",
     "rotations",
@@ -176,6 +177,42 @@ def api_baseline_decide_fn(
         return out
 
     return decide, {"api_base": base_url, "api_model": model}
+
+
+def openai_slots_decide_fn(
+    base_url: str, model: str, api_key: str | None, timeout: float = 120.0
+) -> tuple[DecideFn, dict[str, str]]:
+    """Track ``openai_slots``: the slots decision semantics via an API.
+
+    Same result shape as the parallel track (log_scores, probability,
+    alternatives) with ``confidence_model="openai_slots"``; one request per
+    field. Returns the decide_fn plus the request parameters for run.json.
+    """
+
+    def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
+        from jevmlx.openai_slots import decide_openai
+
+        schema = StructuredSchema(schema_dict)
+        result = decide_openai(base_url, model, api_key, schema, context, timeout=timeout)
+        out: dict[str, dict[str, Any]] = {}
+        for fname, telemetry in result["field_telemetry"].items():
+            field = schema.fields.get(fname)
+            out[fname] = {
+                "prediction": telemetry["value"],
+                "probability": telemetry.get("probability"),
+                "per_option": telemetry.get("per_option"),
+                "type": telemetry.get("type") or (field.field_type if field else None),
+                "log_scores": telemetry.get("log_scores"),
+                "truncated": telemetry.get("truncated"),
+            }
+        out["_meta"] = {
+            "latency_ms": result.get("elapsed_ms"),
+            "rows": None,
+            "passes": result.get("sequential_forward_passes"),
+        }
+        return out
+
+    return decide, {"api_base": base_url, "api_model": model, "track_kind": "openai_slots"}
 
 
 def rotations(choices: list[str]) -> list[list[str]]:
