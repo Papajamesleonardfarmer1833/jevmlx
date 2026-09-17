@@ -315,16 +315,22 @@ def run_parallel_generation(
     rows: List[List[int]] = []          # token ids per row
     row_field: List[str] = []           # field each row belongs to
     row_choice: List[Optional[int]] = []  # choice index for choice-rows, else None
+    collides: Dict[str, bool] = {}
     for fname, fdef in schema.fields.items():
         p = plan[fname]
-        rows.append(list(p["suffix_ids"]))
-        row_field.append(fname)
-        row_choice.append(None)
-        if len({tuple(t) for t in p["choice_token_lists"]}) < len(p["choice_token_lists"]):
-            for ci, toks in enumerate(p["choice_token_lists"]):
+        lists = p["choice_token_lists"]
+        # Collision = two choices share the FIRST token (not merely identical lists).
+        collides[fname] = len({t[0] for t in lists}) < len(lists)
+        if collides[fname]:
+            # One teacher-forced row per choice; the suffix-only row would be unused.
+            for ci, toks in enumerate(lists):
                 rows.append(list(p["suffix_ids"]) + list(toks))
                 row_field.append(fname)
                 row_choice.append(ci)
+        else:
+            rows.append(list(p["suffix_ids"]))
+            row_field.append(fname)
+            row_choice.append(None)
 
     suffix_arrs = rows  # token id lists; padded per chunk below
 
@@ -351,14 +357,20 @@ def run_parallel_generation(
         budget = bytes_per_row * max_rows
     auto_max_rows = max(1, budget // bytes_per_row) if bytes_per_row > 0 else len(rows)
     num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
+    if num_passes > 1:
+        print(f"openjev: {len(rows)} rows over {num_passes} passes "
+              f"(memory guard, bytes_per_row={bytes_per_row})")
 
     # 4. Batched suffix forward passes (re-broadcast per chunk, no re-prefill).
     #    Rows in a chunk are right-padded to a common length; scoring reads
     #    positions from real lengths, and right-padding cannot affect logits at
     #    earlier (real) positions under causal attention.
+    #    Per chunk only the needed per-token floats are extracted; the full
+    #    [rows, width, vocab] output is dropped immediately (F3).
     pad_id = tokenizer.pad_token_id or 0
     t_suf0 = time.perf_counter()
-    row_logits: List[mx.array] = []
+    first_token_scores: Dict[int, List[float]] = {}  # row idx -> per-choice first-token logit
+    choice_total: Dict[int, float] = {}              # row idx -> summed choice-token log-prob
     for chunk_start in range(0, len(rows), auto_max_rows):
         chunk = rows[chunk_start:chunk_start + auto_max_rows]
         chunk_len = len(chunk)
@@ -369,7 +381,21 @@ def run_parallel_generation(
                   for t in (c.keys, c.values)])
         out = model(padded, cache=b_cache)
         mx.eval(out)
-        row_logits.extend(out[i, :, :] for i in range(chunk_len))
+        for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
+            p = plan[row_field[ridx]]
+            s_len = len(p["suffix_ids"])
+            if row_choice[ridx] is None:
+                lg = out[i, s_len - 1, :]
+                first_token_scores[ridx] = [float(lg[t[0]]) for t in p["choice_token_lists"]]
+            else:
+                toks = p["choice_token_lists"][row_choice[ridx]]
+                total = 0.0
+                for step, tid in enumerate(toks):
+                    row = out[i, s_len + step - 1, :]
+                    # log_softmax(row)[tid] = row[tid] - logsumexp(row)
+                    total += float(row[tid]) - float(mx.logsumexp(row))
+                choice_total[ridx] = total
+        del out
 
     t_suffix_eval = (time.perf_counter() - t_suf0) * 1000
 
@@ -388,24 +414,13 @@ def run_parallel_generation(
         choice_token_lists = p["choice_token_lists"]
         n_choices = len(choice_token_lists)
 
-        scores: List[float] = []
-        for ci in range(n_choices):
-            toks = choice_token_lists[ci]
-            if row_choice[idxs[0]] is None:
-                # Distinct first tokens: one row, score the first choice token
-                # at the field's last real suffix position (padding excluded).
-                logits = row_logits[idxs[0]][len(p["suffix_ids"]) - 1, :]
-                scores.append(float(logits[toks[0]]))
-            else:
-                # Collision: this choice has its own teacher-forced row.
-                r = idxs[ci]
-                row = rows[r]
-                total = 0.0
-                for step, tid in enumerate(toks):
-                    pos = len(p["suffix_ids"]) + step - 1
-                    logits = row_logits[r][pos, :]
-                    total += float(mx.logsoftmax(logits)[tid])
-                scores.append(total)
+        if row_choice[idxs[0]] is None:
+            # Distinct first tokens: one row, first choice token scored at the
+            # field's last real suffix position (padding excluded).
+            scores = first_token_scores[idxs[0]]
+        else:
+            # Collision: choice ci has its own teacher-forced row at idxs[ci].
+            scores = [choice_total[idxs[ci]] for ci in range(n_choices)]
 
         scores_arr = mx.array(scores) / max(temperature, 1e-4)
         probs = mx.softmax(scores_arr)
@@ -414,19 +429,14 @@ def run_parallel_generation(
         w_idx = int(mx.argmax(probs))
         w_prob = float(probs_list[w_idx])
 
-        raw_choice = choice_token_lists[w_idx]
-        val = tokenizer.decode(raw_choice)
-        if fdef.field_type == "boolean":
-            val = (val.strip().lower() == "true")
-        else:
-            val = p["prefix"] + tokenizer.decode(raw_choice)
+        choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
+        val = (choices_list[w_idx].lower() == "true") if fdef.field_type == "boolean" else choices_list[w_idx]
 
         parsed_json[fname] = {
             "value": val,
             "prob": round(w_prob, 4),
         }
 
-        choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
         scored_choices = [
             {"choice": c, "probability": round(pr, 4)}
             for c, pr in zip(choices_list, probs_list)
@@ -438,6 +448,7 @@ def run_parallel_generation(
             "type": fdef.field_type,
             "confidence": round(w_prob, 4),
             "cardinality": fdef.cardinality,
+            "scores": [round(s, 6) for s in scores],
             "top_choices": scored_choices[:5],
         }
 

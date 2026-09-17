@@ -16,28 +16,40 @@ def engine():
 
 def test_collision_field_scores_honestly(engine):
     model, tokenizer = engine
-    schema = StructuredSchema({
+    schema_dict = {
         "action": {
             "type": "enum",
             "description": "The action to take on this payment request",
             "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "APPROVE"],
         },
-    })
-    context = (
+    }
+
+    # Both choices start with "BLOCK" -> shared first token -> per-choice rows.
+    block_ctx = (
+        "Payment request flagged by rules: the card was reported stolen this morning, "
+        "the shipping address does not match the billing country, and the buyer asked "
+        "to send the goods to a reshipping mule. Block the transaction, do not touch the account."
+    )
+    approve_ctx = (
         "Payment request from a verified long-time customer for a routine invoice. "
         "All fraud checks passed, the device is recognized, and the amount matches "
         "previous orders. Approve it and release the funds."
     )
-    result = run_parallel_generation(model, tokenizer, context, schema)
 
-    assert result["parsed_json"]["action"]["value"] == "APPROVE"
+    for expected, ctx in (("BLOCK_TRANSACTION", block_ctx), ("APPROVE", approve_ctx)):
+        schema = StructuredSchema(schema_dict)
+        result = run_parallel_generation(model, tokenizer, ctx, schema)
 
-    top = result["field_telemetry"]["action"]["top_choices"]
-    probs = [c["probability"] for c in top]
-    assert abs(sum(probs) - 1.0) < 1e-3
-    # Honest distribution: distinct per-choice probabilities, not the old
-    # clamp+uniform-rest pattern.
-    assert len(set(probs)) > 1
+        assert result["parsed_json"]["action"]["value"] == expected
+
+        top = result["field_telemetry"]["action"]["top_choices"]
+        probs = [c["probability"] for c in top]
+        assert abs(sum(probs) - 1.0) < 1e-3
+        # Honest distribution: distinct per-choice probabilities, not the old
+        # clamp+uniform-rest pattern.
+        assert len(set(probs)) > 1
+        # Full raw per-choice score list exposed for calibration (F2).
+        assert len(result["field_telemetry"]["action"]["scores"]) == 3
 
 
 def test_chunking_matches_full_batch_and_counts_passes(engine):
@@ -52,6 +64,14 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
     for fname in full["parsed_json"]:
         assert full["parsed_json"][fname]["value"] == chunked["parsed_json"][fname]["value"], fname
 
-    # fintech_fraud has 28 non-colliding fields -> 28 rows -> ceil(28/5) chunks.
-    assert chunked["sequential_forward_passes"] == math.ceil(28 / 5)
+    # Rows: 1 per field, +1 extra per choice for colliding fields (shared first
+    # token, the B1 rule). Pass count must match ceil(rows / max_rows).
+    plan = schema.compile_batch_plan(tokenizer)
+    expected_rows = sum(
+        len(p["choice_token_lists"])
+        if len({t[0] for t in p["choice_token_lists"]}) < len(p["choice_token_lists"])
+        else 1
+        for p in plan.values()
+    )
+    assert chunked["sequential_forward_passes"] == math.ceil(expected_rows / 5)
     assert full["sequential_forward_passes"] == 1
