@@ -32,13 +32,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-__all__ = [
-    "common_subset_field_ids",
-    "published_agreement",
-    "_model_pick",
-    "_field_key",
-    "main",
-]
+__all__ = ["common_subset_field_ids", "published_agreement", "main"]
 
 # Score questions are answered on a fixed 0-3 scale (fetch.SCORE_CHOICES).
 SCORE_CHOICES = ("0", "1", "2", "3")
@@ -64,11 +58,6 @@ def _model_pick(raw, field_type: str | None, is_score: bool):
     if field_type == "boolean" and isinstance(raw, (int, float)):
         return bool(raw >= 0.5)
     return raw
-
-
-def _model_answered(raw) -> bool:
-    """A model answered when it produced a value at all."""
-    return raw is not None
 
 
 def _field_key(record_id: str, field: str) -> str:
@@ -104,7 +93,7 @@ def common_subset_field_ids(records: list[dict]) -> list[str]:
         for field, answers in models_meta.items():
             for model, raw in answers.items():
                 model_names.add(model)
-                if not _model_answered(raw):
+                if raw is None:
                     continue
                 key = _field_key(record.get("id", ""), field)
                 answered[key].add(model)
@@ -154,7 +143,7 @@ def published_agreement(records: list[dict]) -> dict:
         is_score = _is_score_field(record, field)
         ftype = _field_type(record, field)
         for model, raw in models_meta.get(field, {}).items():
-            if not _model_answered(raw):
+            if raw is None:
                 continue
             pick = _model_pick(raw, ftype, is_score)
             total[model] += 1
@@ -198,12 +187,6 @@ def published_agreement(records: list[dict]) -> dict:
         },
         "models": models_out,
     }
-
-
-def _is_score_field(record: dict, field: str) -> bool:
-    """Score questions are enums with the fixed 0-3 rubric choices."""
-    spec = (record.get("schema") or {}).get(field) or {}
-    return tuple(spec.get("choices") or ()) == SCORE_CHOICES
 
 
 def _print_table(result: dict) -> None:
