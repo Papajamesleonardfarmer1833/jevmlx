@@ -9,3 +9,6 @@ __pycache__/
 .DS_Store
 *.egg-info/
 dist/
+
+# Lockfile stays local; consumers resolve their own dependencies
+uv.lock

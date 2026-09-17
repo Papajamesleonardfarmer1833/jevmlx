@@ -114,8 +114,27 @@ def test_empty_choice_flagged():
 
 
 def test_boolean_fields_are_skipped():
-    """Booleans always tokenize distinctly; the lint must not touch them."""
+    """Booleans always decide true/false; the lint must not touch them."""
     findings = _findings({"approved": {"type": "boolean", "description": "ok?"}})
+    assert findings == []
+
+
+def test_multi_fields_are_skipped():
+    """Multi fields decide true/false per option; their plan entry is not per-choice.
+
+    The plan for a multi field carries 'options' and choice_token_lists of
+    [true, false], so a per-choice lint loop would index the wrong lists.
+    Options are boolean decisions by construction and cannot collide.
+    """
+    findings = _findings(
+        {
+            "tags": {
+                "type": "multi",
+                "description": "select all that apply",
+                "choices": ["BLOCK_USER", "BLOCK_TRANSACTION", "ALLOW"],
+            }
+        }
+    )
     assert findings == []
 
 

@@ -191,6 +191,7 @@ def main(argv=None) -> None:
     elif args.command == "validate":
         from dataclasses import asdict
 
+        # transformers is imported lazily: slow to import and only validate needs it.
         from transformers import AutoTokenizer
 
         with open(args.schema, encoding="utf-8") as f:

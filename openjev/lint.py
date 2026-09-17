@@ -1,9 +1,10 @@
-"""Schema linting: detect enum choices the engine cannot score independently.
+"""Schema linting: detect enum choices the engine cannot score in one row.
 
-The batched suffix pass gives every choice its own row, keyed by the choice's
-first token. Two choices that share a first token share a row, so only one of
-them can ever win. ``lint_schema`` reports that (and related problems) before
-a schema ships.
+The batched suffix pass gives each field one row keyed by the choice's first
+token. Two choices that share a first token force the slower fallback: one
+teacher-forced row per choice, scored and compared across different token
+paths. ``lint_schema`` reports that (and related problems) before a schema
+ships.
 """
 
 from __future__ import annotations
@@ -59,22 +60,24 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     lists the engine scores — so the lint never re-tokenizes by hand and can
     never disagree with the engine about token boundaries.
 
+    Only categorical enum fields are linted. Boolean and multi fields decide
+    true/false per option, so their choice token lists are fixed and cannot
+    collide.
+
     Checks per enum field:
-    - collision: two or more choices share the same first token. The engine
-      then falls back to one teacher-forced row per choice and compares the
-      choices across different token paths instead of at the same decision
-      position, at n rows instead of one.
+    - collision: two or more choices share the same first token. Scoring is
+      still correct, but the engine falls back to one teacher-forced row per
+      choice and compares them across different token paths — n rows instead
+      of one.
     - duplicate_choice: the same literal appears more than once.
     - empty_choice: a choice adds no tokens beyond the shared prefix, so it is
       scored via the closing-quote token rather than value text.
-
-    Boolean fields are skipped; their two literals always tokenize distinctly.
     """
     findings: list[Finding] = []
     plan = schema.compile_batch_plan(tokenizer)
 
     for fname, fdef in schema.fields.items():
-        if fdef.field_type == "boolean":
+        if fdef.field_type not in ("enum", "choice", "selection"):
             continue
         entry = plan[fname]
 
@@ -104,10 +107,9 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                     field=fname,
                     kind="collision",
                     message=(
-                        "choices share their first token, so the engine falls back to "
-                        "one row per choice and compares them across different token "
-                        f"paths instead of at the same decision position: "
-                        f"{', '.join(colliding)}"
+                        "choices share their first token; the engine scores them with "
+                        "one row per choice (slower). Rename to keep one row per "
+                        f"field: {', '.join(colliding)}"
                     ),
                     suggestion=_rotation_suggestion(colliding),
                 )
