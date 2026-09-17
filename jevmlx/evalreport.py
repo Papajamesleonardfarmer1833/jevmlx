@@ -147,8 +147,17 @@ def _metric_rows(run: dict) -> list[tuple]:
 
 
 def _to_markdown(run: dict) -> str:
-    """Markdown summary: environment, metrics, per-field accuracy (ascending)."""
+    """Markdown summary: environment, run config, metrics, per-field accuracy."""
     environment_info = run.get("environment") or {}
+    config = run.get("config") or {}
+    # Provenance keys surface in the environment table when present
+    # (model_revision / quantization / prompt_version, X2).
+    provenance = {
+        key: config[key]
+        for key in ("model_revision", "quantization", "prompt_version")
+        if key in config
+    }
+    environment_info = {**environment_info, **provenance}
     per_field = sorted(
         run.get("per_field") or [],
         key=lambda row: (_accuracy(row.get("accuracy")), str(row.get("field", ""))),

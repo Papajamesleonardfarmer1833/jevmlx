@@ -9,18 +9,25 @@ prefix KV-caching.
 
 import copy
 import functools
+import hashlib
 import json
 import logging
 import math
 import platform
 import re
 import time
+from pathlib import Path
 from typing import Any
 
 from jevmlx.schema import StructuredSchema
 from jevmlx.trie import build_trie, score_trie, softmax
 
 logger = logging.getLogger(__name__)
+
+# Bumped whenever the parallel path's prompt text changes (it feeds
+# prompt_sha256, so result sets from different prompt versions are not
+# comparable).
+PROMPT_VERSION = "jevmlx-parallel-v1"
 
 # Run before any mlx import: on a non-Apple-Silicon machine the mlx import
 # itself fails with a low-level error, and the platform message is the useful one.
@@ -50,6 +57,7 @@ def load_engine(model_id: str):
     t0 = time.perf_counter()
     model, tokenizer = load(model_id)
     logger.info("Engine loaded in %.2fs.", time.perf_counter() - t0)
+    logger.info("Engine loaded in %.2fs.", time.perf_counter() - t0)
 
     # Warmup: compile prefill and broadcast decode shaders ahead of time.
     logger.info("Warming up Metal shaders on Apple Silicon GPU...")
@@ -64,6 +72,66 @@ def load_engine(model_id: str):
     mx.eval(w_suf)
     logger.info("Metal shaders compiled & warmed up.")
     return model, tokenizer
+
+
+def engine_metadata(model_id: str) -> dict[str, Any]:
+    """Provenance metadata for ``model_id``, read from the local HF cache.
+
+    Returns ``model_id``, the snapshot ``revision`` (the HF commit sha of the
+    snapshot dir the cache would load from; None when not resolvable), the
+    installed ``mlx_version`` and ``mlx_lm_version``, and the model's
+    ``quantization`` block from its config.json (None when unquantized).
+    Reads only files already in the cache — no download, no reload.
+    """
+    import importlib.metadata
+
+    mlx_lm_version = importlib.metadata.version("mlx-lm")
+    revision = None
+    quantization = None
+    try:
+        from huggingface_hub import constants
+
+        cache_dir = Path(constants.HF_HUB_CACHE)
+    except Exception:  # noqa: BLE001 — provenance is best-effort
+        cache_dir = None
+
+    if cache_dir is not None:
+        # models--org--name/snapshots/<sha>; resolve through refs/main first,
+        # fall back to the only snapshot present.
+        repo_dir = cache_dir / f"models--{model_id.replace('/', '--')}"
+        main_ref = repo_dir / "refs" / "main"
+        snapshot_dir = repo_dir / "snapshots"
+        if main_ref.exists():
+            revision = main_ref.read_text(encoding="utf-8").strip()
+        elif snapshot_dir.is_dir():
+            snapshots = [p for p in snapshot_dir.iterdir() if p.is_dir()]
+            if len(snapshots) == 1:
+                revision = snapshots[0].name
+        config_path = None
+        if revision:
+            candidate = snapshot_dir / revision / "config.json"
+            if candidate.exists():
+                config_path = candidate
+        elif snapshot_dir.is_dir():
+            for snap in snapshot_dir.iterdir():
+                candidate = snap / "config.json"
+                if candidate.exists():
+                    config_path = candidate
+                    break
+        if config_path is not None:
+            try:
+                config = json.loads(config_path.read_text(encoding="utf-8"))
+                quantization = config.get("quantization")
+            except (OSError, json.JSONDecodeError):
+                quantization = None
+
+    return {
+        "model_id": model_id,
+        "revision": revision,
+        "mlx_version": importlib.metadata.version("mlx"),
+        "mlx_lm_version": mlx_lm_version,
+        "quantization": quantization,
+    }
 
 
 def clear_engine_cache() -> None:
@@ -96,6 +164,11 @@ def _chat_ids(tokenizer, user_content: str) -> list:
         add_generation_prompt=True,
         tokenize=True,
     )
+
+
+def _prompt_sha256(prompt_ids: list[int]) -> str:
+    """sha256 of the full prompt token ids, JSON-serialized as a list."""
+    return hashlib.sha256(json.dumps(list(prompt_ids)).encode("utf-8")).hexdigest()
 
 
 def _stop_token_ids(tokenizer) -> set:
@@ -546,6 +619,7 @@ def run_parallel_generation(
         }
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
+    confidence_model = "constrained_path"
 
     logger.info(
         "Decided %d fields in %.1f ms",
@@ -570,7 +644,18 @@ def run_parallel_generation(
         # The per-choice probabilities are the constrained path probability
         # (product of masked branch softmaxes), not a normalized full-sequence
         # likelihood and not automatically calibrated.
-        "confidence_model": "constrained_path",
+        "confidence_model": confidence_model,
+        # Provenance: what exactly was asked (sha over the full prompt token
+        # ids as JSON), which prompt text produced it, and how the reported
+        # probabilities should be read. The status string follows the
+        # confidence_model key so a future scoring-mode change rewrites it.
+        "prompt_sha256": _prompt_sha256(base_ids),
+        "prompt_version": PROMPT_VERSION,
+        "probability_status": (
+            "constrained_path probability at T=1; uncalibrated as decision confidence"
+            if confidence_model == "constrained_path"
+            else "mode probability; uncalibrated as decision confidence"
+        ),
         "parsed_json": parsed_json,
         "field_telemetry": field_telemetry,
         "num_fields": len(schema),

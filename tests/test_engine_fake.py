@@ -86,3 +86,26 @@ def test_engine_runs_mixed_schema_with_fake_model():
     assert result["parsed_json"]["action"]["prob"] == pytest.approx(0.5)
     telemetry = result["field_telemetry"]["flags"]
     assert all(abs(p - 0.5) < 1e-9 for p in telemetry["per_option"].values())
+
+
+def test_prompt_sha256_stable_and_input_sensitive():
+    """X2: prompt_sha256 is stable for identical inputs and changes when the
+    context changes."""
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    r1 = run_parallel_generation(model, tokenizer, "ctx", schema)
+    r2 = run_parallel_generation(model, tokenizer, "ctx", schema)
+    r3 = run_parallel_generation(model, tokenizer, "different ctx", schema)
+
+    assert r1["prompt_sha256"] == r2["prompt_sha256"]
+    assert r1["prompt_sha256"] != r3["prompt_sha256"]
+    assert len(r1["prompt_sha256"]) == 64
+    # Independent of the schema contents swap? No: same schema, so identical.
+    assert r1["prompt_version"] == "jevmlx-parallel-v1"
+    assert (
+        r1["probability_status"]
+        == "constrained_path probability at T=1; uncalibrated as decision confidence"
+    )

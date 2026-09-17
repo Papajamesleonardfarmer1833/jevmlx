@@ -360,3 +360,72 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
     decide = er.parallel_decide_fn(model=object(), tokenizer=object())
     result = decide({"x": {"type": "enum", "description": "d", "choices": ["A", "B"]}}, "ctx")
     assert result["x"]["log_scores"] == {"A": -2.0, "B": -0.1}
+
+
+def test_run_json_carries_provenance_keys(tmp_path, monkeypatch):
+    """X2: run.json config gains model_revision, quantization, prompt_version
+    (parallel track), sourced from engine_metadata."""
+    import jevmlx.engine as engine_mod
+    import jevmlx.evalrun as er
+
+    monkeypatch.setattr(
+        engine_mod,
+        "engine_metadata",
+        lambda model_id: {
+            "model_id": model_id,
+            "revision": "abc123",
+            "mlx_version": "0.0.0",
+            "mlx_lm_version": "0.0.0",
+            "quantization": {"bits": 4},
+        },
+    )
+    monkeypatch.setattr(engine_mod, "PROMPT_VERSION", "jevmlx-parallel-v1", raising=False)
+    case = {
+        "id": "c",
+        "group_id": "g",
+        "source": "custom",
+        "workflow": None,
+        "schema": {"f": {"type": "boolean", "description": "d"}},
+        "context": "x",
+        "labels": {},
+        "split": "train",
+        "meta": {},
+    }
+    er.run_eval(
+        [case],
+        lambda s, c: {name: {"prediction": True} for name in s},
+        track="parallel",
+        model="fake/model",
+        out_dir=str(tmp_path),
+    )
+    config = json.load(open(tmp_path / "run.json"))["config"]
+    assert config["model_revision"] == "abc123"
+    assert config["quantization"] == {"bits": 4}
+    assert config["prompt_version"] == "jevmlx-parallel-v1"
+
+
+def test_engine_metadata_resolves_snapshot_sha(tmp_path):
+    """X2: engine_metadata resolves the revision from a fake HF cache dir
+    (refs/main), including quantization from config.json."""
+    import jevmlx.engine as engine_mod
+
+    cache = tmp_path / "hub"
+    snap = cache / "models--org--m" / "snapshots" / "deadbeef"
+    snap.mkdir(parents=True)
+    (cache / "models--org--m" / "refs").mkdir()
+    (cache / "models--org--m" / "refs" / "main").write_text("deadbeef\n")
+    (snap / "config.json").write_text(json.dumps({"quantization": {"bits": 4}}))
+
+    from huggingface_hub import constants
+
+    orig = constants.HF_HUB_CACHE
+    constants.HF_HUB_CACHE = str(cache)
+    try:
+        meta = engine_mod.engine_metadata("org/m")
+    finally:
+        constants.HF_HUB_CACHE = orig
+    assert meta["model_id"] == "org/m"
+    assert meta["revision"] == "deadbeef"
+    assert meta["quantization"] == {"bits": 4}
+    assert meta["mlx_version"]
+    assert meta["mlx_lm_version"]
