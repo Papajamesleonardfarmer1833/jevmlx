@@ -2,14 +2,14 @@
 
 The eval compares openjev's constrained path against the same model (or a
 bigger API model) writing the whole JSON object itself: same schema, same
-context, same information. Bad model output is a measurement, not a bug —
-parsing never raises on malformed output, it reports errors instead.
+context, same information. Two modes: ``'text'`` (default, truly naive — no
+response_format) and ``'json'`` (response_format json_object). Parsing is
+strict and never raises on bad model output — that IS the measurement.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import time
 import urllib.error
 import urllib.request
@@ -41,18 +41,24 @@ def _field_line(name: str, field) -> str:
     if field.field_type == "multi":
         choices = ", ".join(f'"{c}"' for c in field.choices)
         return (
-            f'- "{name}" (array whose items are exactly one or more of: {choices})'
+            f'- "{name}" (an array, possibly empty, of allowed strings: {choices})'
             f" — {field.description}"
         )
     choices = ", ".join(f'"{c}"' for c in field.choices)
     return f'- "{name}" (one of exactly: {choices}) — {field.description}'
 
 
-def build_baseline_messages(schema: StructuredSchema, context: str) -> list[dict]:
+def build_baseline_messages(
+    schema: StructuredSchema, context: str, *, mode: str = "text"
+) -> list[dict]:
     """Build the single-user-message prompt for the naive-JSON baseline.
 
-    Deterministic text, no system role: instruct the model to output ONLY a
-    JSON object with exactly the schema's keys, then give it the context.
+    Deterministic text, no system role. ``mode='text'`` (default) is truly
+    naive: a plain JSON-only instruction with no response_format on the wire.
+    ``mode='json'`` says the same thing but pairs with
+    ``response_format={'type': 'json_object'}`` in the API call. The
+    instruction adds no constraints the schema does not have (multi fields
+    may be empty arrays).
     """
     field_lines = "\n".join(_field_line(name, field) for name, field in schema.fields.items())
     content = (
@@ -73,20 +79,25 @@ def call_chat_completions(
     api_key: str | None,
     timeout: float = 120.0,
     temperature: float = 0.0,
+    mode: str = "text",
 ) -> str:
     """POST to ``{base_url}/chat/completions`` and return the assistant content.
 
-    stdlib only. Sends ``response_format={"type": "json_object"}`` best-effort
-    (ignored by servers that don't support it). Raises BaselineError on any
-    non-2xx response with the status and the first 200 chars of the body.
+    stdlib only. ``mode='text'`` (default) sends no response_format — truly
+    naive; ``mode='json'`` adds ``response_format={'type': 'json_object'}``
+    best-effort. Raises BaselineError on any non-2xx response with the status
+    and the first 200 chars of the body.
     """
     url = base_url.rstrip("/") + "/chat/completions"
     payload = {
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "response_format": {"type": "json_object"},
     }
+    if mode == "json":
+        payload["response_format"] = {"type": "json_object"}
+    elif mode != "text":
+        raise ValueError(f"mode must be 'text' or 'json', got {mode!r}")
     headers = {"Content-Type": "application/json"}
     if api_key is not None:
         headers["Authorization"] = f"Bearer {api_key}"
@@ -108,58 +119,89 @@ def call_chat_completions(
     return message.get("content") or ""
 
 
-def parse_baseline_output(text: str, schema: StructuredSchema) -> tuple[dict, list[str]]:
-    """Extract, parse, and schema-validate a baseline model's JSON output.
+def _validate_field(name: str, field, raw) -> tuple[bool, object, str | None]:
+    """Strictly validate one parsed value against its field definition.
 
-    Returns ``(values, errors)`` where values maps each schema field to its
-    parsed value (None for fields that failed) and errors is a list of
-    human-readable problem strings. Never raises on bad model output.
+    Returns (ok, value, problem): value is the parsed value when usable for
+    salvage, None only for wrong-typed values; problem is the error string or
+    None. Multi arrays may be empty (the schema adds no non-empty constraint)
+    but duplicates and out-of-choices items are errors.
     """
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match is None:
-        return {name: None for name in schema.get_field_names()}, ["no JSON object found in output"]
-    try:
-        parsed = json.loads(match.group(0))
-    except json.JSONDecodeError as e:
-        return {name: None for name in schema.get_field_names()}, [f"invalid JSON: {e}"]
-    if not isinstance(parsed, dict):
-        return {name: None for name in schema.get_field_names()}, ["JSON value is not an object"]
+    if field.field_type == "boolean":
+        if isinstance(raw, bool):
+            return True, raw, None
+        return False, None, f"wrong type for {name}: expected boolean, got {type(raw).__name__}"
+    if field.field_type == "multi":
+        if not isinstance(raw, list):
+            return False, None, f"wrong type for {name}: expected array, got {type(raw).__name__}"
+        invalid = [item for item in raw if not isinstance(item, str) or item not in field.choices]
+        if invalid:
+            return False, None, f"invalid items for {name}: {invalid} (allowed: {field.choices})"
+        if len(set(raw)) != len(raw):
+            dupes = sorted({item for item in raw if raw.count(item) > 1})
+            return False, None, f"duplicate items for {name}: {dupes}"
+        return True, raw, None
+    if isinstance(raw, str) and raw in field.choices:
+        return True, raw, None
+    return False, None, f"invalid value for {name}: {raw!r} (allowed: {field.choices})"
 
-    values: dict = {}
+
+def parse_baseline_output(text: str, schema: StructuredSchema) -> tuple[dict, dict, list[str]]:
+    """Strictly parse a baseline model's JSON output against the schema.
+
+    Extraction uses ``json.JSONDecoder().raw_decode`` at the first '{' — the
+    object must be followed by nothing but whitespace, else a 'trailing text'
+    error. Then per-field strict validation: missing keys, extra keys,
+    duplicate items in a multi array, wrong types, and values not in choices
+    are all errors. Never raises on model output — that is the measurement.
+
+    Returns ``(strict_values, salvage_values, errors)``: ``strict_values`` maps
+    every schema field to its value or None when anything was wrong;
+    ``salvage_values`` keeps every field whose own value was parseable, even
+    when other fields or surrounding text failed.
+    """
+    fields_all_none = {name: None for name in schema.get_field_names()}
+    decoder = json.JSONDecoder()
+    stripped = text.lstrip()
+    brace = stripped.find("{")
     errors: list[str] = []
+    parsed: dict | None = None
+    if brace == -1:
+        errors.append("no JSON object found in output")
+    else:
+        try:
+            obj, end = decoder.raw_decode(stripped[brace:])
+            if stripped[brace + end :].strip():
+                errors.append("trailing text after JSON object")
+            parsed = obj
+        except json.JSONDecodeError as e:
+            errors.append(f"invalid JSON: {e}")
+    if parsed is None:
+        return fields_all_none, fields_all_none.copy(), errors
+    if not isinstance(parsed, dict):
+        errors.append("JSON value is not an object")
+        return fields_all_none, fields_all_none.copy(), errors
+
+    strict_values: dict = {}
+    salvage_values: dict = {}
     for name, field in schema.fields.items():
         if name not in parsed:
-            values[name] = None
+            strict_values[name] = None
+            salvage_values[name] = None
             errors.append(f"missing key: {name}")
             continue
         raw = parsed[name]
-        if field.field_type == "boolean":
-            if isinstance(raw, bool):
-                values[name] = raw
-            else:
-                values[name] = None
-                errors.append(f"wrong type for {name}: expected boolean, got {type(raw).__name__}")
-        elif field.field_type == "multi":
-            if not isinstance(raw, list):
-                values[name] = None
-                errors.append(f"wrong type for {name}: expected array, got {type(raw).__name__}")
-                continue
-            invalid = [
-                item for item in raw if not isinstance(item, str) or item not in field.choices
-            ]
-            if invalid:
-                values[name] = None
-                errors.append(f"invalid items for {name}: {invalid} (allowed: {field.choices})")
-            else:
-                values[name] = raw
-        else:  # enum
-            if isinstance(raw, str) and raw in field.choices:
-                values[name] = raw
-            else:
-                values[name] = None
-                got = repr(raw)
-                errors.append(f"invalid value for {name}: {got} (allowed: {field.choices})")
-    return values, errors
+        ok, value, problem = _validate_field(name, field, raw)
+        strict_values[name] = value if ok else None
+        salvage_values[name] = value
+        if problem is not None:
+            errors.append(problem)
+    for name in sorted(set(parsed) - set(schema.fields)):
+        errors.append(f"extra key: {name}")
+    if errors:
+        # strict = zero errors: any problem voids the strict object entirely
+        strict_values = fields_all_none.copy()
+    return strict_values, salvage_values, errors
 
 
 def baseline_decide(
@@ -168,22 +210,27 @@ def baseline_decide(
     api_key: str | None,
     schema: StructuredSchema,
     context: str,
+    *,
+    mode: str = "text",
 ) -> dict:
-    """One baseline decision: prompt, call, parse, and time it.
+    """One baseline decision: prompt, call, strict-parse, and time it.
 
-    Returns ``{"values", "errors", "raw", "latency_ms", "schema_valid"}``;
-    ``schema_valid`` is True iff the parse produced no errors. Never raises
-    on bad model output — only on transport-level failures (BaselineError).
+    Returns ``{"values", "salvage_values", "errors", "raw", "latency_ms",
+    "strict_valid", "schema_valid"}`` (``schema_valid`` is kept as an alias of
+    ``strict_valid``). Never raises on bad model output — only on
+    transport-level failures (BaselineError).
     """
-    messages = build_baseline_messages(schema, context)
+    messages = build_baseline_messages(schema, context, mode=mode)
     t0 = time.perf_counter()
-    raw = call_chat_completions(base_url, model, messages, api_key=api_key)
+    raw = call_chat_completions(base_url, model, messages, api_key=api_key, mode=mode)
     latency_ms = (time.perf_counter() - t0) * 1000
-    values, errors = parse_baseline_output(raw, schema)
+    values, salvage_values, errors = parse_baseline_output(raw, schema)
     return {
         "values": values,
+        "salvage_values": salvage_values,
         "errors": errors,
         "raw": raw,
         "latency_ms": latency_ms,
+        "strict_valid": not errors,
         "schema_valid": not errors,
     }
