@@ -70,11 +70,11 @@ Generation can produce malformed or off-schema output and gives no per-field con
         restricted next-token probs per branch → trie → pick value + P(choice)
 ```
 
-1. **Plan.** The schema compiles into a batch plan: choice suffixes, shared prefixes, lead-ins ([engine.py](jevmlx/engine.py)).
+1. **Plan.** The schema compiles into a batch plan: choice suffixes, shared prefixes, lead-ins ([schema.py](jevmlx/schema.py)).
 2. **Prefill.** The context plus a compact schema catalog goes through the model a single time.
 3. **Rows.** Each field's choice continuations become trie rows against the broadcast KV cache; choices that share a first token get their own rows.
 4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked by a memory heuristic.
-5. **Trie scoring.** At each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities; the JSON object is assembled from the winners.
+5. **Trie scoring.** At each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities; the JSON object is assembled from the winners ([engine.py](jevmlx/engine.py)).
 
 Two scoring modes: trie (default) and letter slots (`--scoring letters`). Letters list each field's choices as lettered options and read the next-token distribution at the field's slot position — no tokenization collisions by construction; try it when a schema's choices share long first tokens.
 
