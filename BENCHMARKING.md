@@ -18,6 +18,14 @@ git clone https://github.com/bnsd55/jevmlx && cd jevmlx
 
 (or `source .venv/bin/activate` first, then plain `jevmlx bench ...`)
 
+Several models in one sitting: pass a comma list or a file (one id per line,
+`#` comments allowed) — models run sequentially, each into its own folder, and
+one `SUMMARY.md` covers all of them:
+
+```bash
+.venv/bin/jevmlx bench --models-file models.txt
+```
+
 Plug in first; the command refuses to run on battery (override: `--force`).
 It preflights the machine, builds the datasets into `~/.cache/jevmlx/bench/`,
 runs every (track, scorer, dataset) combination twice and keeps the warm run,

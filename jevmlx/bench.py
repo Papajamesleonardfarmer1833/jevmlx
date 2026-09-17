@@ -247,7 +247,7 @@ def run_bench(
     machine_override: str | None = None,
     force: bool = False,
 ) -> Path:
-    """Run the full bench matrix; returns the results folder path."""
+    """Run the full bench matrix for one model; returns the results folder."""
     tag = preflight(force, machine_override)
     print(f"machine: {tag}")
 
@@ -288,6 +288,103 @@ def run_bench(
     summarize(folder)
     _print_pr_instructions(folder, last_run)
     return folder
+
+
+def run_bench_models(
+    models: list[str],
+    datasets: list[str],
+    scorers: list[str],
+    tracks: list[str],
+    out: Path,
+    runs: int,
+    machine_override: str | None = None,
+    force: bool = False,
+) -> Path:
+    """Run the bench matrix for several models, sequentially.
+
+    Each model gets its own ``<machine>-<slug>/`` folder under ``out``; ONE
+    ``SUMMARY.md`` is written at ``out`` covering all of them. Between models
+    the engine cache and the Metal buffer cache are released and memory is
+    logged before/after. A model that fails to bench (load error, crash) is
+    logged and skipped — the remaining models still run.
+    """
+    if not models:
+        raise SystemExit("no models selected")
+    failures: dict[str, str] = {}
+    for model in models:
+        print(f"\n=== model {model} ===", flush=True)
+        try:
+            run_bench(
+                model=model,
+                datasets=datasets,
+                scorers=scorers,
+                tracks=tracks,
+                out=out,
+                runs=runs,
+                machine_override=machine_override,
+                force=force,
+            )
+        except Exception as exc:  # noqa: BLE001 - one model must not stop the next
+            failures[model] = f"{type(exc).__name__}: {exc}"
+            print(f"FAILED model {model}: {failures[model]}", flush=True)
+        finally:
+            before = _metal_cache_memory_gb()
+            clear_engine_cache()
+            _clear_metal_cache()
+            after = _metal_cache_memory_gb()
+            print(
+                f"[memory] released {model}: metal cache {before} GB -> {after} GB",
+                flush=True,
+            )
+    if len(failures) == len(models):
+        detail = "; ".join(f"{m}: {err}" for m, err in failures.items())
+        raise SystemExit(f"every model failed — {detail}")
+    summarize(out)
+    for model, err in failures.items():
+        print(f"model {model} FAILED (skipped in summary): {err}")
+    return out
+
+
+def _metal_cache_memory_gb() -> float:
+    """Metal buffer-cache bytes in GB, or -1.0 when unreadable."""
+    try:
+        import mlx.core as mx
+
+        return round(mx.metal.get_cache_memory() / 2**30, 2)
+    except Exception:  # noqa: BLE001 - memory logging must never break the run
+        return -1.0
+
+
+def _clear_metal_cache() -> None:
+    """Release the Metal buffer cache; never raises."""
+    try:
+        import mlx.core as mx
+
+        mx.metal.clear_cache()
+    except Exception:  # noqa: BLE001 - cleanup must never break the run
+        pass
+
+
+def parse_model_list(comma_list: str) -> list[str]:
+    """Split a comma-separated --model list, dropping empties and duplicates."""
+    models: list[str] = []
+    for part in comma_list.split(","):
+        stripped = part.strip()
+        if stripped and stripped not in models:
+            models.append(stripped)
+    return models
+
+
+def parse_models_file(path: Path) -> list[str]:
+    """One model id per line; blank lines and '#' comments ignored."""
+    models: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if line and line not in models:
+            models.append(line)
+    if not models:
+        raise SystemExit(f"{path}: no model ids found")
+    return models
 
 
 def _run_one(model: str, track: str, scorer: str, jsonl: Path, combo_dir: Path) -> dict:
@@ -379,7 +476,18 @@ def main(argv: list[str] | None = None) -> int:
         prog="jevmlx bench",
         description="One command: complete PR-ready benchmark results folder.",
     )
-    parser.add_argument("--model", required=True, help="Hugging Face model id for mlx-lm")
+    parser.add_argument(
+        "--model",
+        required=True,
+        help="Hugging Face model id(s) for mlx-lm; comma-separated list runs "
+        "them sequentially, each into its own <machine>-<slug>/ folder, one "
+        "SUMMARY.md across all",
+    )
+    parser.add_argument(
+        "--models-file",
+        default=None,
+        help="path to a file with one model id per line ('#' comments allowed); overrides --model",
+    )
     parser.add_argument(
         "--datasets",
         default="bundled,typesafe,perturbed",
@@ -401,6 +509,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.models_file:
+        models = parse_models_file(Path(args.models_file))
+    else:
+        models = parse_model_list(args.model)
+    if not models:
+        parser.error("no model ids given (--model or --models-file)")
+
     datasets = [d for d in (s.strip() for s in args.datasets.split(",")) if d]
     scorers = [s for s in (s.strip() for s in args.scorers.split(",")) if s]
     tracks = [t for t in (t.strip() for t in args.tracks.split(",")) if t]
@@ -415,16 +530,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.runs < 1:
         parser.error("--runs must be >= 1")
 
-    run_bench(
-        model=args.model,
-        datasets=datasets,
-        scorers=scorers,
-        tracks=tracks,
-        out=Path(args.out),
-        runs=args.runs,
-        machine_override=args.machine,
-        force=args.force,
-    )
+    if len(models) == 1:
+        run_bench(
+            model=models[0],
+            datasets=datasets,
+            scorers=scorers,
+            tracks=tracks,
+            out=Path(args.out),
+            runs=args.runs,
+            machine_override=args.machine,
+            force=args.force,
+        )
+    else:
+        run_bench_models(
+            models=models,
+            datasets=datasets,
+            scorers=scorers,
+            tracks=tracks,
+            out=Path(args.out),
+            runs=args.runs,
+            machine_override=args.machine,
+            force=args.force,
+        )
     return 0
 
 

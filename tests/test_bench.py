@@ -209,3 +209,277 @@ def test_summarize_writes_folder_readme(tmp_path):
     summarize(root)
     assert (root / "README.md").exists()
     assert "jevmlx bench" in (root / "README.md").read_text(encoding="utf-8")
+
+
+# --- multi-model bench (I9) ------------------------------------------------
+
+
+def _patch_bench_core(monkeypatch, tmp_path, failing_models=()):
+    """Fake the whole bench core: preflight ok, datasets one stub, _run_one
+    writes a minimal report.json into the combo dir and returns a marker.
+
+    Models listed in ``failing_models`` raise on the first _run_one call.
+    Returns the list of models that were actually run, in order.
+    """
+    from jevmlx import bench
+
+    run_calls: list[str] = []
+
+    def fake_run_one(model, track, scorer, jsonl, combo_dir):
+        if model in failing_models:
+            raise RuntimeError(f"load failed for {model}")
+        run_calls.append(model)
+        combo_dir.mkdir(parents=True, exist_ok=True)
+        (combo_dir / "report.json").write_text(
+            json.dumps(
+                {
+                    "environment": {"chip": "fake"},
+                    "metrics": {"accuracy": 0.9, "n_cases": 3, "latency_ms_p50": 1.0},
+                }
+            ),
+            encoding="utf-8",
+        )
+        return {"run": {"model": model}}
+
+    monkeypatch.setattr(bench, "preflight", lambda force, machine_override: "fake-8gb")
+    monkeypatch.setattr(bench, "build_datasets", lambda datasets: {"bundled": tmp_path / "b.jsonl"})
+    monkeypatch.setattr(bench, "_run_one", fake_run_one)
+    monkeypatch.setattr(bench, "_print_pr_instructions", lambda folder, last_run: None)
+    monkeypatch.setattr(bench, "BENCH_CACHE", tmp_path / "cache")  # lock copies are best-effort
+    return run_calls
+
+
+def test_multi_model_two_folders_one_summary(tmp_path, monkeypatch, capsys):
+    """Two models -> two <machine>-<slug>/ folders, ONE SUMMARY.md at <out>."""
+    from jevmlx import bench
+
+    run_calls = _patch_bench_core(monkeypatch, tmp_path)
+    out = tmp_path / "results"
+
+    bench.run_bench_models(
+        models=["org/model-a", "org/model-b"],
+        datasets=["bundled"],
+        scorers=["slots"],
+        tracks=["parallel"],
+        out=out,
+        runs=1,
+    )
+
+    assert run_calls == ["org/model-a", "org/model-b"]
+    a = out / "fake-8gb-org--model-a" / "parallel-slots-bundled" / "report.json"
+    b = out / "fake-8gb-org--model-b" / "parallel-slots-bundled" / "report.json"
+    assert a.is_file() and b.is_file()
+    summary = out / "SUMMARY.md"
+    assert summary.is_file()
+    text = summary.read_text(encoding="utf-8")
+    assert "org--model-a" in text and "org--model-b" in text
+
+
+def test_failing_model_does_not_stop_the_next(tmp_path, monkeypatch, capsys):
+    """A failing first model is logged and skipped; the second still runs."""
+    from jevmlx import bench
+
+    run_calls = _patch_bench_core(monkeypatch, tmp_path, failing_models={"org/bad"})
+    out = tmp_path / "results"
+
+    bench.run_bench_models(
+        models=["org/bad", "org/good"],
+        datasets=["bundled"],
+        scorers=["slots"],
+        tracks=["parallel"],
+        out=out,
+        runs=1,
+    )
+
+    assert run_calls == ["org/good"]  # only the healthy model ran
+    # The failing model's folder is created (lock files may exist) but holds
+    # no report — the summary skips it (I6's load_failed rows land there).
+    bad_folder = out / "fake-8gb-org--bad"
+    if bad_folder.exists():
+        assert not (bad_folder / "parallel-slots-bundled" / "report.json").exists()
+    assert (out / "fake-8gb-org--good" / "parallel-slots-bundled" / "report.json").is_file()
+    text = (out / "SUMMARY.md").read_text(encoding="utf-8")
+    assert "org--good" in text and "org--bad" not in text
+    printed = capsys.readouterr().out
+    assert "FAILED model org/bad" in printed
+
+
+def test_every_model_failing_raises(tmp_path, monkeypatch):
+    """When no model benches, the run fails loudly with every error."""
+    from jevmlx import bench
+
+    _patch_bench_core(monkeypatch, tmp_path, failing_models={"org/x", "org/y"})
+    with pytest.raises(SystemExit, match="every model failed"):
+        bench.run_bench_models(
+            models=["org/x", "org/y"],
+            datasets=["bundled"],
+            scorers=["slots"],
+            tracks=["parallel"],
+            out=tmp_path / "results",
+            runs=1,
+        )
+
+
+def test_parse_model_list():
+    from jevmlx.bench import parse_model_list
+
+    assert parse_model_list("a") == ["a"]
+    assert parse_model_list("a, b ,c") == ["a", "b", "c"]
+    assert parse_model_list("a,,b,a") == ["a", "b"]  # empties and dupes dropped
+
+
+def test_parse_models_file(tmp_path):
+    from jevmlx.bench import parse_models_file
+
+    f = tmp_path / "models.txt"
+    f.write_text(
+        "# Ben's T1..T5 list\n"
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit\n"
+        "\n"
+        "  # T2 below\n"
+        "mlx-community/Llama-3.2-1B-Instruct-4bit # inline comment\n",
+        encoding="utf-8",
+    )
+    assert parse_models_file(f) == [
+        "mlx-community/Qwen2.5-0.5B-Instruct-4bit",
+        "mlx-community/Llama-3.2-1B-Instruct-4bit",
+    ]
+
+
+def test_parse_models_file_empty_raises(tmp_path):
+    from jevmlx.bench import parse_models_file
+
+    f = tmp_path / "models.txt"
+    f.write_text("# only comments\n\n", encoding="utf-8")
+    with pytest.raises(SystemExit, match="no model ids"):
+        parse_models_file(f)
+
+
+def test_bench_main_models_file_wiring(tmp_path, monkeypatch):
+    """--models-file overrides --model and reaches run_bench_models."""
+    from jevmlx import bench
+
+    _patch_bench_core(monkeypatch, tmp_path)
+    seen: dict = {}
+
+    def fake_run_bench_models(**kwargs):
+        seen.update(kwargs)
+        return kwargs["out"]
+
+    monkeypatch.setattr(bench, "run_bench_models", fake_run_bench_models)
+    models_file = tmp_path / "m.txt"
+    models_file.write_text("m/a\nm/b\n", encoding="utf-8")
+    rc = bench.main(
+        [
+            "--model",
+            "ignored",
+            "--models-file",
+            str(models_file),
+            "--datasets",
+            "bundled",
+            "--scorers",
+            "slots",
+            "--tracks",
+            "parallel",
+            "--runs",
+            "1",
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc == 0
+    assert seen["models"] == ["m/a", "m/b"]
+
+
+def test_bench_main_comma_list_wiring(tmp_path, monkeypatch):
+    """--model a,b reaches run_bench_models as [a, b]."""
+    from jevmlx import bench
+
+    _patch_bench_core(monkeypatch, tmp_path)
+    seen: dict = {}
+
+    def fake_run_bench_models(**kwargs):
+        seen.update(kwargs)
+        return kwargs["out"]
+
+    monkeypatch.setattr(bench, "run_bench_models", fake_run_bench_models)
+    rc = bench.main(
+        [
+            "--model",
+            "m/a,m/b",
+            "--datasets",
+            "bundled",
+            "--scorers",
+            "slots",
+            "--tracks",
+            "parallel",
+            "--runs",
+            "1",
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc == 0
+    assert seen["models"] == ["m/a", "m/b"]
+
+
+def test_bench_main_single_model_uses_run_bench(tmp_path, monkeypatch):
+    """One model id keeps the single-model run_bench path."""
+    from jevmlx import bench
+
+    _patch_bench_core(monkeypatch, tmp_path)
+    seen: dict = {}
+
+    def fake_run_bench(**kwargs):
+        seen.update(kwargs)
+        return kwargs["out"]
+
+    monkeypatch.setattr(bench, "run_bench", fake_run_bench)
+    rc = bench.main(
+        [
+            "--model",
+            "m/solo",
+            "--datasets",
+            "bundled",
+            "--scorers",
+            "slots",
+            "--tracks",
+            "parallel",
+            "--runs",
+            "1",
+            "--out",
+            str(tmp_path / "out"),
+        ]
+    )
+    assert rc == 0
+    assert seen["model"] == "m/solo"
+
+
+def test_release_between_models_logs_memory(tmp_path, monkeypatch, capsys):
+    """Between models the engine cache and Metal cache are released, with a
+    memory log line before/after."""
+    from jevmlx import bench
+
+    _patch_bench_core(monkeypatch, tmp_path)
+    released: list[int] = []
+
+    monkeypatch.setattr(bench, "_metal_cache_memory_gb", lambda: 2.0)
+    monkeypatch.setattr(bench, "_clear_metal_cache", lambda: released.append(1))
+    monkeypatch.setattr(
+        bench,
+        "clear_engine_cache",
+        lambda: released.append(0),
+    )
+
+    bench.run_bench_models(
+        models=["m/a", "m/b"],
+        datasets=["bundled"],
+        scorers=["slots"],
+        tracks=["parallel"],
+        out=tmp_path / "results",
+        runs=1,
+    )
+    # Two models -> two release cycles (engine cache + metal clear each).
+    assert released.count(0) >= 2
+    assert released.count(1) >= 2
+    assert "[memory] released m/a" in capsys.readouterr().out

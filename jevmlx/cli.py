@@ -243,7 +243,17 @@ def main(argv=None) -> None:
         "bench",
         help="One command: complete PR-ready benchmark results folder.",
     )
-    bench_p.add_argument("--model", required=True, help="Hugging Face model id for mlx-lm")
+    bench_p.add_argument(
+        "--model",
+        required=True,
+        help="Hugging Face model id(s) for mlx-lm; comma-separated list runs "
+        "them sequentially with one SUMMARY.md across all",
+    )
+    bench_p.add_argument(
+        "--models-file",
+        default=None,
+        help="file with one model id per line ('#' comments allowed); overrides --model",
+    )
     bench_p.add_argument(
         "--datasets",
         default="bundled,typesafe,perturbed",
@@ -405,6 +415,8 @@ def main(argv=None) -> None:
             argv += ["--out", args.out]
         if args.machine:
             argv += ["--machine", args.machine]
+        if args.models_file:
+            argv += ["--models-file", args.models_file]
         if args.force:
             argv.append("--force")
         raise SystemExit(bench_main(argv))
