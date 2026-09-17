@@ -10,3 +10,7 @@ One directory per eval run, written by `jevmlx eval` / `jevmlx report`
   report.json         metrics computed by `jevmlx report`
   report.md           human-readable summary of report.json
 ```
+
+To contribute a results directory from your own Apple Silicon Mac, follow
+[BENCHMARKING.md](../../BENCHMARKING.md) — it covers the artifact list,
+Machine hygiene, exact commands, and what not to commit.
