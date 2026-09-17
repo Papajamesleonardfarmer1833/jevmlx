@@ -293,9 +293,8 @@ def test_load_cases_skips_comments_and_blank(tmp_path):
     assert len(cases) == 1 and cases[0]["id"] == "c1"
 
 
-def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
-    """Accessor reads finalized 'log_scores' (dict) first; falls back to
-    legacy 'scores' (list in choice order)."""
+def test_parallel_log_scores_reads_finalized_dict(tmp_path, monkeypatch):
+    """Accessor reads the finalized 'log_scores' dict (dict-only contract)."""
     from jevmlx import evalrun as er
 
     class FakeField:
@@ -339,27 +338,6 @@ def test_parallel_log_scores_accessor_prefers_dict(tmp_path, monkeypatch):
     result = decide({"x": {"type": "enum", "description": "d", "choices": ["A", "B"]}}, "ctx")
     assert result["x"]["log_scores"] == {"A": -0.1, "B": -2.0}
     assert calls["temperature"] == 1.0
-
-    # legacy fallback: scores list in choice order
-    def fake_rpg_legacy(model, tokenizer, context, schema, temperature=1.0, scoring="trie"):
-        return {
-            "field_telemetry": {
-                "x": {
-                    "value": "B",
-                    "type": "enum",
-                    "probability": 0.4,
-                    "scores": [-2.0, -0.1],
-                }
-            },
-            "elapsed_ms": 5.0,
-            "rows": 2,
-            "passes": 1,
-        }
-
-    monkeypatch.setattr(engine_mod, "run_parallel_generation", fake_rpg_legacy)
-    decide = er.parallel_decide_fn(model=object(), tokenizer=object())
-    result = decide({"x": {"type": "enum", "description": "d", "choices": ["A", "B"]}}, "ctx")
-    assert result["x"]["log_scores"] == {"A": -2.0, "B": -0.1}
 
 
 def test_run_json_carries_provenance_keys(tmp_path, monkeypatch):

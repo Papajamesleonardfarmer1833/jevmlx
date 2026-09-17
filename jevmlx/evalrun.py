@@ -78,13 +78,9 @@ def _sha256_file(path: str | None) -> str | None:
 def parallel_decide_fn(model, tokenizer, scoring: str = "trie") -> DecideFn:
     """Track ``parallel``: the jevmlx engine at T=1.
 
-    Log scores come from field telemetry. The finalized engine key is
-    ``log_scores`` — a dict mapping choice to constrained-path log P at T=1.
-    Main today still exposes ``scores`` (a list in choice order); this
-    accessor reads ``log_scores`` first and falls back to ``scores``, behind
-    this one function, so the engine-side migration does not touch the
-    runner. Multi fields report ``per_option`` instead; log_scores stays
-    None for them.
+    Log scores come from field telemetry's finalized ``log_scores`` key — a
+    dict mapping choice to constrained-path log P at T=1. Multi fields
+    report ``per_option`` instead; log_scores stays None for them.
     """
 
     def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
@@ -107,10 +103,6 @@ def parallel_decide_fn(model, tokenizer, scoring: str = "trie") -> DecideFn:
                 raw = telemetry.get("log_scores")
                 if isinstance(raw, dict):
                     entry["log_scores"] = raw
-                else:
-                    raw_list = telemetry.get("scores")
-                    if raw_list is not None:
-                        entry["log_scores"] = dict(zip(field.choices, raw_list, strict=True))
             out[fname] = entry
         out["_meta"] = {
             "latency_ms": result.get("elapsed_ms"),
