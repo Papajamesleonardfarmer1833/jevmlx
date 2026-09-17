@@ -45,8 +45,8 @@ _MARKER_END = "<!-- leaderboard:end -->"
 _WORKFLOW_COLS = [
     ("customer_service", "Customer service"),
     ("agent_trace", "Agent trace"),
-    ("security", "Security"),
-    ("invoices", "Invoices"),
+    ("security_incidents", "Security"),
+    ("invoice", "Invoices"),
 ]
 
 _HEADER = (
@@ -57,7 +57,14 @@ _SEP = "|---|---|---|---|---|---|---|---|---|---|---|---|"
 
 
 def _fmt_pct(value) -> str:
-    """A 0..1 ratio as a percentage string, or — when None."""
+    """A 0..1 ratio as a percentage string, or — when None.
+
+    L1's by_workflow values are dicts ``{agreed, total, agreement}``;
+    official.json's are bare floats. Normalize: extract the ``agreement``
+    key from a dict, else use the value directly.
+    """
+    if isinstance(value, dict):
+        value = value.get("agreement")
     if value is None:
         return "—"
     if isinstance(value, int | float):
@@ -89,14 +96,22 @@ def _load_official(path: Path) -> tuple[list[dict], str]:
     return data.get("models", []), data.get("retrieved", "")
 
 
-def _load_published(path: Path | None) -> list[dict]:
-    """L1's published_agreement.json -> model rows (list or {'models': [...]})."""
+def _load_published(path: Path | None) -> tuple[list[dict], dict]:
+    """L1's published_agreement.json -> (models, subset).
+
+    Expected shape (from ``benchmarks.typesafe.published.published_agreement``)::
+
+        {"subset": {"n_fields": N, "n_cases": M, "workflows": [...],
+                   "field_ids": [...]},
+         "models": [{"name": ..., "agreed": A, "total": T, "agreement": 0.xx,
+                     "by_workflow": {wf: {"agreed", "total", "agreement"}}}]}
+    """
     if path is None or not path.exists():
-        return []
+        return [], {}
     data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, list):
-        return data
-    return data.get("models", [])
+        return data, {}
+    return data.get("models", []), data.get("subset", {})
 
 
 def _p50_latency_ms(folder: Path) -> float | None:
@@ -214,7 +229,7 @@ def build_table(
     if official_path is None:
         official_path = Path("benchmarks/typesafe/official.json")
     official_models, retrieved = _load_official(official_path)
-    published_models = _load_published(published_path)
+    published_models, published_subset = _load_published(published_path)
     local_rows = _local_rows(results_root) if results_root else []
 
     lines: list[str] = []
@@ -239,8 +254,8 @@ def build_table(
                         "by_workflow": {
                             "customer_service": bw.get("customer_service"),
                             "agent_trace": bw.get("agent_trace"),
-                            "security": bw.get("security"),
-                            "invoices": bw.get("invoices"),
+                            "security_incidents": bw.get("security_incidents"),
+                            "invoice": bw.get("invoice"),
                         },
                         "time_per_case_s": m.get("time_per_case_s"),
                         "cost_per_case_usd": m.get("cost_per_case_usd"),
@@ -259,20 +274,20 @@ def build_table(
             lines.append(
                 _row_line(
                     {
-                        "model": m.get("model", m.get("model_id", "")),
+                        "model": m.get("name", ""),
                         "source": "computed from published answers",
                         "scorer": "—",
                         "machine": "—",
-                        "accuracy": m.get("agreement", m.get("agreement_common_subset")),
+                        "accuracy": m.get("agreement"),
                         "by_workflow": {
                             "customer_service": bw.get("customer_service"),
                             "agent_trace": bw.get("agent_trace"),
-                            "security": bw.get("security"),
-                            "invoices": bw.get("invoices"),
+                            "security_incidents": bw.get("security_incidents"),
+                            "invoice": bw.get("invoice"),
                         },
                         "time_per_case_s": None,
                         "cost_per_case_usd": None,
-                        "cases": m.get("n_cases", m.get("n_fields", "—")),
+                        "cases": m.get("total", "—"),
                     }
                 )
             )
@@ -294,6 +309,15 @@ def build_table(
         "_Consensus label = the agreement of GPT-6 Astra + Claude Fable 5.1 "
         "(TypeSafe's reference)._"
     )
+    if published_subset:
+        n_fields = published_subset.get("n_fields")
+        n_cases = published_subset.get("n_cases")
+        workflows = published_subset.get("workflows", [])
+        if n_fields is not None:
+            wf_str = ", ".join(workflows) if workflows else "—"
+            lines.append(
+                f"_Common subset: {n_fields} fields across {n_cases} cases (workflows: {wf_str})._"
+            )
     lines.append("")
     if not local_rows:
         lines.append("No local results yet — contribute one with `jevmlx bench`.")

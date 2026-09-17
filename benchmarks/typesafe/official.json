@@ -9,8 +9,8 @@
       "by_workflow": {
         "customer_service": 0.760,
         "agent_trace": 0.716,
-        "security": 0.617,
-        "invoices": 0.618
+        "security_incidents": 0.617,
+        "invoice": 0.618
       },
       "time_per_case_s": 0.4,
       "cost_per_case_usd": 0.0004

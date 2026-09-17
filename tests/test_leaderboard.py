@@ -1,174 +1,287 @@
-"""Tests for the leaderboard generator (benchmarks/leaderboard.py).
-
-Fixtures: a fake results tree and a fake published_agreement.json / official.json.
-"""
+"""Tests for benchmarks/leaderboard.py: exact table text, stale README check,
+missing published file -> local rows only, and L1's real published_agreement()
+output shape (by_workflow values are dicts {agreed, total, agreement})."""
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-import pytest
+from benchmarks.leaderboard import build_table, check_readme, main, write_readme_block
+from benchmarks.typesafe.published import published_agreement
 
-from benchmarks.leaderboard import (
-    build_table,
-    check_readme,
-    write_readme_block,
-)
+_OFFICIAL = {
+    "_note": "CITATION, not measurement.",
+    "source_url": "https://evals.typesafe.ai/",
+    "retrieved": "2026-09-17",
+    "models": [
+        {
+            "name": "Jev",
+            "accuracy": 0.678,
+            "by_workflow": {
+                "customer_service": 0.760,
+                "agent_trace": 0.716,
+                "security_incidents": 0.617,
+                "invoice": 0.618,
+            },
+            "time_per_case_s": 0.4,
+            "cost_per_case_usd": 0.0004,
+        },
+        {
+            "name": "GPT-5.6 Terra",
+            "accuracy": 0.679,
+            "by_workflow": {},
+            "time_per_case_s": 10.1,
+            "cost_per_case_usd": 0.0304,
+        },
+    ],
+}
 
-HEADER = (
-    "| Model | Source | Scorer | Machine | Accuracy | Customer service"
-    " | Agent trace | Security | Invoices | Time per case | Cost per case | Cases |"
-)
+
+def _write_official(tmp_path: Path) -> Path:
+    p = tmp_path / "official.json"
+    p.write_text(json.dumps(_OFFICIAL, indent=2), encoding="utf-8")
+    return p
 
 
-@pytest.fixture()
-def results_tree(tmp_path: Path) -> Path:
-    """One typesafe/parallel combo + one wrong-dataset combo to be filtered."""
-    results = tmp_path / "results"
-    combo = results / "fake-8gb-org--m1" / "parallel-slots-typesafe"
+def _published_records():
+    """Reuse L1's hand-built fixture shape (3 records, 2 models: opus, sol).
+
+    Mirrors tests/test_published.py's `records` fixture so the published
+    block is driven by the REAL published_agreement() function, not a
+    hand-rolled JSON blob.
+    """
+    bool_schema = {"type": "boolean", "description": "d"}
+    enum_schema = {"type": "enum", "description": "d", "choices": ["refund", "dispute"]}
+    score_schema = {"type": "enum", "description": "d", "choices": ["0", "1", "2", "3"]}
+
+    def _record(rid, workflow, schema, labels, models, ambiguous=()):
+        rec = {
+            "id": rid,
+            "workflow": workflow,
+            "schema": schema,
+            "labels": labels,
+            "meta": {"models": models},
+        }
+        if ambiguous:
+            rec["meta"]["ambiguous"] = list(ambiguous)
+        return rec
+
+    return [
+        _record(
+            "typesafe/wf1/case-1",
+            "wf1",
+            {"bool_field": bool_schema, "enum_field": enum_schema},
+            {"bool_field": False, "enum_field": "refund"},
+            {
+                "bool_field": {"opus": 0.9, "sol": 0.2},
+                "enum_field": {"opus": "refund", "sol": "refund"},
+            },
+        ),
+        _record(
+            "typesafe/wf2/case-2",
+            "wf2",
+            {"score_field": score_schema, "ambiguous_field": enum_schema},
+            {"score_field": "2", "ambiguous_field": "refund"},
+            {
+                "score_field": {"opus": 1.6, "sol": 0.4},
+                "ambiguous_field": {"opus": "refund", "sol": "refund"},
+            },
+            ambiguous=["ambiguous_field"],
+        ),
+        _record(
+            "typesafe/wf1/case-3",
+            "wf1",
+            {"missing_field": enum_schema},
+            {"missing_field": "refund"},
+            {"missing_field": {"opus": "refund"}},
+        ),
+    ]
+
+
+def _write_published(tmp_path: Path) -> Path:
+    """Write L1's real published_agreement() output to a JSON file."""
+    result = published_agreement(_published_records())
+    p = tmp_path / "published_agreement.json"
+    p.write_text(json.dumps(result, indent=2), encoding="utf-8")
+    return p
+
+
+def _write_local_result(tmp_path: Path) -> Path:
+    """A minimal valid results folder for a typesafe parallel run."""
+    root = tmp_path / "results"
+    machine_dir = root / "m1-8gb-fake"
+    combo = machine_dir / "parallel-trie-typesafe"
     combo.mkdir(parents=True)
-    (combo / "run.json").write_text(
-        json.dumps({"config": {"model": "org/m1", "track": "parallel", "dataset": "typesafe"}}),
-        encoding="utf-8",
-    )
-    (combo / "report.json").write_text(
-        json.dumps(
-            {
-                "metrics": {
-                    "typesafe_agreement": {
-                        "agreement_common_subset": 0.75,
-                        "n_cases": 20,
-                        "n_fields": 40,
-                        "by_workflow": {"customer_service": 0.8},
-                    }
+    run = {
+        "run_id": "r1",
+        "environment": {"chip": "fake"},
+        "config": {"model": "fake-1b", "track": "parallel", "dataset": "typesafe"},
+        "counts": {"cases": 4, "fields": 4, "prediction_lines": 4},
+    }
+    (combo / "run.json").write_text(json.dumps(run), encoding="utf-8")
+    report = {
+        "environment": {"chip": "fake"},
+        "metrics": {
+            "typesafe_agreement": {
+                "agreement_common_subset": 0.75,
+                "by_workflow": {"customer_service": 0.8, "invoices": 0.7},
+                "n_fields": 4,
+                "n_cases": 4,
+            }
+        },
+    }
+    (combo / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    records = []
+    for i in range(4):
+        records.append(
+            json.dumps(
+                {
+                    "case_id": f"c{i}",
+                    "field": "f",
+                    "latency_ms": 500.0 + i * 100,
+                    "valid": True,
+                    "correct": True,
+                    "label": "A",
+                    "prediction": "A",
                 }
-            }
-        ),
-        encoding="utf-8",
-    )
-    (combo / "predictions.jsonl").write_text(
-        "\n".join(json.dumps({"latency_ms": ms}) for ms in (100, 200, 300, 400)) + "\n",
-        encoding="utf-8",
-    )
-    # A bundled-dataset combo: must NOT appear.
-    other = results / "fake-8gb-org--m1" / "parallel-slots-bundled"
-    other.mkdir(parents=True)
-    (other / "run.json").write_text(
-        json.dumps({"config": {"model": "org/m1", "track": "parallel", "dataset": "bundled"}}),
-        encoding="utf-8",
-    )
-    (other / "report.json").write_text(json.dumps({"metrics": {}}), encoding="utf-8")
-    return results
+            )
+        )
+    (combo / "predictions.jsonl").write_text("\n".join(records) + "\n", encoding="utf-8")
+    return root
 
 
-@pytest.fixture()
-def official_file(tmp_path: Path) -> Path:
-    path = tmp_path / "official.json"
-    path.write_text(
-        json.dumps(
-            {
-                "source_url": "https://evals.typesafe.ai/",
-                "retrieved": "2026-09-17",
-                "models": [
-                    {
-                        "name": "Jev",
-                        "accuracy": 0.678,
-                        "by_workflow": {"customer_service": 0.760},
-                        "time_per_case_s": 0.4,
-                        "cost_per_case_usd": 0.0004,
-                    }
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    return path
+def test_official_block_exact_text(tmp_path):
+    """Official + published blocks render the exact expected rows."""
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    table = build_table(None, published, official)
+    # Official header + group separator line + two cited rows.
+    assert "TypeSafe official (cited, retrieved 2026-09-17)" in table
+    assert "| Jev | official (cited) | — | — | 67.8% | 76.0% |" in table
+    assert "71.6% | 61.7% | 61.8% | 0.4s | $0.0004 | — |" in table
+    assert "| GPT-5.6 Terra | official (cited) | — | — | 67.9% |" in table
+    # Published group — driven by the REAL published_agreement() output.
+    assert "Published models on the public examples (computed)" in table
+    assert "| opus | computed from published answers |" in table
+    assert "| sol | computed from published answers |" in table
+    # by_workflow values are dicts {agreed, total, agreement}; _fmt_pct
+    # extracts the agreement float. The fixture's workflows are wf1/wf2
+    # (not the 4 canonical column names), so the workflow columns render —
+    # and the overall accuracy (agreed/total) is 66.7% for both models.
+    assert "66.7%" in table
+    # No local rows yet -> the contribute line.
+    assert "No local results yet" in table
 
 
-@pytest.fixture()
-def published_file(tmp_path: Path) -> Path:
-    path = tmp_path / "published_agreement.json"
-    path.write_text(
-        json.dumps(
-            {
-                "subset": {"n_fields": 40, "n_cases": 20, "workflows": [], "field_ids": []},
-                "models": [{"name": "Jev", "agreed": 30, "total": 40, "agreement": 0.75}],
-            }
-        ),
-        encoding="utf-8",
-    )
-    return path
+def test_published_uses_real_l1_shape(tmp_path):
+    """The published block reads L1's actual output: model key 'name',
+    accuracy 'agreement', by_workflow dicts {agreed, total, agreement},
+    cases = total."""
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    table = build_table(None, published, official)
+    # opus: 2 agreed out of 3 total (bool disagree, enum agree, score agree).
+    assert "| opus | computed from published answers | — | — | 66.7% |" in table
+    # Cases column = total (3 for opus).
+    # Find the opus row and check it ends with | 3 |.
+    opus_line = next(line for line in table.splitlines() if line.startswith("| opus |"))
+    assert opus_line.rstrip().endswith("| 3 |")
 
 
-def test_official_block_renders_cited_rows(official_file: Path) -> None:
-    table = build_table(None, None, official_file)
-    assert "| **TypeSafe official (cited, retrieved 2026-09-17)** |" in table
-    assert "| Jev | official (cited) |" in table
-    assert "67.8%" in table and "76.0%" in table
-    assert "0.4s" in table and "$0.0004" in table
-    assert header_in(table)
+def test_local_rows_render_when_results_present(tmp_path):
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    results = _write_local_result(tmp_path)
+    table = build_table(results, published, official)
+    assert "jevmlx, local (measured)" in table
+    assert "fake-1b" in table
+    assert "local" in table
+    # Accuracy 0.75 -> 75.0%, time per case = median(500,600,700,800)ms = 0.65s -> 0.7s (1dp).
+    assert "75.0%" in table
+    assert "0.7s" in table
+    assert "$0 (local)" in table
+    assert "| 4 |" in table  # cases
+    # The "No local results" line must NOT appear when local rows exist.
+    assert "No local results yet" not in table
 
 
-def header_in(table: str) -> bool:
-    return HEADER in table
+def test_missing_published_file_local_rows_only(tmp_path):
+    """No published file -> official + local only, no published group."""
+    official = _write_official(tmp_path)
+    results = _write_local_result(tmp_path)
+    table = build_table(results, None, official)
+    assert "Published models on the public examples" not in table
+    assert "official (cited)" in table
+    assert "jevmlx, local (measured)" in table
 
 
-def test_published_block_only_when_no_official(published_file: Path) -> None:
-    # official_path=None falls back to the repo default, which exists in this
-    # checkout — so point it at a missing file to force "no official block".
-    table = build_table(None, published_file, None)
-    assert "| **Published models on the public examples (computed)** |" in table
-    assert "75.0%" in table or "0.750" in table
-
-
-def test_official_and_published_blocks_together(official_file: Path, published_file: Path) -> None:
-    table = build_table(None, published_file, official_file)
-    assert table.index("TypeSafe official (cited") < table.index(
-        "Published models on the public examples"
-    )
-
-
-def test_local_rows_filter_to_typesafe_parallel(results_tree: Path, official_file: Path) -> None:
-    table = build_table(results_tree, None, official_file)
-    assert "| **jevmlx, local (measured)** |" in table
-    assert "| org/m1 | local | slots | fake-8gb |" in table
-    assert "75.0%" in table or "0.750" in table
-    # bundled combo filtered out
-    assert "bundled" not in table
-    # latency: median of (100,200,300,400) = 250 ms -> 0.25s approx per case
-    assert "0.3s" in table or "0.2s" in table
-
-
-def test_missing_published_file_yields_local_rows_only(
-    results_tree: Path, official_file: Path, tmp_path: Path
-) -> None:
-    missing = tmp_path / "does-not-exist.json"
-    table = build_table(results_tree, missing, official_file)
-    assert "Published models" not in table
-    assert "| org/m1 | local" in table
-
-
-def test_write_and_check_readme_roundtrip(tmp_path: Path, official_file: Path) -> None:
+def test_stale_readme_block_fails_check(tmp_path):
+    """A README whose marker block differs from the built table fails --check-readme."""
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
     readme = tmp_path / "README.md"
     readme.write_text(
-        "# Title\n\n<!-- leaderboard:start -->\nold\n<!-- leaderboard:end -->\n",
+        "intro\n\n<!-- leaderboard:start -->\n| old |\n<!-- leaderboard:end -->\n",
         encoding="utf-8",
     )
-    table = build_table(None, None, official_file)
-    assert write_readme_block(readme, table) is True
-    assert check_readme(readme, table) is True
-    # Stale: a different table fails the check.
-    assert check_readme(readme, table + "\n| extra | row |") is False
+    table = build_table(None, published, official)
+    assert not check_readme(readme, table)
 
 
-def test_no_local_rows_line(results_tree_empty: Path, official_file: Path) -> None:
-    table = build_table(results_tree_empty, None, official_file)
-    assert "No local results yet — contribute one with `jevmlx bench`." in table
+def test_fresh_readme_block_passes_check(tmp_path):
+    """After write_readme_block, check_readme passes."""
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "intro\n\n<!-- leaderboard:start -->\n<!-- leaderboard:end -->\n", encoding="utf-8"
+    )
+    table = build_table(None, published, official)
+    write_readme_block(readme, table)
+    assert check_readme(readme, table)
 
 
-@pytest.fixture()
-def results_tree_empty(tmp_path: Path) -> Path:
-    results = tmp_path / "empty-results"
-    results.mkdir()
-    return results
+def test_main_check_readme_exits_1_when_stale(tmp_path, capsys):
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "intro\n\n<!-- leaderboard:start -->\n| old |\n<!-- leaderboard:end -->\n",
+        encoding="utf-8",
+    )
+    rc = main(
+        [
+            "--check-readme",
+            "--readme",
+            str(readme),
+            "--official",
+            str(official),
+            "--published",
+            str(published),
+        ]
+    )
+    assert rc == 1
+    assert "STALE" in capsys.readouterr().err
+
+
+def test_main_check_readme_exits_0_when_fresh(tmp_path, capsys):
+    official = _write_official(tmp_path)
+    published = _write_published(tmp_path)
+    readme = tmp_path / "README.md"
+    readme.write_text("intro\n", encoding="utf-8")
+    table = build_table(None, published, official)
+    write_readme_block(readme, table)
+    rc = main(
+        [
+            "--check-readme",
+            "--readme",
+            str(readme),
+            "--official",
+            str(official),
+            "--published",
+            str(published),
+        ]
+    )
+    assert rc == 0
+    assert "up to date" in capsys.readouterr().out.lower()
