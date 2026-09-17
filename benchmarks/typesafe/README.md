@@ -75,3 +75,30 @@ consensus distributions reach the prediction lines; the report's
 These numbers are comparable across *models and scorers on this dataset*;
 treat any comparison to evals.typesafe.ai itself as indicative, since the
 case selection, field reconstruction, and consensus computation are ours.
+
+## Published-model agreement (the leaderboard numbers)
+
+`benchmarks/typesafe/published.py` computes what evals.typesafe.ai shows for
+the models it publishes alongside the cases: each published model's agreement
+with the consensus label, over the **strict common subset** — the questions
+every published model answered AND that have a non-ambiguous consensus
+(fetcher ambiguity flag empty, consensus label present).
+
+```bash
+python -m benchmarks.typesafe.fetch --out cases.jsonl
+python -m benchmarks.typesafe.published --data cases.jsonl --out published_agreement.json
+```
+
+The output JSON carries the subset definition (`n_fields`, `n_cases`,
+`workflows`, and the exact `field_ids`) plus one row per model — names as
+published (`opus`, `sol`, `typesafe`; the leaderboard maps display names) —
+with `agreed`/`total`/`agreement` and per-workflow rates. Model picks are
+derived from the raw answers the fetcher stores in `meta.models`: a boolean
+raw (P(true)) picks True at >= 0.5; a choice raw is the picked string; a
+score raw is rounded to its rubric value (round(score) matches the published
+probabilities' argmax on 43/47 sampled answers; ties differ but the site
+displays the score). The same subset is reusable from Python:
+`common_subset_field_ids(records)` in `benchmarks/typesafe/published.py`
+returns the `"<record_id>::<field_name>"` ids so `jevmlx report` and the
+leaderboard can score our own runs on the identical subset (bare field names
+repeat across records, so the pair id is what identifies a question).
