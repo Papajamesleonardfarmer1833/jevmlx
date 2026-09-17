@@ -85,7 +85,7 @@ curl -s localhost:8000/decide -H 'Content-Type: application/json' \
   -d '{"schema": {"action": {"type": "enum", "description": "The action to take", "choices": ["APPROVE", "BLOCK_TRANSACTION"]}}, "context": "payment from a verified customer, all checks passed", "temperature": 1.0}'
 ```
 
-`GET /health` returns `{"ok": true, "model": M}`; bad input returns 400.
+`GET /health` returns `{"ok": true, "model": M, "busy": bool, "requests_served": n}` (`busy` is true while a decide is running); bad input returns 400. The server logs via `logging` (`openjev.serve`, INFO for model load/server start); the CLI sets WARNING to stderr by default, `-v` for INFO, and `OPENJEV_LOG=json` for one JSON object per line (engine decisions then log structured `prefill_ms`/`suffix_eval_ms`/`rows`/`passes`/`num_fields`).
 
 **06. Temperature calibration.** `openjev calibrate` fits one scalar temperature on labeled JSONL data by minimizing NLL, then reports binned ECE before and after:
 

@@ -1,6 +1,7 @@
 """Serve tests: fake decide_fn, HTTPServer on port 0 in a thread. No model."""
 
 import json
+import logging
 import threading
 import urllib.error
 import urllib.request
@@ -77,7 +78,22 @@ def test_health(server):
     port, _ = server
     with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as resp:
         assert resp.status == 200
-        assert json.loads(resp.read()) == {"ok": True, "model": "fake"}
+        assert json.loads(resp.read()) == {
+            "ok": True,
+            "model": "fake",
+            "busy": False,
+            "requests_served": 0,
+        }
+
+
+def test_health_after_decide_shows_served_and_not_busy(server):
+    port, _ = server
+    schema = {"action": {"type": "enum", "choices": ["APPROVE"], "description": "d"}}
+    _post(port, {"schema": schema, "context": "ctx"})
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as resp:
+        health = json.loads(resp.read())
+    assert health["requests_served"] == 1
+    assert health["busy"] is False
 
 
 def test_decide_internal_error_is_500():
@@ -106,3 +122,22 @@ def test_decide_internal_error_with_empty_message_is_500():
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_serve_does_not_print(server, capsys):
+    """T8a: the library logs, never print()s — stdout must stay clean."""
+    port, _ = server
+    schema = {"action": {"type": "enum", "choices": ["APPROVE"], "description": "d"}}
+    _post(port, {"schema": schema, "context": "ctx"})
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5):
+        pass
+    assert capsys.readouterr().out == ""
+
+
+def test_decide_emits_log_record(server, caplog):
+    """T8b: a decide emits a log record through the logging module."""
+    port, _ = server
+    schema = {"action": {"type": "enum", "choices": ["APPROVE"], "description": "d"}}
+    with caplog.at_level(logging.INFO, logger="openjev.serve"):
+        _post(port, {"schema": schema, "context": "ctx"})
+    assert any(r.levelno >= logging.INFO for r in caplog.records)

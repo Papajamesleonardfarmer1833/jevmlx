@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from importlib import resources
@@ -94,7 +95,15 @@ def main(argv=None) -> None:
     serve_p.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
     serve_p.add_argument("--host", default="127.0.0.1")
     serve_p.add_argument("--port", type=int, default=8000)
+    ap.add_argument("-v", "--verbose", action="store_true", help="info-level logs on stderr")
     args = ap.parse_args(argv)
+
+    from openjev.log import configure
+
+    configure(
+        level=logging.INFO if args.verbose else logging.WARNING,
+        json_mode=os.environ.get("OPENJEV_LOG") == "json",
+    )
 
     if args.command == "decide":
         if bool(args.preset) == bool(args.schema or args.context):
