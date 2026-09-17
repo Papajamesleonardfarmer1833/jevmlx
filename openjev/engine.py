@@ -450,7 +450,6 @@ def run_parallel_generation(
             "cardinality": fdef.cardinality,
             "scores": [round(s, 6) for s in scores],
             "top_choices": scored_choices[:5],
-            "scores": scores,
         }
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
