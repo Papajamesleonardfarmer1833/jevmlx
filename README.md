@@ -135,8 +135,7 @@ Where this is going next: [ROADMAP.md](ROADMAP.md) (calibration, evaluation expa
 ## Repo layout
 
 ```
-openjev/                     engine + schema + CLI
-presets/                     example schemas
+openjev/                     engine, schema, typed API, calibration, CLI + example presets
 setup.sh, run_benchmark.sh   one-command setup + benchmark (Mac)
 tools/                       benchmark scripts
 quality-eval/                labeled accuracy + calibration comparison (1.5B/7B/8B)
