@@ -39,12 +39,8 @@ Sample output:
 ```
 Preset : FinTech Fraud & Autonomous AML Compliance (28 Fields)
 Model  : mlx-community/Qwen2.5-1.5B-Instruct-4bit
-Latency: 970.9 ms (prefill 416.6 + batched pass 530.4)   # illustrative; see Model compatibility
-```
+Latency: 970.9 ms (prefill 416.6 + batched pass 530.4)
 
-(The table below shows only the decision head of the output; confidences are rounded for display.)
-
-```
 field                           value                   conf   type
 ------------------------------  ----------------------  -----  -----
 is_fraudulent                   True                    0.825  boolean
@@ -52,6 +48,8 @@ risk_tier                       HIGH                    0.752  enum
 recommended_action              BLOCK_TRANSACTION       0.702  enum
 ...
 ```
+
+Illustrative output; per-model latencies are in [Model compatibility](#model-compatibility).
 
 ## Features
 
@@ -115,7 +113,7 @@ accuracy       : 0.5972
 
 ## Model compatibility
 
-Numbers below were produced by `jevmlx eval` / `jevmlx report`; raw predictions and run manifests live in `benchmarks/results/` (to be populated by the N1 run).
+Latency and memory numbers below come from `benchmarks/compat.py`. Accuracy and calibration numbers will come from `jevmlx eval` / `jevmlx report` and live in `benchmarks/results/` (populated by the N1 run).
 
 Every preset field is decided in one batched pass — measured on a MacBook Pro M2 Pro, 34 GB, macOS (warm runs, `benchmarks/compat.py`). "Warm latency" is the average of the second run on both presets; peak memory is Metal's process high-water mark after both presets.
 
@@ -138,10 +136,13 @@ Three scripts in [benchmarks/](benchmarks/), each run against a local mlx-lm mod
 
 ## Evaluate
 
-Run the labeled cases through a track, then summarize offline:
+Build the labeled JSONL, run it through a track, then summarize offline:
 
 ```
-jevmlx eval --data benchmarks/cases.jsonl --track parallel --permutations rotations --out DIR
+python -m benchmarks.to_jsonl --out cases.jsonl          # bundled fintech cases
+python -m benchmarks.typesafe.fetch --out typesafe.jsonl # TypeSafe public examples
+
+jevmlx eval --data cases.jsonl --track parallel --permutations rotations --out DIR
 jevmlx report --predictions DIR/predictions.jsonl --out DIR/report.json
 ```
 
