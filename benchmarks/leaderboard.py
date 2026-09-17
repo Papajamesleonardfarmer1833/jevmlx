@@ -99,19 +99,30 @@ def _load_official(path: Path) -> tuple[list[dict], str]:
 def _load_published(path: Path | None) -> tuple[list[dict], dict]:
     """L1's published_agreement.json -> (models, subset).
 
-    Expected shape (from ``benchmarks.typesafe.published.published_agreement``)::
+    Strict L1 shape only (from
+    ``benchmarks.typesafe.published.published_agreement``)::
 
         {"subset": {"n_fields": N, "n_cases": M, "workflows": [...],
                    "field_ids": [...]},
          "models": [{"name": ..., "agreed": A, "total": T, "agreement": 0.xx,
                      "by_workflow": {wf: {"agreed", "total", "agreement"}}}]}
+
+    Raises ``ValueError`` naming the file if ``subset`` or ``models`` is
+    missing — no silent fallback to a bare list.
     """
     if path is None or not path.exists():
         return [], {}
     data = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(data, list):
-        return data, {}
-    return data.get("models", []), data.get("subset", {})
+    if not isinstance(data, dict) or "subset" not in data or "models" not in data:
+        missing = (
+            sorted(set(["subset", "models"]) - set(data))
+            if isinstance(data, dict)
+            else ["subset", "models"]
+        )
+        raise ValueError(
+            f"{path}: expected L1 shape {{'subset': ..., 'models': ...}}, missing keys: {missing}"
+        )
+    return data["models"], data["subset"]
 
 
 def _p50_latency_ms(folder: Path) -> float | None:

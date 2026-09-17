@@ -220,6 +220,28 @@ def test_missing_published_file_local_rows_only(tmp_path):
     assert "jevmlx, local (measured)" in table
 
 
+def test_malformed_published_file_raises(tmp_path):
+    """A published file missing 'subset' or 'models' raises ValueError, no fallback."""
+    import pytest
+
+    official = _write_official(tmp_path)
+    bad = tmp_path / "published_agreement.json"
+    bad.write_text(json.dumps([{"model": "x"}]), encoding="utf-8")  # bare list
+    with pytest.raises(ValueError, match="missing keys"):
+        build_table(None, bad, official)
+
+
+def test_published_missing_models_key_raises(tmp_path):
+    """A published file with 'subset' but no 'models' raises ValueError."""
+    import pytest
+
+    official = _write_official(tmp_path)
+    bad = tmp_path / "published_agreement.json"
+    bad.write_text(json.dumps({"subset": {"n_fields": 1}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="missing keys"):
+        build_table(None, bad, official)
+
+
 def test_stale_readme_block_fails_check(tmp_path):
     """A README whose marker block differs from the built table fails --check-readme."""
     official = _write_official(tmp_path)
