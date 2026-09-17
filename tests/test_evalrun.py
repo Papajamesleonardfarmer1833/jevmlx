@@ -429,3 +429,51 @@ def test_engine_metadata_resolves_snapshot_sha(tmp_path):
     assert meta["quantization"] == {"bits": 4}
     assert meta["mlx_version"]
     assert meta["mlx_lm_version"]
+
+
+def test_carry_perturbation_flag_passes_meta_through(tmp_path):
+    """carry_perturbation=True adds 'perturbation' (str|null) to every line."""
+    cases = [
+        {**_two_cases()[0], "group_id": "wf/case-1", "meta": {}},  # original: perturbation null
+        {
+            **_two_cases()[0],
+            "id": "wf/case-1#p1",
+            "group_id": "wf/case-1",
+            "meta": {"perturbation": "ws"},
+        },
+    ]
+
+    def decide(schema_dict, context):
+        return {
+            "action": {"prediction": "APPROVE"},
+            "flag": {"prediction": True},
+        }
+
+    # Default: no perturbation key at all (contract unchanged).
+    run_default = evalrun.run_eval(
+        cases, decide, track="parallel", model="m", out_dir=str(tmp_path / "a"), run_id="r0"
+    )
+    lines_default = _read_lines(tmp_path / "a" / "predictions.jsonl")
+    assert run_default["counts"]["prediction_lines"] == 4
+    assert all("perturbation" not in line for line in lines_default)
+
+    # With the flag: original lines carry None, variant lines carry the kind.
+    evalrun.run_eval(
+        cases,
+        decide,
+        track="parallel",
+        model="m",
+        out_dir=str(tmp_path / "b"),
+        run_id="r1",
+        carry_perturbation=True,
+    )
+    lines = _read_lines(tmp_path / "b" / "predictions.jsonl")
+    assert len(lines) == 4
+    by_case = {line["case_id"]: line["perturbation"] for line in lines}
+    assert by_case["wf/case-1"] is None
+    assert by_case["wf/case-1#p1"] == "ws"
+    # Everything else on the line is unchanged; feeding the two lines sharing
+    # group_id into the metric pairs them as original vs variant.
+    from jevmlx.evalmetrics import perturbation_flip_rate
+
+    assert perturbation_flip_rate(lines) == 0.0  # same predictions -> no flip
