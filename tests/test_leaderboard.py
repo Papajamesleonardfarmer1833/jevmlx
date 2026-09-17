@@ -20,9 +20,9 @@ _OFFICIAL = {
             "accuracy": 0.678,
             "by_workflow": {
                 "customer_service": 0.760,
-                "agent_trace": 0.716,
+                "agent_trace_observability": 0.716,
                 "security_incidents": 0.617,
-                "invoice": 0.618,
+                "invoice_processing": 0.618,
             },
             "time_per_case_s": 0.4,
             "cost_per_case_usd": 0.0004,
@@ -69,8 +69,8 @@ def _published_records():
 
     return [
         _record(
-            "typesafe/wf1/case-1",
-            "wf1",
+            "typesafe/customer_service/case-1",
+            "customer_service",
             {"bool_field": bool_schema, "enum_field": enum_schema},
             {"bool_field": False, "enum_field": "refund"},
             {
@@ -79,8 +79,8 @@ def _published_records():
             },
         ),
         _record(
-            "typesafe/wf2/case-2",
-            "wf2",
+            "typesafe/security_incidents/case-2",
+            "security_incidents",
             {"score_field": score_schema, "ambiguous_field": enum_schema},
             {"score_field": "2", "ambiguous_field": "refund"},
             {
@@ -90,8 +90,8 @@ def _published_records():
             ambiguous=["ambiguous_field"],
         ),
         _record(
-            "typesafe/wf1/case-3",
-            "wf1",
+            "typesafe/customer_service/case-3",
+            "customer_service",
             {"missing_field": enum_schema},
             {"missing_field": "refund"},
             {"missing_field": {"opus": "refund"}},
@@ -125,7 +125,7 @@ def _write_local_result(tmp_path: Path) -> Path:
         "metrics": {
             "typesafe_agreement": {
                 "agreement_common_subset": 0.75,
-                "by_workflow": {"customer_service": 0.8, "invoices": 0.7},
+                "by_workflow": {"customer_service": 0.8, "invoice_processing": 0.7},
                 "n_fields": 4,
                 "n_cases": 4,
             }
@@ -166,10 +166,14 @@ def test_official_block_exact_text(tmp_path):
     assert "| opus | computed from published answers |" in table
     assert "| sol | computed from published answers |" in table
     # by_workflow values are dicts {agreed, total, agreement}; _fmt_pct
-    # extracts the agreement float. The fixture's workflows are wf1/wf2
-    # (not the 4 canonical column names), so the workflow columns render —
-    # and the overall accuracy (agreed/total) is 66.7% for both models.
+    # extracts the agreement float. The fixture's workflows are
+    # customer_service and security_incidents (L1's real WORKFLOWS names),
+    # so the workflow columns populate. Overall accuracy = agreed/total =
+    # 66.7% for both models.
     assert "66.7%" in table
+    # opus customer_service: 1/2 = 50.0%; security_incidents: 1/1 = 100.0%.
+    assert "50.0%" in table
+    assert "100.0%" in table
     # No local rows yet -> the contribute line.
     assert "No local results yet" in table
 
@@ -183,10 +187,10 @@ def test_published_uses_real_l1_shape(tmp_path):
     table = build_table(None, published, official)
     # opus: 2 agreed out of 3 total (bool disagree, enum agree, score agree).
     assert "| opus | computed from published answers | — | — | 66.7% |" in table
-    # Cases column = total (3 for opus).
-    # Find the opus row and check it ends with | 3 |.
+    # Cases column = subset.n_cases (2 cases in the subset).
+    # Find the opus row and check it ends with | 2 |.
     opus_line = next(line for line in table.splitlines() if line.startswith("| opus |"))
-    assert opus_line.rstrip().endswith("| 3 |")
+    assert opus_line.rstrip().endswith("| 2 |")
 
 
 def test_local_rows_render_when_results_present(tmp_path):

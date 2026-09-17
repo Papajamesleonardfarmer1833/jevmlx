@@ -1,5 +1,5 @@
 {
-  "_note": "CITATION, not measurement. Values are transcribed from TypeSafe's official public leaderboard (https://evals.typesafe.ai/) on the retrieved date. Per-workflow accuracies are only filled where Ben supplied them; the rest are null. Update by re-checking the source and bumping `retrieved`.",
+  "_note": "CITATION, not measurement. Values are transcribed from TypeSafe's official public leaderboard (https://evals.typesafe.ai/) on the retrieved date. Per-workflow accuracies are only filled where supplied; the rest are null. Update by re-checking the source and bumping `retrieved`.",
   "source_url": "https://evals.typesafe.ai/",
   "retrieved": "2026-09-17",
   "models": [
@@ -8,9 +8,9 @@
       "accuracy": 0.678,
       "by_workflow": {
         "customer_service": 0.760,
-        "agent_trace": 0.716,
+        "agent_trace_observability": 0.716,
         "security_incidents": 0.617,
-        "invoice": 0.618
+        "invoice_processing": 0.618
       },
       "time_per_case_s": 0.4,
       "cost_per_case_usd": 0.0004

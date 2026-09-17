@@ -44,9 +44,9 @@ _MARKER_END = "<!-- leaderboard:end -->"
 
 _WORKFLOW_COLS = [
     ("customer_service", "Customer service"),
-    ("agent_trace", "Agent trace"),
+    ("agent_trace_observability", "Agent trace"),
     ("security_incidents", "Security"),
-    ("invoice", "Invoices"),
+    ("invoice_processing", "Invoices"),
 ]
 
 _HEADER = (
@@ -253,9 +253,9 @@ def build_table(
                         "accuracy": m.get("accuracy"),
                         "by_workflow": {
                             "customer_service": bw.get("customer_service"),
-                            "agent_trace": bw.get("agent_trace"),
+                            "agent_trace_observability": bw.get("agent_trace_observability"),
                             "security_incidents": bw.get("security_incidents"),
-                            "invoice": bw.get("invoice"),
+                            "invoice_processing": bw.get("invoice_processing"),
                         },
                         "time_per_case_s": m.get("time_per_case_s"),
                         "cost_per_case_usd": m.get("cost_per_case_usd"),
@@ -281,13 +281,15 @@ def build_table(
                         "accuracy": m.get("agreement"),
                         "by_workflow": {
                             "customer_service": bw.get("customer_service"),
-                            "agent_trace": bw.get("agent_trace"),
+                            "agent_trace_observability": bw.get("agent_trace_observability"),
                             "security_incidents": bw.get("security_incidents"),
-                            "invoice": bw.get("invoice"),
+                            "invoice_processing": bw.get("invoice_processing"),
                         },
                         "time_per_case_s": None,
                         "cost_per_case_usd": None,
-                        "cases": m.get("total", "—"),
+                        "cases": published_subset.get("n_cases", "—")
+                        if published_subset
+                        else m.get("total", "—"),
                     }
                 )
             )
