@@ -30,9 +30,31 @@ from openjev.schema import StructuredSchema
 DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 
 _SUPPORTED = (
-    "supported field types: bool, Literal[str, ...], enum.Enum with str values, "
+    "supported field types: bool, Literal[str, ...], enum.Enum/enum.StrEnum with str values, "
     "list[Literal[...]] / set[Literal[...]] (multi)"
 )
+
+
+def _choice_values(name: str, values: list) -> list[str]:
+    """Validate and return a field's choice values as strict strings.
+
+    Every value must already be a str — no ``str()`` coercion, which would
+    silently turn ``Literal[1, 2]`` into a schema about the strings "1" and
+    "2". Duplicates are rejected because the engine scores one row per
+    distinct first token and cannot distinguish duplicate literals.
+    """
+    for value in values:
+        if not isinstance(value, str):
+            raise TypeError(
+                f"Field '{name}' has non-string choice value {value!r} "
+                f"({type(value).__name__}); use str values. {_SUPPORTED}"
+            )
+    if len(set(values)) != len(values):
+        dupes = sorted({v for v in values if values.count(v) > 1})
+        raise TypeError(
+            f"Field '{name}' has duplicate choice values: {', '.join(repr(v) for v in dupes)}"
+        )
+    return values
 
 
 @dataclasses.dataclass
@@ -60,17 +82,17 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
                 raise TypeError(f"Field '{name}' has unsupported type {ann!r}. {_SUPPORTED}")
             schema[name] = {
                 "type": "multi",
-                "choices": [str(c) for c in typing.get_args(lit)],
+                "choices": _choice_values(name, list(typing.get_args(lit))),
                 "description": _description(name, info),
             }
         elif origin is typing.Literal:
             schema[name] = {
                 "type": "enum",
-                "choices": [str(c) for c in typing.get_args(ann)],
+                "choices": _choice_values(name, list(typing.get_args(ann))),
                 "description": _description(name, info),
             }
         elif isinstance(ann, type) and issubclass(ann, enum.Enum):
-            values = [str(m.value) for m in ann]
+            values = _choice_values(name, [member.value for member in ann])
             schema[name] = {
                 "type": "enum",
                 "choices": values,
@@ -139,9 +161,23 @@ def decide_many[T: BaseModel](
     choice tokens are reused across contexts); the parallel decision pass then
     runs once per context. Results are returned in input order.
 
-    Cross-context batching (all contexts in one forward pass) is future work;
-    this is where schema prefix reuse will plug in.
+    Raises:
+        TypeError: If ``contexts`` is a bare str or bytes (a common mistake
+            that would otherwise be decided one character at a time), or if
+            any item is not a str.
     """
+    if isinstance(contexts, (str, bytes)):
+        raise TypeError(
+            f"contexts must be a sequence of str, not {type(contexts).__name__}; "
+            "wrap a single context in a list"
+        )
+    contexts = list(contexts)
+    for index, item in enumerate(contexts):
+        if not isinstance(item, str):
+            raise TypeError(f"contexts[{index}] must be str, not {type(item).__name__}")
+    if not contexts:
+        return []
+
     engine_model, tokenizer = load_engine(model)
     schema = StructuredSchema(schema_from_model(model_cls))
     return [
