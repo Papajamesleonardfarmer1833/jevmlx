@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
@@ -18,21 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class _ServerStats:
-    """Request counters shared by the handler (lock-guarded for thread safety)."""
+    """Request counters for the handler. Plain attributes: HTTPServer is
+    single-threaded and serial by design (one Metal GPU)."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
         self.requests_served = 0
         self.busy = False
 
     def begin_request(self) -> None:
-        with self._lock:
-            self.busy = True
+        self.busy = True
 
     def end_request(self) -> None:
-        with self._lock:
-            self.busy = False
-            self.requests_served += 1
+        self.busy = False
+        self.requests_served += 1
 
 
 def make_handler(
