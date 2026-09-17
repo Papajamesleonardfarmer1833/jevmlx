@@ -66,7 +66,7 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
         return ("engine", "tokenizer")
 
     def fake_run_parallel(
-        engine_model, tokenizer, context, schema, *, temperature=1.0, scoring="trie"
+        engine_model, tokenizer, context, schema, *, temperature=1.0, scoring="slots"
     ):
         run_calls.append((engine_model, tokenizer, context, schema, temperature))
         return {
@@ -78,7 +78,7 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
                 "is_fraudulent": {"value": True, "probability": 0.9},
                 "risk_tier": {"value": "HIGH", "probability": 0.8},
             },
-            "confidence_model": "constrained_path",
+            "confidence_model": "slots",
             "elapsed_ms": 5.0,
         }
 
@@ -338,7 +338,7 @@ def test_allow_unknown_appends_choice_and_maps_to_none(monkeypatch):
                     "top_choices": [{"choice": "UNKNOWN", "probability": 0.4}],
                 }
             },
-            "confidence_model": "constrained_path",
+            "confidence_model": "slots",
             "elapsed_ms": 5.0,
         }
 
@@ -365,7 +365,7 @@ def test_allow_unknown_off_leaves_schema_untouched(monkeypatch):
         return {
             "parsed_json": {"risk_tier": {"value": "LOW"}},
             "field_telemetry": {"risk_tier": {"value": "LOW", "probability": 0.9}},
-            "confidence_model": "constrained_path",
+            "confidence_model": "slots",
             "elapsed_ms": 5.0,
         }
 
@@ -387,7 +387,7 @@ def test_allow_unknown_rejects_existing_unknown_choice():
 # --- V3: Decision.fields / FieldResult --------------------------------------
 
 
-def _fake_result(confidence_model="constrained_path"):
+def _fake_result(confidence_model="slots"):
     return {
         "parsed_json": {"risk_tier": {"value": "HIGH"}, "tags": {"value": ["a"]}},
         "field_telemetry": {
@@ -430,7 +430,7 @@ def test_field_result_built_from_fake_engine_result(monkeypatch):
     assert abs(fr.margin - (-0.1 - -0.5)) < 1e-9  # top1 minus top2 log score
     assert fr.probability == 0.7
     assert fr.calibrated is False
-    assert fr.model == "labels"
+    assert fr.model == "slots"
     assert fr.alternatives == (("HIGH", 0.7), ("LOW", 0.2), ("CRITICAL", 0.1))
     # multi: no log_scores -> score from probability, margin 0, alternatives
     # from per_option
@@ -441,12 +441,10 @@ def test_field_result_built_from_fake_engine_result(monkeypatch):
     assert isinstance(d.value, TwoField)
 
 
-def test_field_result_model_slots_for_letters(monkeypatch):
+def test_field_result_model_matches_scoring_mode(monkeypatch):
     import jevmlx.api as api
 
-    monkeypatch.setattr(
-        api, "run_parallel_generation", lambda *a, **k: _fake_result("letter_slots")
-    )
+    monkeypatch.setattr(api, "run_parallel_generation", lambda *a, **k: _fake_result("slots"))
     monkeypatch.setattr(api, "load_engine", lambda model_id: ("engine", "tokenizer"))
 
     class OneField(BaseModel):

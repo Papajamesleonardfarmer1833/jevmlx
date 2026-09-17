@@ -11,9 +11,19 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
-# Letter slots for the letters scoring mode (X1): one decision token per
-# choice, A first. At most 16 choices get letter slots.
-_LETTERS = "ABCDEFGHIJKLMNOP"
+
+def _alias_code(index: int) -> str:
+    """Neutral choice alias for slot scoring: A..Z, then AA..ZZ (base 26)."""
+    if index < 0:
+        raise ValueError(f"alias index must be >= 0, got {index}")
+    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if index < 26:
+        return letters[index]
+    code = ""
+    while index >= 0:
+        code = letters[index % 26] + code
+        index = index // 26 - 1
+    return code
 
 
 def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
@@ -31,7 +41,7 @@ def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
 
 
 class SchemaCompileError(ValueError):
-    """compile_batch_plan cannot produce a scorable plan for one field.
+    """The plan compilers cannot produce a scorable plan for one field.
 
     Raised for token-identical choices, strict token-prefix continuations,
     candidates with no shared token prefix, and duplicate-choice keys.
@@ -177,35 +187,36 @@ class StructuredSchema:
         lines.append("}")
         return "\n".join(lines)
 
-    def to_parallel_schema_str(self) -> str:
-        """Returns a high-density, compact description catalog for minimal prefill token latency."""
-        lines = []
-        for name, field in self.fields.items():
-            desc = field.description.split("\n")[0].strip()
-            if field.field_type == "multi":
-                desc += " (select all that apply)"
-            lines.append(f'  "{name}": {desc}')
-        return "\n".join(lines)
+    def to_alias_schema_str(self) -> str:
+        """Schema block for prompt v2: per field, type, and its allowed choices
+        as neutral aliases ``A) <choice> — <gloss>`` in choice order.
 
-    def to_letters_schema_str(self) -> str:
-        """Compact schema catalog for the letters mode: per field, its
-        lettered choices in schema order ("risk_tier: A) LOW  B) MEDIUM ...").
-        Multi fields are listed with their options (their rows stay boolean
-        per option); booleans are listed as A) true  B) false.
+        The gloss is the choice's description when provided
+        (:attr:`FieldDefinition.choice_descriptions`), else the choice string
+        itself. Multi fields carry the "select all that apply" marker. The
+        aliases are what slot-trie scoring reads back on assembly.
         """
         lines = []
         for name, field in self.fields.items():
             desc = field.description.split("\n")[0].strip()
-            if field.field_type == "boolean":
-                choices_list = ["true", "false"]
-            else:
-                choices_list = list(field.choices)
-            lettered = "  ".join(f"{_LETTERS[i]}) {c}" for i, c in enumerate(choices_list))
-            suffix = " (select all that apply)" if field.field_type == "multi" else ""
-            lines.append(f'  "{name}": {lettered}  // {desc}{suffix}')
+            choices_list = (
+                ["true", "false"] if field.field_type == "boolean" else list(field.choices)
+            )
+            parts = []
+            for i, choice in enumerate(choices_list):
+                alias = _alias_code(i)
+                gloss = field.choice_descriptions.get(choice) or choice
+                parts.append(f"{alias}) {choice} — {gloss}")
+            marker = " (select all that apply)" if field.field_type == "multi" else ""
+            lines.append(f'  "{name}": {"  ".join(parts)}  // {desc}{marker}')
         return "\n".join(lines)
 
-    def _cache_plan(self, tokenizer, plan: dict[str, Any], mode: str = "trie") -> None:
+    @staticmethod
+    def alias_for_index(index: int) -> str:
+        """The neutral alias for the choice at ``index`` (A, B, ..., AA, AB...)."""
+        return _alias_code(index)
+
+    def _cache_plan(self, tokenizer, plan: dict[str, Any], mode: str) -> None:
         """Store a plan keyed by tokenizer identity, evicted on tokenizer death.
 
         Non-weak-referenceable tokenizers are not cached at all (N3): an
@@ -228,7 +239,102 @@ class StructuredSchema:
         self._plans[cache_key] = (ref, plan)
         weakref.finalize(tokenizer, self._plans.pop, cache_key, None)
 
-    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:  # noqa: D401
+    def compile_slot_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
+        """Slot-trie plan (the default scoring mode): the decision row stays
+        JSON — ``'{\n  "<field>": '`` — and the scored candidates are the
+        QUOTED neutral aliases ``'"A"'``, `'"B"'``, ... (base-26 codes beyond
+        26 choices), mapped back to the real choice strings on assembly.
+
+        Multi fields keep the labels-mode per-option boolean rows (their
+        options are real values in the prompt, not aliases). Booleans get
+        aliases too (A -> true, B -> false).
+
+        Returns the same shape as the labels plan
+        (``{"lead_in_ids": ..., "fields": {fname: plan}}``) with per-field
+        ``alias_map`` ({alias: real value}) added; the engine scores
+        ``shared_ids``/``remainders`` through the token trie unchanged and
+        maps winners back via ``alias_map``.
+        """
+        fields_plan: dict[str, dict[str, Any]] = {}
+
+        def slot_candidate_text(name: str, alias: str) -> str:
+            """The assistant tail for one alias row: '{\n' + row + ',\n' with
+            the quoted alias as the value."""
+            return "{\n" + f'  {json.dumps(name)}: "{alias}"' + ",\n"
+
+        # Lead-in candidates: scalar fields' shared prefixes. Computed after
+        # the per-field plans exist (same two-pass shape as labels mode).
+        for fname, fdef in self.fields.items():
+            if fdef.field_type == "multi":
+                continue
+            if fdef.field_type == "boolean":
+                values = ["true", "false"]
+            else:
+                values = list(fdef.choices)
+            aliases = [_alias_code(i) for i in range(len(values))]
+            alias_map = dict(zip(aliases, values, strict=True))
+
+            candidates = [
+                tokenizer.encode(slot_candidate_text(fname, alias), add_special_tokens=False)
+                for alias in aliases
+            ]
+            shared = _common_token_prefix(candidates)
+            remainders = [full[len(shared) :] for full in candidates]
+            for i, remainder in enumerate(remainders):
+                for j, other in enumerate(remainders):
+                    if i == j or other[: len(remainder)] != remainder:
+                        continue
+                    if other == remainder:
+                        raise SchemaCompileError(
+                            fname,
+                            f"field '{fname}': aliases '{aliases[i]}' and '{aliases[j]}' "
+                            "are token-identical; the engine cannot distinguish them",
+                        )
+                    raise SchemaCompileError(
+                        fname,
+                        f"field '{fname}': alias '{aliases[i]}' is a strict token-prefix "
+                        f"of '{aliases[j]}' in token space; the engine would never "
+                        "distinguish them",
+                    )
+            if not shared and len({r[0] for r in remainders}) > 1:
+                raise SchemaCompileError(
+                    fname,
+                    f"field '{fname}': alias candidates share no token prefix "
+                    f"(tokenizer {type(tokenizer).__name__}); cannot place the "
+                    "decision row",
+                )
+            fields_plan[fname] = {
+                "shared_ids": shared,
+                "remainders": remainders,
+                "alias_map": alias_map,
+                "aliases": aliases,
+                "choices": values,
+            }
+
+        if any(f.field_type == "multi" for f in self.fields.values()):
+            labels_plan = self.compile_labels_plan(tokenizer)
+            for fname, fdef in self.fields.items():
+                if fdef.field_type == "multi":
+                    fields_plan[fname] = labels_plan["fields"][fname]
+
+        row_prefixes = [p["shared_ids"] for p in fields_plan.values() if "shared_ids" in p]
+        lead_in = _common_token_prefix(row_prefixes) if row_prefixes else []
+        if lead_in:
+            for p in fields_plan.values():
+                if "shared_ids" in p:
+                    p["shared_ids"] = p["shared_ids"][len(lead_in) :]
+        result = {"lead_in_ids": list(lead_in), "fields": fields_plan}
+        self._cache_plan(tokenizer, result, mode="slots")
+        return result
+
+    def compile_labels_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
+        """Labels scoring plan (choice-text trie): candidates are the real
+        choice strings; the decision row is the full JSON row text. The
+        engine maps winners straight to the choice strings (no alias hop).
+        """
+        return self._compile_labels(tokenizer)
+
+    def _compile_labels(self, tokenizer) -> dict[str, dict[str, Any]]:  # noqa: D401
         """Pre-index everything the engine needs for the batched suffix pass.
 
         Token-aligned at both boundaries: every choice is encoded as ONE
@@ -254,7 +360,7 @@ class StructuredSchema:
         identity (name_or_path + vocab size).
         """
         try:
-            entry = self._plans.get((id(tokenizer), "trie"))
+            entry = self._plans.get((id(tokenizer), "labels"))
             # Identity check: ref() must resolve to THIS tokenizer, not just
             # an equal one (P2).
             if entry is not None and entry[0]() is tokenizer:
@@ -430,127 +536,5 @@ class StructuredSchema:
         # Metadata lives beside the field plans, never mixed into them (D1:
         # a field could legally be named "_lead_in_ids").
         result = {"lead_in_ids": list(lead_in), "fields": plan}
-        self._cache_plan(tokenizer, result)
-        return result
-
-    def compile_letters_plan(self, tokenizer) -> dict[str, Any]:
-        """Plan for the letter-slot scoring mode (engine ``scoring="letters"``).
-
-        Each enum/boolean field gets one decision row: the row text is
-        ``'{\n  "<field>": '`` and the choice is read from the NEXT-token
-        distribution restricted to letter tokens (A, B, C, ... by choice
-        order). The lettered choice list is rendered into the prompt by
-        :meth:`to_letters_schema_str`.
-
-        Per enum/boolean field the plan carries:
-        - ``letters``: the letter strings in choice order,
-        - ``slot_ids``: the single token id per letter (validated:
-          encode(letter) is exactly one token and round-trips),
-        - ``row_text``: the JSON row prefix without the letter,
-        - ``row_ids``: the tokenization of ``'{\n' + row_text + letter``
-          verified as ``encode('{\n' + row_text) + [slot]`` for EVERY letter
-          (boundary check; else SchemaCompileError naming field and letter),
-        - ``choices``: the choice strings, in the order given by the schema
-          (position-bias hook: eval rotations permute choice order, which
-          permutes the letter assignment),
-        - ``choices_map``: letter -> choice string for assembly,
-        - ``lead_in_ids``: the shared token prefix of this field's rows.
-
-        Multi fields keep the trie mode's per-option boolean rows (the plan
-        entry is the trie plan, scored identically); only enum/boolean fields
-        use letter slots. Cardinality is capped at 16 (A..P).
-
-        Returns ``{"lead_in_ids": [...], "fields": {...}, "mode": "letters"}``,
-        cached per tokenizer identity under its own cache key.
-        """
-        if len(self.fields) and max(len(f.choices) for f in self.fields.values()) > 16:
-            raise SchemaCompileError(
-                "letters",
-                "letters mode supports at most 16 choices per field (A..P)",
-            )
-        fields_plan: dict[str, dict[str, Any]] = {}
-        for fname, fdef in self.fields.items():
-            if fdef.field_type == "multi":
-                # Multi fields reuse the trie plan (per-option boolean rows).
-                continue
-            if fdef.field_type == "boolean":
-                choices_list = ["true", "false"]
-            else:
-                choices_list = list(fdef.choices)
-            letters = list(_LETTERS[: len(choices_list)])
-
-            # The slot token is the SPACE-PREFIXED letter (' A', ' B', ...)
-            # and the row text ends at the colon: real BPE tokenizers fuse a
-            # standalone trailing space with the following letter, so
-            # encode('...": ' + 'A') would NOT be encode('...": ') + ['A'].
-            # The space-prefixed form satisfies the boundary check on real
-            # tokenizers; single-char tokenizers need the space to be its own
-            # token or part of the letter token (verified below).
-            row_text = f"  {json.dumps(fname)}:"
-            row_prefix_ids = tokenizer.encode("{\n" + row_text, add_special_tokens=False)
-            slot_ids: list[int] = []
-            for letter in letters:
-                slot_candidates = tokenizer.encode(" " + letter, add_special_tokens=False)
-                if len(slot_candidates) != 1 or tokenizer.decode(slot_candidates) != " " + letter:
-                    # Fall back to the bare letter (single-char tokenizers).
-                    slot_candidates = tokenizer.encode(letter, add_special_tokens=False)
-                    if len(slot_candidates) != 1 or tokenizer.decode(slot_candidates) != letter:
-                        raise SchemaCompileError(
-                            fname,
-                            f"field '{fname}': letter '{letter}' must be exactly one "
-                            f"round-trip token (as ' {letter}' or '{letter}'; tokenizer "
-                            f"{type(tokenizer).__name__})",
-                        )
-                slot_ids.append(slot_candidates[0])
-            if len(set(slot_ids)) != len(slot_ids):
-                # Two letters sharing one token id: assembly could not tell
-                # them apart. (Reachable only for non-injective decoders; the
-                # round-trip check above catches injective collisions.)
-                raise SchemaCompileError(
-                    fname,
-                    f"field '{fname}': letter slot tokens are not distinct "
-                    f"(tokenizer {type(tokenizer).__name__})",
-                )
-            for letter, slot in zip(letters, slot_ids, strict=True):
-                joined = tokenizer.encode("{\n" + row_text + " " + letter, add_special_tokens=False)
-                if joined != row_prefix_ids + [slot]:
-                    raise SchemaCompileError(
-                        fname,
-                        f"field '{fname}': tokenization boundary breaks the letter "
-                        f"slot for '{letter}' (encode(row + letter) != encode(row) "
-                        f"+ [slot]; tokenizer {type(tokenizer).__name__})",
-                    )
-            choices_map = dict(zip(letters, choices_list, strict=True))
-            fields_plan[fname] = {
-                "letters": letters,
-                "slot_ids": slot_ids,
-                "row_ids": row_prefix_ids,
-                "choices": choices_list,
-                "choices_map": choices_map,
-            }
-
-        # Multi fields: compile the trie plan for their rows.
-        trie_plan: dict[str, dict[str, Any]] = {}
-        if any(f.field_type == "multi" for f in self.fields.values()):
-            trie_plan = self.compile_batch_plan(tokenizer)["fields"]
-        for fname, fdef in self.fields.items():
-            if fdef.field_type == "multi":
-                fields_plan[fname] = trie_plan[fname]
-
-        # The letter rows share the row prefix (open brace, field name,
-        # colon-space); their common token prefix is the broadcast lead-in
-        # (strip it from the rows so the engine can keep it in the prefill
-        # cache, like trie mode).
-        row_prefixes = [p["row_ids"] for p in fields_plan.values() if "row_ids" in p]
-        lead_in = _common_token_prefix(row_prefixes) if row_prefixes else []
-        if lead_in:
-            for p in fields_plan.values():
-                if "row_ids" in p:
-                    p["row_ids"] = p["row_ids"][len(lead_in) :]
-        result = {
-            "lead_in_ids": list(lead_in),
-            "fields": fields_plan,
-            "mode": "letters",
-        }
-        self._cache_plan(tokenizer, result, mode="letters")
+        self._cache_plan(tokenizer, result, mode="labels")
         return result

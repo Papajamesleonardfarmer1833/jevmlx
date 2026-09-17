@@ -103,10 +103,11 @@ def main(argv=None) -> None:
     )
     decide.add_argument(
         "--scoring",
-        choices=["trie", "letters"],
-        default="trie",
-        help="scoring mode: trie (choice-text branch scoring) or letters "
-        "(lettered options in the prompt, one slot token per choice)",
+        choices=["slots", "labels"],
+        default="slots",
+        help="scoring mode: slots (neutral aliases in the prompt, quoted "
+        "alias candidates; default) or labels (real choice text through the "
+        "token trie)",
     )
 
     calib = sub.add_parser(
@@ -158,10 +159,10 @@ def main(argv=None) -> None:
     )
     eval_p.add_argument(
         "--scoring",
-        choices=["trie", "letters"],
-        default="trie",
-        help="parallel-track scoring mode (trie = choice-text branches, "
-        "letters = lettered options, one slot token per choice)",
+        choices=["slots", "labels"],
+        default="slots",
+        help="parallel-track scoring mode (slots = neutral aliases, the "
+        "default; labels = real choice text through the token trie)",
     )
     eval_p.add_argument(
         "--permutations",
@@ -189,7 +190,7 @@ def main(argv=None) -> None:
         default="bundled,typesafe,perturbed",
         help="comma list: bundled,typesafe,perturbed",
     )
-    bench_p.add_argument("--scorers", default="trie,letters", help="comma list: trie,letters")
+    bench_p.add_argument("--scorers", default="slots,labels", help="comma list: slots,labels")
     bench_p.add_argument(
         "--tracks", default="parallel,naive_local", help="comma list: parallel,naive_local"
     )
@@ -378,7 +379,7 @@ def _run_eval_command(args) -> None:
 
     extra: dict = {
         "dataset_path": os.path.abspath(args.data),
-        "scoring": args.scoring if args.track == "parallel" else "trie",
+        "scoring": args.scoring if args.track == "parallel" else "slots",
     }
     lock = os.path.join(os.path.dirname(os.path.abspath(args.data)), "dataset.lock.json")
 
@@ -387,7 +388,7 @@ def _run_eval_command(args) -> None:
         model, tokenizer = load_engine(args.model)
         decide_fn = evalrun.parallel_decide_fn(model, tokenizer, scoring=args.scoring)
         chat_template = getattr(tokenizer, "chat_template", None)
-        plan_provider = lambda schema: schema.compile_batch_plan(tokenizer)  # noqa: E731
+        plan_provider = lambda schema: schema.compile_labels_plan(tokenizer)  # noqa: E731
     elif args.track == "naive_local":
         print(f"Loading {args.model} ...", flush=True)
         model, tokenizer = load_engine(args.model)

@@ -75,7 +75,7 @@ def _sha256_file(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
-def parallel_decide_fn(model, tokenizer, scoring: str = "trie") -> DecideFn:
+def parallel_decide_fn(model, tokenizer, scoring: str = "slots") -> DecideFn:
     """Track ``parallel``: the jevmlx engine at T=1.
 
     Log scores come from field telemetry's finalized ``log_scores`` key — a

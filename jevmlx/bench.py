@@ -36,7 +36,7 @@ DATASETS = (
     "synthetic-injection",
     "synthetic-dependent",
 )
-SCORERS = ("trie", "letters")
+SCORERS = ("slots", "labels")
 TRACKS = ("parallel", "naive_local")
 
 
@@ -231,7 +231,7 @@ def _track_scorer_grid(tracks: list[str], scorers: list[str]) -> list[tuple[str,
     grid = []
     for track in tracks:
         for scorer in scorers:
-            if track == "naive_local" and scorer != "trie":
+            if track == "naive_local" and scorer != "slots":
                 continue  # naive generation has no scorer dimension
             grid.append((track, scorer))
     return grid
@@ -312,7 +312,7 @@ def _run_one(model: str, track: str, scorer: str, jsonl: Path, combo_dir: Path) 
         permutations=permutations,
         split="all",
         out_dir=str(combo_dir),
-        extra_config={"scoring": scorer if track == "parallel" else "trie"},
+        extra_config={"scoring": scorer if track == "parallel" else "slots"},
         chat_template=chat_template,
         dataset_path=str(jsonl),
     )
@@ -385,7 +385,7 @@ def main(argv: list[str] | None = None) -> int:
         default="bundled,typesafe,perturbed",
         help="comma list: bundled,typesafe,perturbed,synthetic-*",
     )
-    parser.add_argument("--scorers", default="trie,letters", help="comma list: trie,letters")
+    parser.add_argument("--scorers", default="slots,labels", help="comma list: slots,labels")
     parser.add_argument(
         "--tracks", default="parallel,naive_local", help="comma list: parallel,naive_local"
     )

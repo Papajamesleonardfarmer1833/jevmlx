@@ -71,7 +71,7 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
 
     # Rows: one per trie branch point for enum/boolean fields, one per option
     # for multi fields. Pass count must match ceil(rows / max_rows).
-    plan = schema.compile_batch_plan(tokenizer)
+    plan = schema.compile_labels_plan(tokenizer)
     expected_rows = sum(
         len(build_trie(p["remainders"])) if "options" not in p else len(p["options"])
         for p in plan["fields"].values()
@@ -185,20 +185,20 @@ def test_naive_generation_returns_parseable_text(engine):
 
 
 @pytest.mark.slow
-def test_letters_scoring_fintech_fraud(engine):
+def test_slots_scoring_fintech_fraud(engine):
     """Letters mode on the 0.5B model: one pass, all values valid.
 
     Every enum/boolean field gets exactly one letter-slot row; the winning
     letter maps back to a valid choice string; multi fields keep their
-    per-option rows. The letters run completes in a single suffix pass (one
-    row per field) and the confidence model is 'letter_slots'.
+    per-option rows. The slots run completes in a single suffix pass (one
+    row per field) and the confidence model is 'slots'.
     """
     model, tokenizer = engine
     preset = load_preset("fintech_fraud")
     schema = StructuredSchema(preset["schema"])
-    result = run_parallel_generation(model, tokenizer, preset["context"], schema, scoring="letters")
+    result = run_parallel_generation(model, tokenizer, preset["context"], schema, scoring="slots")
 
-    assert result["confidence_model"] == "letter_slots"
+    assert result["confidence_model"] == "slots"
     assert result["sequential_forward_passes"] == 1
 
     for fname, fdef in schema.fields.items():
@@ -213,7 +213,7 @@ def test_letters_scoring_fintech_fraud(engine):
         else:
             assert parsed["value"] in fdef.choices
             assert telemetry["rows"] == 1
-        # Slot letters are valid and the log_scores are keyed by choice string.
+        # Aliases are valid and the log_scores are keyed by real choice string.
         if fdef.field_type != "multi":
             assert telemetry["slot_letter"] in "ABCDEFGHIJKLMNO"[: fdef.cardinality]
             assert set(telemetry["log_scores"]) == set(

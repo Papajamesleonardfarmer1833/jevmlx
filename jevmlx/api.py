@@ -73,13 +73,14 @@ class FieldResult:
         score: Log P of the winning choice (constrained-path log score).
         margin: Top-1 minus top-2 log score; 0.0 when the field has fewer
             than two scored choices.
-        probability: P of the winner — constrained-path probability in trie
-            mode, slot softmax probability in letters mode. In [0, 1].
+        probability: P of the winner — constrained-path probability in
+            both scoring modes. In [0, 1].
         calibrated: True only after a fitted calibrator has been applied to
             ``probability``. The engine never calibrates; this is False in
             every decide() result until calibration runs.
-        model: Which scoring model produced the probability: "labels" (trie
-            over choice text) or "slots" (lettered options).
+        model: Which scoring model produced the probability: "slots"
+            (neutral aliases through the token trie; the default) or
+            "labels" (real choice text through the token trie).
         alternatives: Top 3 (choice, probability) pairs, most probable
             first. Empty for multi fields (no single distribution).
     """
@@ -272,7 +273,7 @@ def _build_field_results(result: dict, confidence_model: str) -> dict[str, Field
             margin=margin,
             probability=probability,
             calibrated=False,
-            model="slots" if confidence_model == "letter_slots" else "labels",
+            model=confidence_model,
             alternatives=alternatives,
         )
     return fields
@@ -285,7 +286,7 @@ def _decide_once[T: BaseModel](
     tokenizer,
     schema: StructuredSchema,
     temperature: float,
-    scoring: str = "trie",
+    scoring: str = "slots",
     allow_unknown: bool = False,
 ) -> Decision[T]:
     """Decide one context with a loaded engine and a compiled schema."""
@@ -353,14 +354,14 @@ def decide[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
-    scoring: str = "trie",
+    scoring: str = "slots",
     allow_unknown: bool = False,
 ) -> Decision[T]:
     """Run parallel constrained decisions and return a validated model instance.
 
-    ``scoring`` selects the engine mode: ``"trie"`` (default) scores the
-    choice text via token-trie branches; ``"letters"`` lists the choices as
-    lettered options in the prompt and reads one slot token per choice.
+    ``scoring`` selects the engine mode: ``"slots"`` (default) decides
+    through neutral aliases listed in the prompt; ``"labels"`` scores the
+    real choice text via the token trie.
 
     ``allow_unknown`` adds a synthetic ``UNKNOWN`` choice (gloss: insufficient
     evidence or none of the options) to every enum field and maps it to None
@@ -391,7 +392,7 @@ def decide_many[T: BaseModel](
     *,
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
-    scoring: str = "trie",
+    scoring: str = "slots",
     allow_unknown: bool = False,
 ) -> list[Decision[T]]:
     """Decide many contexts against one schema and return one Decision per context.

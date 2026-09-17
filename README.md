@@ -70,23 +70,23 @@ Generation can produce malformed or off-schema output and gives no per-field con
         restricted next-token probs per branch → trie → pick value + P(choice)
 ```
 
-1. **Plan.** The schema compiles into a batch plan: choice suffixes, shared prefixes, lead-ins ([schema.py](jevmlx/schema.py)).
-2. **Prefill.** The context plus a compact schema catalog goes through the model a single time.
-3. **Rows.** Each field's choice continuations become trie rows against the broadcast KV cache; choices that share a first token get their own rows.
+1. **Plan.** The schema compiles into a batch plan: candidate suffixes, shared prefixes, lead-ins ([schema.py](jevmlx/schema.py)).
+2. **Prefill.** A prompt v2 message (system paragraph, then the schema block and the delimited context) goes through the model a single time.
+3. **Rows.** Each field's candidate continuations become trie rows against the broadcast KV cache; candidates that share a first token get their own rows.
 4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked by a memory heuristic.
-5. **Trie scoring.** At each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities; the JSON object is assembled from the winners ([engine.py](jevmlx/engine.py)).
+5. **Trie scoring.** At each branch point the model's next-token distribution is restricted to the allowed tokens, and P(candidate) is the product of those branch probabilities; the JSON object is assembled from the winners (aliased back to the real choice values in slots mode) ([engine.py](jevmlx/engine.py)).
 
-Two scoring modes: trie (default) and letter slots (`--scoring letters`). Letters list each field's choices as lettered options and read the next-token distribution at the field's slot position — no tokenization collisions by construction; try it when a schema's choices share long first tokens.
+Two scoring modes: slots (default) and labels (`--scoring labels`). Slots list each field's choices as neutral aliases (`A) <choice> — <gloss>`) in the prompt and score the quoted aliases through the same token trie — the output vocabulary no longer depends on the choice text; try it when a schema's choices share long first tokens. Labels scores the real choice text (the original trie).
 
 ## Features
 
 1. **One decision pass for every field.** The KV cache is broadcast so all schema fields are scored in one batched suffix pass; latency grows with the longest suffix, not field count.
 2. **Always-valid JSON.** The object is assembled from per-field decisions, never generated token by token, so it cannot be malformed; `multi` fields return the subset of options that apply.
-3. **Honest confidence.** Each field's probabilities come from restricted branch distributions over a token trie and sum to 1 at full precision; `jevmlx calibrate` fits one temperature to correct overconfidence.
+3. **Honest confidence.** Each field's probabilities come from restricted branch distributions over a token trie and sum to 1 at full precision; log_scores are keyed by the real choice string in both scoring modes; `jevmlx calibrate` fits one temperature to correct overconfidence.
 4. **Typed Python API.** Pass a Pydantic model, get a validated instance with per-field confidences — `jevmlx.decide` for one context, `jevmlx.decide_many` for many with one model load.
 5. **HTTP server.** `jevmlx serve --model M` loads the model once and serves one decision per request on `POST /decide` (serial — one Metal GPU).
 6. **Temperature calibration.** `jevmlx calibrate` fits one scalar temperature on labeled JSONL by minimizing NLL and reports binned ECE before and after.
-7. **Works with causal decoder models served by mlx-lm.** Prompts use the tokenizer's own chat template — no hand-rolled role tags; tested models are in the table below.
+7. **Works with causal decoder models served by mlx-lm.** Prompts use the tokenizer's own chat template (system + user; templates that reject a system role get the system text merged into the user turn) — no hand-rolled role tags; tested models are in the table below.
 8. **Schema linting before you ship.** `jevmlx validate SCHEMA.json` loads the tokenizer only (no model download) and reports first-token collisions with rename suggestions, duplicate choices, single-choice fields, and compile errors.
 
 ## Model compatibility

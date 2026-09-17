@@ -116,12 +116,12 @@ def test_model_slug():
     )
 
 
-def test_track_scorer_grid_drops_naive_letters():
-    grid = _track_scorer_grid(["parallel", "naive_local"], ["trie", "letters"])
-    assert ("parallel", "trie") in grid
-    assert ("parallel", "letters") in grid
-    assert ("naive_local", "trie") in grid
-    assert ("naive_local", "letters") not in grid
+def test_track_scorer_grid_drops_naive_labels():
+    grid = _track_scorer_grid(["parallel", "naive_local"], ["slots", "labels"])
+    assert ("parallel", "slots") in grid
+    assert ("parallel", "labels") in grid
+    assert ("naive_local", "slots") in grid
+    assert ("naive_local", "labels") not in grid
 
 
 # --- folder size guard ----------------------------------------------------------
@@ -157,7 +157,7 @@ def _write_report(folder: Path, metrics: dict) -> None:
 def test_summarize_two_report_files(tmp_path, capsys):
     root = Path(tmp_path)
     combo_a = root / "m5max-128gb--model-a" / "parallel-trie-bundled"
-    combo_b = root / "m5max-128gb--model-a" / "parallel-letters-typesafe"
+    combo_b = root / "m5max-128gb--model-a" / "parallel-labels-typesafe"
     _write_report(
         combo_a,
         {

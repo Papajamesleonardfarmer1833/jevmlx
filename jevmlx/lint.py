@@ -68,7 +68,7 @@ def _rotation_suggestion(choices: list[str], all_choices: list[str], tokenizer) 
         probe = StructuredSchema(
             {"_probe": {"type": "enum", "description": "", "choices": renamed_list}}
         )
-        probe_entry = probe.compile_batch_plan(tokenizer)["fields"]["_probe"]
+        probe_entry = probe.compile_labels_plan(tokenizer)["fields"]["_probe"]
     except ValueError:
         return None
     seen_first: set[int] = set()
@@ -82,7 +82,7 @@ def _rotation_suggestion(choices: list[str], all_choices: list[str], tokenizer) 
 def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     """Lint a schema's enum choices for engine-visible problems.
 
-    Token lists come from ``StructuredSchema.compile_batch_plan`` — the exact
+    Token lists come from ``StructuredSchema.compile_labels_plan`` — the exact
     lists the engine scores — so the lint never re-tokenizes by hand and can
     never disagree with the engine about token boundaries.
 
@@ -111,7 +111,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        compiled = schema.compile_batch_plan(tokenizer)
+        compiled = schema.compile_labels_plan(tokenizer)
     except SchemaCompileError as exc:
         return [
             Finding(

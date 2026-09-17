@@ -62,7 +62,7 @@ def test_plan_uses_full_sequence_tokenization():
         {"action": {"type": "enum", "description": "d", "choices": ["LOW", "LOWER"]}}
     )
     tok = NonCompositionalTokenizer()
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     remainders = plan["fields"]["action"]["remainders"]
     # '  "action": "LOW"'+',\n' -> [7, _QUOTE, comma, newline]
     # '  "action": "LOWER"'+',\n' -> [999, _QUOTE, comma, newline]
@@ -87,13 +87,13 @@ def test_plan_cache_is_per_tokenizer():
     # dead tokenizer's entry disappears with it.
     tok_a = NonCompositionalTokenizer()
     tok_b = OtherTokenizer()
-    plan_a = schema.compile_batch_plan(tok_a)
-    plan_b = schema.compile_batch_plan(tok_b)
+    plan_a = schema.compile_labels_plan(tok_a)
+    plan_b = schema.compile_labels_plan(tok_b)
     assert plan_a["fields"]["action"]["remainders"] == [[7, _QUOTE, 44, 10], [999, _QUOTE, 44, 10]]
     assert plan_b["fields"]["action"]["remainders"] == [[3, _QUOTE, 44, 10], [555, _QUOTE, 44, 10]]
     assert len(schema._plans) == 2
-    assert schema.compile_batch_plan(tok_a) is plan_a
-    assert schema.compile_batch_plan(tok_b) is plan_b
+    assert schema.compile_labels_plan(tok_a) is plan_a
+    assert schema.compile_labels_plan(tok_b) is plan_b
 
 
 def test_trie_rows_branch_vs_distinct():
@@ -196,7 +196,7 @@ def test_identical_remainders_rejected():
         {"action": {"type": "enum", "description": "d", "choices": ["OK1", "OK2"]}}
     )
     with pytest.raises(ValueError, match="token-identical"):
-        schema.compile_batch_plan(SameTokens())
+        schema.compile_labels_plan(SameTokens())
 
 
 def test_choice_with_double_quote_is_json_escaped():
@@ -215,7 +215,7 @@ def test_choice_with_double_quote_is_json_escaped():
             }
         }
     )
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     lead_in = plan["lead_in_ids"]
     shared = plan["fields"]["quote"]["shared_ids"]
     remainders = plan["fields"]["quote"]["remainders"]
@@ -264,7 +264,7 @@ def test_strict_token_prefix_remainder_rejected():
         {"x": {"type": "enum", "description": "d", "choices": ["AB", "ABC", "OK"]}}
     )
     with pytest.raises(ValueError, match="strict token-prefix"):
-        schema.compile_batch_plan(Prefixing())
+        schema.compile_labels_plan(Prefixing())
 
 
 def test_choice_that_is_token_prefix_of_another_is_rejected():
@@ -296,7 +296,7 @@ def test_choice_that_is_token_prefix_of_another_is_rejected():
         {"x": {"type": "enum", "description": "d", "choices": ["AB", "ABC", "ABD"]}}
     )
     with pytest.raises(ValueError, match="strict token-prefix"):
-        schema.compile_batch_plan(Nested())
+        schema.compile_labels_plan(Nested())
 
 
 def test_score_trie_rejects_non_finite_logits():
@@ -326,7 +326,7 @@ def test_single_choice_enum_scores_one_point_oh():
     """T7: cardinality-1 enum -> P=1.0, no branch rows, no crash."""
     schema = StructuredSchema({"only": {"type": "enum", "description": "d", "choices": ["ONLY"]}})
     tok = NonCompositionalTokenizer()
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     remainders = plan["fields"]["only"]["remainders"]
     assert len(remainders) == 1
     nodes = build_trie(remainders)
@@ -352,7 +352,7 @@ def test_mixed_schema_rows_carry_lead_in_exactly_once():
             },
         }
     )
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     lead_in = plan["lead_in_ids"]
     assert lead_in, "fake tokenizer must produce a shared lead-in"
 
@@ -404,7 +404,7 @@ def test_multi_option_strict_prefix_pair_rejected():
         }
     )
     with pytest.raises(ValueError, match="strict"):
-        schema.compile_batch_plan(PrefixPair())
+        schema.compile_labels_plan(PrefixPair())
 
 
 def test_softmax_extreme_temperature_no_nan():
@@ -424,7 +424,7 @@ def test_mixed_enum_multi_lead_in_round_trip():
             "flags": {"type": "multi", "description": "d", "choices": ["opt_a", "opt_b"]},
         }
     )
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     lead_in = plan["lead_in_ids"]
 
     # With only one scalar field, the lead-in must NOT contain that field's
@@ -473,7 +473,7 @@ def test_zero_length_row_rejected_when_no_common_prefix():
         {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
     )
     with pytest.raises(ValueError, match="share no token prefix"):
-        schema.compile_batch_plan(NoCommon())
+        schema.compile_labels_plan(NoCommon())
 
 
 def test_duplicate_multi_choices_rejected():
@@ -532,7 +532,7 @@ def test_multi_option_no_common_prefix_rejected():
         {"flags": {"type": "multi", "description": "d", "choices": ["opt_a", "opt_b"]}}
     )
     with pytest.raises(ValueError, match="option 'opt_a'.*share no token prefix"):
-        schema.compile_batch_plan(NoCommonPair())
+        schema.compile_labels_plan(NoCommonPair())
 
 
 def test_field_name_with_dot_rejected():
@@ -567,7 +567,7 @@ def test_field_named_lead_in_ids_does_not_collide():
             "lead_in_ids": {"type": "enum", "description": "d", "choices": ["A", "B"]},
         }
     )
-    plan = schema.compile_batch_plan(tok)
+    plan = schema.compile_labels_plan(tok)
     # Metadata key present and correct.
     assert plan["lead_in_ids"] == tok.encode('{\n  "')
     # Both fields have their own untouched plans.
@@ -657,13 +657,13 @@ def test_equal_but_distinct_tokenizers_get_distinct_plans():
     schema = StructuredSchema(
         {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
     )
-    plan_a = schema.compile_batch_plan(EqTokenizer(shift=0))
-    plan_b = schema.compile_batch_plan(EqTokenizer(shift=10))
+    plan_a = schema.compile_labels_plan(EqTokenizer(shift=0))
+    plan_b = schema.compile_labels_plan(EqTokenizer(shift=10))
     # The plans must differ: under a shared (equal-keyed) cache entry the
     # second tokenizer would silently reuse the first one's token ids.
     assert plan_a["fields"]["action"]["remainders"] != plan_b["fields"]["action"]["remainders"]
     # And each matches a fresh compile with the same tokenizer.
-    again = schema.compile_batch_plan(EqTokenizer(shift=10))
+    again = schema.compile_labels_plan(EqTokenizer(shift=10))
     assert again["fields"]["action"]["remainders"] == plan_b["fields"]["action"]["remainders"]
 
 
@@ -676,8 +676,8 @@ def test_cache_evicts_entry_when_tokenizer_dies():
         {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
     )
     tok = NonCompositionalTokenizer()
-    schema.compile_batch_plan(tok)
-    cache_key = (id(tok), "trie")
+    schema.compile_labels_plan(tok)
+    cache_key = (id(tok), "labels")
     assert cache_key in schema._plans
     ref = _weakref.ref(tok)
     del tok

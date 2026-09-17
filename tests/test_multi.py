@@ -18,7 +18,7 @@ class FakeTokenizer:
         return [ord(c) % 97 + 1 for c in text] or [1]
 
 
-def test_compile_batch_plan_expands_multi_field():
+def test_compile_labels_plan_expands_multi_field():
     schema = StructuredSchema(
         {
             "categories": {
@@ -28,7 +28,7 @@ def test_compile_batch_plan_expands_multi_field():
             }
         }
     )
-    plan = schema.compile_batch_plan(FakeTokenizer())
+    plan = schema.compile_labels_plan(FakeTokenizer())
     p = plan["fields"]["categories"]
 
     # One row per option, stable suffix '  "<field>.<option>": '.

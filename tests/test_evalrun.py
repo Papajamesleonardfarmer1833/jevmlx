@@ -315,7 +315,7 @@ def test_parallel_log_scores_reads_finalized_dict(tmp_path, monkeypatch):
     # run_parallel_generation inside jevmlx.engine.
     calls = {}
 
-    def fake_rpg(model, tokenizer, context, schema, temperature=1.0, scoring="trie"):
+    def fake_rpg(model, tokenizer, context, schema, temperature=1.0, scoring="slots"):
         calls["temperature"] = temperature
         return {
             "field_telemetry": {

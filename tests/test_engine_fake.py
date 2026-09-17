@@ -48,7 +48,7 @@ class FakeTokenizer:
 
     def apply_chat_template(self, messages, add_generation_prompt=True, tokenize=True):
         assert tokenize
-        return self.encode(messages[0]["content"])
+        return self.encode("\n".join(m["content"] for m in messages))
 
     def __len__(self) -> int:
         return 64
@@ -81,7 +81,7 @@ def test_engine_runs_mixed_schema_with_fake_model():
     result = run_parallel_generation(model, tokenizer, "ctx", schema)
 
     assert set(result["parsed_json"]) == {"flag", "action", "flags"}
-    assert result["confidence_model"] == "constrained_path"
+    assert result["confidence_model"] == "slots"
     # Uniform logits -> uniform branch probabilities.
     assert result["parsed_json"]["action"]["prob"] == pytest.approx(0.5)
     telemetry = result["field_telemetry"]["flags"]
@@ -104,8 +104,8 @@ def test_prompt_sha256_stable_and_input_sensitive():
     assert r1["prompt_sha256"] != r3["prompt_sha256"]
     assert len(r1["prompt_sha256"]) == 64
     # Independent of the schema contents swap? No: same schema, so identical.
-    assert r1["prompt_version"] == "jevmlx-parallel-v1"
+    assert r1["prompt_version"] == "jevmlx-parallel-v2"
     assert (
         r1["probability_status"]
-        == "constrained_path probability at T=1; uncalibrated as decision confidence"
+        == "constrained-path probability at T=1; uncalibrated as decision confidence"
     )
