@@ -337,3 +337,123 @@ def test_prior_correction_multi_option_pairs():
     for pair in t["prior_option_pairs"].values():
         assert len(pair) == 2
         assert all(isinstance(v, float) for v in pair)
+
+
+def test_prior_cache_keyed_by_live_tokenizer_not_id():
+    """C1: a freed tokenizer's id() can be reused by a new object; the prior
+    cache must key on the LIVE tokenizer (weakref + finalize eviction), so
+    tokenizer B never sees tokenizer A's prior."""
+    import gc
+
+    calls = {"n": 0}
+
+    class CountingModel(FakeModel):
+        def __call__(self, tokens, cache=None):
+            calls["n"] += 1
+            return super().__call__(tokens, cache)
+
+    model = CountingModel()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["ALPHA", "BETA"]}}
+    )
+
+    # Tokenizer A: first corrected run computes the prior (neutral pass runs).
+    tokenizer_a = FakeTokenizer()
+    calls["n"] = 0
+    run_parallel_generation(model, tokenizer_a, "ctx", schema, prior_correction=True)
+    assert calls["n"] > 0
+
+    # Free A, force id reuse pressure.
+    del tokenizer_a
+    gc.collect()
+
+    # Tokenizer B (fresh object, likely reusing A's id): different logits
+    # would produce a different prior. The neutral pass MUST run again.
+    class ShiftedTokenizer(FakeTokenizer):
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            return [(ord(c) * 7 + 13) % 60 for c in text]
+
+    tokenizer_b = ShiftedTokenizer()
+    calls["n"] = 0
+    run_parallel_generation(model, tokenizer_b, "ctx", schema, prior_correction=True)
+    # Plain run call count for comparison.
+    calls_plain = {"n": 0}
+
+    class PlainModel(FakeModel):
+        def __call__(self, tokens, cache=None):
+            calls_plain["n"] += 1
+            return super().__call__(tokens, cache)
+
+    run_parallel_generation(PlainModel(), tokenizer_b, "ctx", schema)
+    # B's first corrected run pays the neutral pass again: more calls than plain.
+    assert calls["n"] > calls_plain["n"], (
+        "prior was served from a stale entry keyed by a reused id(tokenizer)"
+    )
+
+
+def test_prior_cache_entry_dies_with_tokenizer():
+    """C1: the prior cache is keyed by the LIVE tokenizer (weakref), not its
+    id() — an entry cannot outlive its tokenizer, so a new tokenizer whose
+    id() was recycled can never be served a dead tokenizer's prior."""
+    import gc
+    import weakref
+
+    from jevmlx.engine import _PRIOR_CACHE, _get_or_compute_prior
+
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["ALPHA", "BETA"]}}
+    )
+    _PRIOR_CACHE.clear()
+    prior = _get_or_compute_prior(model, tokenizer, schema, "slots", 1.0, None, "neutral")
+    assert _PRIOR_CACHE, "prior was not cached"
+
+    # Find this tokenizer's entry via its live weakref.
+    live = weakref.ref(tokenizer)
+
+    def entry_keys():
+        return [k for k in _PRIOR_CACHE if any(r is live for r in k if isinstance(r, weakref.ref))]
+
+    assert entry_keys(), "entry not keyed by a weakref to the live tokenizer"
+
+    # The tokenizer dies -> its entry is evicted (weakref.finalize) and can
+    # never be served again, no matter which id() CPython hands out next.
+    del tokenizer
+    gc.collect()
+    assert not entry_keys(), "stale entry survived its tokenizer"
+    assert prior  # and the computed prior itself is untouched
+
+
+def test_prior_cache_registers_one_finalizer_per_tokenizer():
+    """C1 review: the eviction finalizer is registered once at store time,
+    not on every cache lookup — N corrected calls with the same tokenizer
+    leave the engine's weakref count flat.
+
+    schema.plan_hash is pinned to a constant so schema.py's own per-call
+    plan-cache weakrefs (pre-existing, outside C1's scope) don't pollute the
+    count — this isolates what the PRIOR cache adds.
+    """
+    import weakref
+
+    from jevmlx.engine import _PRIOR_CACHE, _get_or_compute_prior
+
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["ALPHA", "BETA"]}}
+    )
+    _PRIOR_CACHE.clear()
+    orig_plan_hash = schema.plan_hash
+    schema.plan_hash = lambda tok, mode: "fixed-hash"
+    try:
+        _get_or_compute_prior(model, tokenizer, schema, "slots", 1.0, None, "neutral")
+        after_store = weakref.getweakrefcount(tokenizer)
+        assert after_store >= 1  # the eviction finalizer's weakref
+        # Hit path: the count must stay flat (no per-lookup finalizers).
+        for _ in range(10):
+            _get_or_compute_prior(model, tokenizer, schema, "slots", 1.0, None, "neutral")
+        assert weakref.getweakrefcount(tokenizer) == after_store
+    finally:
+        schema.plan_hash = orig_plan_hash
+        _PRIOR_CACHE.clear()

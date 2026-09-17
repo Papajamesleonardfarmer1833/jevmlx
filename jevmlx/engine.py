@@ -17,6 +17,7 @@ import math
 import platform
 import re
 import time
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -381,16 +382,24 @@ def _rows_per_chunk(budget_bytes: int, bytes_per_row: int, max_rows: int | None)
     return auto_cap
 
 
-# Process-lifetime prior cache: keyed by (model id, revision if known,
-# tokenizer identity, prompt_version, scoring mode, plan hash). The prior
-# depends only on the prompt shape and scoring plan, never on the context,
-# so eval and decide_many pay the neutral pass once per schema.
+# Process-lifetime prior cache: keyed by (live tokenizer identity, model id,
+# revision, prompt_version, scoring mode, plan hash). The tokenizer is held by
+# WEAKREF with finalize-time eviction — the schema plan cache pattern (schema.py
+# _store_plan). Keying by id(tokenizer) in a plain dict is a bug: id() of a
+# freed tokenizer is reused by a new object, which would serve one tokenizer's
+# prior to another. The prior depends only on the prompt shape and scoring
+# plan, never on the context, so eval and decide_many pay the neutral pass
+# once per schema.
 _PRIOR_CACHE: dict[tuple, dict[str, Any]] = {}
 _PRIOR_CACHE_MAX = 256
 
 
 def _model_identity(model, tokenizer) -> tuple:
-    """(model id, revision if known, tokenizer identity) for cache keys."""
+    """(model id, revision if known) for cache keys.
+
+    No id(tokenizer): tokenizer identity is carried separately as a live
+    weakref in the cache key (see _prior_cache_key).
+    """
     model_id = getattr(model, "name_or_path", None) or getattr(
         tokenizer, "name_or_path", type(model).__name__
     )
@@ -399,8 +408,30 @@ def _model_identity(model, tokenizer) -> tuple:
         or getattr(model, "model_revision", None)
         or getattr(tokenizer, "revision", None)
     )
-    tok_id = id(tokenizer)
-    return (model_id, revision, tok_id)
+    return (model_id, revision)
+
+
+def _prior_cache_key(model, tokenizer, prompt_version: str, scoring: str, plan_hash) -> tuple:
+    """Cache key carrying the tokenizer as a weakref.
+
+    Non-weak-referenceable tokenizers are not cached at all (same rule as
+    schema.py's plan cache): an id()-keyed entry without a liveness check
+    could be returned for a different object after id reuse.
+
+    NOTE: registers NO finalizer — eviction is wired once at store time in
+    :func:`_get_or_compute_prior` (registering here would add a finalizer
+    object on every cache lookup).
+    """
+    try:
+        ref = weakref.ref(tokenizer)
+    except TypeError:
+        logger.debug(
+            "tokenizer %s is not weak-referenceable; prior cache disabled "
+            "for it (neutral pass recomputed every call)",
+            type(tokenizer).__name__,
+        )
+        return ()
+    return (_model_identity(model, tokenizer), ref, prompt_version, scoring, plan_hash)
 
 
 def _get_or_compute_prior(
@@ -426,9 +457,8 @@ def _get_or_compute_prior(
     the key slot exists to prevent accidental sharing, not to vary).
     """
     plan_hash = schema.plan_hash(tokenizer, scoring)
-    identity = _model_identity(model, tokenizer)
-    key = (identity, PROMPT_VERSION, scoring, plan_hash)
-    hit = _PRIOR_CACHE.get(key)
+    key = _prior_cache_key(model, tokenizer, PROMPT_VERSION, scoring, plan_hash)
+    hit = _PRIOR_CACHE.get(key) if key else None
     if hit is not None:
         return hit
 
@@ -470,7 +500,10 @@ def _get_or_compute_prior(
 
     if len(_PRIOR_CACHE) >= _PRIOR_CACHE_MAX:
         _PRIOR_CACHE.pop(next(iter(_PRIOR_CACHE)))
-    _PRIOR_CACHE[key] = prior
+    if key:
+        # Eviction is wired once, at store time — not on every lookup.
+        weakref.finalize(tokenizer, _PRIOR_CACHE.pop, key, None)
+        _PRIOR_CACHE[key] = prior
     return prior
 
 
