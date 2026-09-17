@@ -10,6 +10,7 @@ prefix KV-caching.
 import copy
 import functools
 import hashlib
+import importlib.metadata
 import json
 import logging
 import math
@@ -83,8 +84,6 @@ def engine_metadata(model_id: str) -> dict[str, Any]:
     ``quantization`` block from its config.json (None when unquantized).
     Reads only files already in the cache — no download, no reload.
     """
-    import importlib.metadata
-
     mlx_lm_version = importlib.metadata.version("mlx-lm")
     revision = None
     quantization = None
