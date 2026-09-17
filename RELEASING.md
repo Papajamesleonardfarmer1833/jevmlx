@@ -1,35 +1,50 @@
 # Releasing jevmlx
 
-Steps to cut a release (e.g. `0.1.0`). No publish happens automatically.
+Exact ordered command list to publish `jevmlx X.Y.Z` to PyPI. Nothing is
+published automatically; every step below is manual. Work on an Apple
+Silicon Mac with a green `main`.
 
-## Prerelease checklist
+## Prereq (once)
 
-- `pytest -m "not slow"` and `pytest -m slow` pass on your Mac.
-- `uv build && uv tool run twine check dist/*` passes.
-- Wheel smoke-tested in a clean venv: `jevmlx --version`, `jevmlx doctor --json`.
-- **Never publish a version whose README numbers are not backed by files
-  under `benchmarks/results/`** — every accuracy/latency claim in the README
-  must link to a committed result file.
+```bash
+uv tool install twine   # or: brew install twine
+```
 
-## Steps
+## Steps (run from a clone of `main`, up to date)
 
-1. Update `CHANGELOG.md`: move `Unreleased` entries under a `## [X.Y.Z] -
-   YYYY-MM-DD` heading.
-2. Bump `version` in `pyproject.toml`, commit, and push to `main`.
-3. Tag and push the tag:
+```bash
+# 0. Gates on main: full suites + lint green
+pytest -m "not slow" -q && pytest -m slow -q && ruff check . && ruff format --check .
 
-   ```bash
-   git tag vX.Y.Z && git push origin vX.Y.Z
-   ```
+# 1. Version must already read X.Y.Z in pyproject.toml and CHANGELOG.md must
+#    have the matching "## [X.Y.Z] - YYYY-MM-DD" section (edit + commit if not).
 
-   The `release-check` workflow builds, runs `twine check`, installs the
-   wheel into a clean venv, and runs `--version` / `doctor --json`. Green
-   run required before publishing.
-4. Publish manually (needs a PyPI token with upload rights):
+# 2. Build distributions and validate them
+rm -rf dist && uv build
+twine check dist/*
 
-   ```bash
-   uv publish --token <PYPI_TOKEN>
-   ```
+# 3. Tag the release commit and push it (triggers the release-check workflow:
+#    build + twine check + clean-venv wheel smoke test; wait for green)
+git tag vX.Y.Z
+git push origin vX.Y.Z
 
-5. Verify on PyPI: `pip install jevmlx` in a fresh venv, rerun the smoke
-   test, and check the rendered long description.
+# 4. Publish to PyPI (needs a PyPI token with upload rights for the project)
+twine upload dist/jevmlx-X.Y.Z*
+
+# 5. Cut the GitHub release from the tag
+open https://github.com/bnsd55/jevmlx/releases/new?tag=vX.Y.Z
+#   - title: "jevmlx X.Y.Z"
+#   - notes: paste the CHANGELOG "## [X.Y.Z]" section
+
+# 6. Verify: fresh venv, install from PyPI, smoke test
+uv venv /tmp/jevmlx-release-check && uv pip install --python /tmp/jevmlx-release-check/bin/python jevmlx
+/tmp/jevmlx-release-check/bin/jevmlx --version
+/tmp/jevmlx-release-check/bin/jevmlx doctor --json
+```
+
+## Hard rules
+
+- Never publish a version whose README numbers are not backed by files under
+  `benchmarks/results/` — every accuracy/latency claim must link to a
+  committed result file.
+- The `release-check` workflow run for the tag must be green before step 4.

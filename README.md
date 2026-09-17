@@ -7,7 +7,7 @@ Typed decisions from a local model on Apple Silicon. One batched forward pass, e
 Asking an LLM for JSON means parsing what it wrote, fixing what drifted, and retrying until it parses. jevmlx takes a schema of booleans, enums, and multi-selects, scores every allowed answer for every field in one forward pass, and assembles the JSON itself. Nothing is generated token by token: the output is valid by construction and every field carries a probability.
 
 ```bash
-pip install git+https://github.com/bnsd55/jevmlx
+pip install jevmlx
 jevmlx decide --preset fintech_fraud --json
 ```
 
@@ -23,9 +23,9 @@ jevmlx decide --preset fintech_fraud --json
 
 ```bash
 # library into your project
-pip install git+https://github.com/bnsd55/jevmlx
+pip install jevmlx
 # CLI only
-uv tool install git+https://github.com/bnsd55/jevmlx
+uv tool install jevmlx
 # from a clone (dev)
 git clone https://github.com/bnsd55/jevmlx && cd jevmlx && ./setup.sh
 ```
