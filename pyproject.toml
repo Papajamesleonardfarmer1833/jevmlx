@@ -15,12 +15,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Operating System :: MacOS",
     "License :: OSI Approved :: MIT License",
+    "Typing :: Typed",
 ]
-dependencies = ["mlx-lm", "pydantic>=2"]
+dependencies = ["mlx-lm>=0.31.3", "pydantic>=2.5"]
 
 [project.urls]
 Homepage = "https://github.com/bnsd55/openjev"
 Repository = "https://github.com/bnsd55/openjev"
+Issues = "https://github.com/bnsd55/openjev/issues"
+Changelog = "https://github.com/bnsd55/openjev/blob/main/CHANGELOG.md"
 
 [project.scripts]
 openjev = "openjev.cli:main"
