@@ -16,6 +16,7 @@
 - C: cleanup pass — only relevant files stay.
 - R: professional README restructure.
 - W2: documentation and CLI presentation fixes.
+- E1-E2, E-baseline, E-metrics, E-report: eval harness (`openjev eval` / `openjev report`), TypeSafe fetcher, API naive-JSON baseline.
 
 ## Next
 
@@ -25,6 +26,8 @@
 - N5: PyPI 0.1.0.
 - G10: routing thresholds on held-out data (after N1).
 - G1: schema-prefix KV reuse in `decide_many` (only if N3 shows it matters).
+- N6: Field dependencies: compile schemas into a dependency DAG, decide each independent layer in one batched pass, run deterministic rules between layers, validate cross-field constraints at the end. Today fields are independent one-shot decisions and assembled JSON can be logically inconsistent.
+- N7: Typed API exposes full per-field distributions (raw log-scores, alternatives, calibration provenance), not only the winner and one confidence.
 
 ## Cut
 

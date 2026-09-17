@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Eval harness: `openjev eval` runs labeled cases through the parallel, naive-local, or API-baseline tracks and writes per-field predictions plus a run manifest (`predictions.jsonl` / `run.json`); `openjev report` summarizes runs offline.
+
 - Correctness gate in progress: schema candidates are tokenized as complete sequences (token-aligned plans, fixing character-prefix splitting), the engine scores all fields with one objective (a token trie over choice remainders), engine outputs keep full precision, temperature and memory-batch arguments are validated, and multi-field confidence is the minimum over all per-option decisions.
 - CLI presentation: confidences are rounded only at display time (3 decimals in the table, 4 in `--json`), never in the engine.
 - Documentation: README and ROADMAP claims aligned with the code (chunked suffix passes, tested-model boundary, no memory-bound guarantee).
