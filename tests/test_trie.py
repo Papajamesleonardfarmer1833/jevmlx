@@ -10,7 +10,7 @@ import math
 import pytest
 
 from openjev.schema import StructuredSchema
-from openjev.trie import build_trie, score_trie, softmax
+from openjev.trie import build_trie, log_softmax, logsumexp, score_trie, softmax
 
 _QUOTE = ord('"')
 
@@ -486,5 +486,72 @@ def test_duplicate_multi_choices_rejected():
                     "description": "d",
                     "choices": ["opt_a", "opt_a", "opt_b"],
                 }
+            }
+        )
+
+
+def test_log_softmax_no_cancellation_huge_values():
+    """C1: [1e300, 1e300] -> [-ln2, -ln2], computed from shifted logits."""
+    import math as _math
+
+    result = log_softmax([1e300, 1e300])
+    expected = -_math.log(2)
+    assert result[0] == pytest.approx(expected, rel=1e-12)
+    assert result[1] == pytest.approx(expected, rel=1e-12)
+
+
+def test_log_softmax_no_cancellation_huge_negative():
+    """C1: [-1e300, 0] -> [-1e300, 0] exactly (shift = max = 0)."""
+    result = log_softmax([-1e300, 0.0])
+    assert result[1] == pytest.approx(0.0, abs=1e-12)
+    assert result[0] == pytest.approx(-1e300, rel=1e-12)
+
+
+def test_logsumexp_no_cancellation():
+    """C1: logsumexp([1e300, 1e300]) = 1e300 + ln 2, not 1e300."""
+    import math as _math
+
+    result = logsumexp([1e300, 1e300])
+    assert result == pytest.approx(1e300 + _math.log(2), rel=1e-12)
+
+
+def test_multi_option_no_common_prefix_rejected():
+    """C2: an option pair sharing no first token raises at compile time."""
+
+    class NoCommonPair(NonCompositionalTokenizer):
+        name_or_path = "fake-no-common-pair"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            if "true" in text:
+                return [84]  # single token, unique to the true candidate
+            if "false" in text:
+                return [70]  # different single token for false
+            return super().encode(text, add_special_tokens)
+
+    schema = StructuredSchema(
+        {"flags": {"type": "multi", "description": "d", "choices": ["opt_a", "opt_b"]}}
+    )
+    with pytest.raises(ValueError, match="option 'opt_a'.*share no token prefix"):
+        schema.compile_batch_plan(NoCommonPair())
+
+
+def test_field_name_with_dot_rejected():
+    """C3: dot-free field names keep '<field>.<option>' keys injective."""
+    with pytest.raises(ValueError, match="contains '.'"):
+        StructuredSchema(
+            {
+                "a.b": {"type": "boolean", "description": "d"},
+                "flags": {"type": "multi", "description": "d", "choices": ["x", "y"]},
+            }
+        )
+
+
+def test_multi_option_key_never_collides_with_field_name():
+    """C3: field 'a' + option 'b.c' vs field 'a.b' — the dot rule rejects it."""
+    with pytest.raises(ValueError, match="contains '.'"):
+        StructuredSchema(
+            {
+                "a.b": {"type": "boolean", "description": "d"},
+                "a": {"type": "multi", "description": "d", "choices": ["b.c", "c"]},
             }
         )

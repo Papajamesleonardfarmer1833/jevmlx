@@ -128,12 +128,22 @@ def _validate_json(current_text: str, schema: StructuredSchema):
         for fname, fdef in schema.fields.items():
             if fname not in parsed_json:
                 missing_keys.append(fname)
+            elif fdef.field_type == "multi":
+                # Multi values are lists: set equality against the allowed
+                # options, and no duplicate items (C4a).
+                val = parsed_json[fname]
+                if not isinstance(val, list) or any(not isinstance(item, str) for item in val):
+                    invalid_enums.append(f"{fname}={val!r}")
+                elif len(set(val)) != len(val) or set(val) - set(fdef.choices):
+                    invalid_enums.append(f"{fname}={val!r}")
             elif fdef.field_type != "boolean":
                 val = str(parsed_json[fname])
                 if val not in fdef.choices:
                     invalid_enums.append(f"{fname}={val}")
 
-    schema_match = is_valid_json and not missing_keys and not invalid_enums
+    schema_match = (
+        is_valid_json and isinstance(parsed_json, dict) and not missing_keys and not invalid_enums
+    )
     return parsed_json, is_valid_json, parse_error, missing_keys, invalid_enums, schema_match
 
 

@@ -84,6 +84,16 @@ class StructuredSchema:
     def __init__(self, schema_dict: dict[str, Any]):
         self.fields: dict[str, FieldDefinition] = {}
         for field_name, spec in schema_dict.items():
+            if "." in field_name:
+                # Multi rows are keyed 'fname.option'; a dot inside a field
+                # name could collide with another field's literal name (C3:
+                # row keys must be injective). json.dumps is applied at
+                # candidate-text build time, so the dot rule is the only
+                # additional constraint needed for uniqueness.
+                raise ValueError(
+                    f"Field name '{field_name}' contains '.'; dot-free field "
+                    "names keep multi row keys '<field>.<option>' injective"
+                )
             self.fields[field_name] = FieldDefinition(
                 name=field_name,
                 field_type=spec.get("type", "enum"),
@@ -170,7 +180,12 @@ class StructuredSchema:
         plan: dict[str, dict[str, Any]] = {}
 
         def candidate_text(name: str, value_text: str) -> str:
-            """The complete assistant tail for one row: '{\n' + row + ',\n'."""
+            """The complete assistant tail for one row: '{\n' + row + ',\n'.
+
+            The row key is always json.dumps(name) (C3: no raw interpolation;
+            field names are dot-free, so '<field>.<option>' keys are
+            injective across (field, option) pairs and field names).
+            """
             return "{\n" + f"  {json.dumps(name)}: {value_text}" + ",\n"
 
         for fname, fdef in self.fields.items():
@@ -194,6 +209,16 @@ class StructuredSchema:
                     ]
                     option_shared = _common_token_prefix(pair)
                     option_remainders = [full[len(option_shared) :] for full in pair]
+                    if not option_shared:
+                        # Zero-length row: the true/false decision would sit
+                        # directly at the generation boundary (C2, same rule
+                        # as the scalar guard).
+                        raise ValueError(
+                            f"field '{fname}': option '{option}' true/false "
+                            f"candidates share no token prefix (tokenizer "
+                            f"{type(tokenizer).__name__}); cannot place the "
+                            "decision row"
+                        )
                     if option_remainders[0] == option_remainders[1]:
                         raise ValueError(
                             f"field '{fname}': option '{option}' tokenizes to "

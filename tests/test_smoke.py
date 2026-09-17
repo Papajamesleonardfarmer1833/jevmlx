@@ -30,3 +30,45 @@ def test_fintech_fraud_decisions():
 
     # The assembled JSON serializes.
     assert isinstance(json.dumps(result["parsed_json"]), str)
+
+
+def test_validate_json_multi_list_semantics():
+    """C4a: multi values compared as lists (set equality, no duplicates)."""
+    from openjev.engine import _validate_json
+
+    schema = StructuredSchema(
+        {"flags": {"type": "multi", "description": "d", "choices": ["a", "b", "c"]}}
+    )
+
+    # Valid subset -> schema_match True.
+    parsed, valid, _, missing, invalid, match = _validate_json('{"flags": ["a", "c"]}', schema)
+    assert valid and match and not missing and not invalid
+
+    # Same items different order -> still valid.
+    _, _, _, _, _, match = _validate_json('{"flags": ["c", "a"]}', schema)
+    assert match
+
+    # Duplicate items -> rejected.
+    _, _, _, _, invalid, match = _validate_json('{"flags": ["a", "a"]}', schema)
+    assert not match and invalid
+
+    # Unknown item -> rejected.
+    _, _, _, _, invalid, match = _validate_json('{"flags": ["a", "zzz"]}', schema)
+    assert not match and invalid
+
+    # Non-list -> rejected.
+    _, _, _, _, invalid, match = _validate_json('{"flags": "a"}', schema)
+    assert not match and invalid
+
+
+def test_validate_json_non_object_is_valid_but_no_match():
+    """C4b: a parsed JSON that is not a dict -> is_valid_json=True, match=False."""
+    from openjev.engine import _validate_json
+
+    schema = StructuredSchema({"flag": {"type": "boolean", "description": "d"}})
+    for text in ("[1, 2, 3]", '"hello"', "42", "null"):
+        parsed, valid, _, _, _, match = _validate_json(text, schema)
+        assert valid is True, text
+        assert match is False, text
+    parsed, valid, _, _, _, match = _validate_json("[1, 2, 3]", schema)
+    assert parsed == [1, 2, 3]

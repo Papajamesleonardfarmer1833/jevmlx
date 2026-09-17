@@ -73,19 +73,29 @@ def _validate_finite(values: list[float]) -> None:
 
 
 def logsumexp(values: list[float]) -> float:
-    """Numerically stable log-sum-exp over finite values."""
-    _validate_finite(values)
-    largest = max(values)
-    return largest + math.log(sum(math.exp(v - largest) for v in values))
+    """Numerically stable log-sum-exp over finite values.
 
-
-def log_softmax(values: list[float]) -> list[float]:
-    """Numerically stable log-softmax over finite values (never log(0))."""
+    Computed from the shifted values (s = v - max) so huge-but-finite
+    magnitudes cannot cancel (C1).
+    """
     _validate_finite(values)
     largest = max(values)
     shifted = [v - largest for v in values]
-    lse = largest + math.log(sum(math.exp(v) for v in shifted))
-    return [v - lse for v in values]
+    return largest + math.log(sum(math.exp(s) for s in shifted))
+
+
+def log_softmax(values: list[float]) -> list[float]:
+    """Numerically stable log-softmax over finite values.
+
+    Computed directly from the shifted logits (s = v - max) as
+    s - log(sum(exp(s))): no cancellation between huge values and the
+    log-sum-exp (C1). [1e300, 1e300] -> [-ln2, -ln2].
+    """
+    _validate_finite(values)
+    largest = max(values)
+    shifted = [v - largest for v in values]
+    lse_shifted = math.log(sum(math.exp(s) for s in shifted))
+    return [s - lse_shifted for s in shifted]
 
 
 def softmax(values: list[float], temperature: float = 1.0) -> list[float]:
