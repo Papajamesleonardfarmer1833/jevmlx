@@ -20,6 +20,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import typing
+from collections.abc import Sequence
 
 from pydantic import BaseModel
 
@@ -68,16 +69,15 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
     return schema
 
 
-def decide[T: BaseModel](
+def _decide_once[T: BaseModel](
     model_cls: type[T],
     context: str,
-    *,
-    model: str = DEFAULT_MODEL,
-    temperature: float = 1.0,
+    engine_model,
+    tokenizer,
+    schema: StructuredSchema,
+    temperature: float,
 ) -> Decision[T]:
-    """Run parallel constrained decisions and return a validated model instance."""
-    engine_model, tokenizer = load_engine(model)
-    schema = StructuredSchema(schema_from_model(model_cls))
+    """Decide one context with a loaded engine and a compiled schema."""
     result = run_parallel_generation(
         engine_model, tokenizer, context, schema, temperature=temperature
     )
@@ -95,3 +95,41 @@ def decide[T: BaseModel](
         confidence={k: v["confidence"] for k, v in result["field_telemetry"].items()},
         latency_ms=result["elapsed_ms"],
     )
+
+
+def decide[T: BaseModel](
+    model_cls: type[T],
+    context: str,
+    *,
+    model: str = DEFAULT_MODEL,
+    temperature: float = 1.0,
+) -> Decision[T]:
+    """Run parallel constrained decisions and return a validated model instance."""
+    engine_model, tokenizer = load_engine(model)
+    schema = StructuredSchema(schema_from_model(model_cls))
+    return _decide_once(model_cls, context, engine_model, tokenizer, schema, temperature)
+
+
+def decide_many[T: BaseModel](
+    model_cls: type[T],
+    contexts: Sequence[str],
+    *,
+    model: str = DEFAULT_MODEL,
+    temperature: float = 1.0,
+) -> list[Decision[T]]:
+    """Decide many contexts against one schema and return one Decision per context.
+
+    Loads the model once and compiles the schema once (the engine's batch plan
+    is cached on the StructuredSchema instance, so the compiled suffix and
+    choice tokens are reused across contexts); the parallel decision pass then
+    runs once per context. Results are returned in input order.
+
+    Cross-context batching (all contexts in one forward pass) is future work;
+    this is where schema prefix reuse will plug in.
+    """
+    engine_model, tokenizer = load_engine(model)
+    schema = StructuredSchema(schema_from_model(model_cls))
+    return [
+        _decide_once(model_cls, context, engine_model, tokenizer, schema, temperature)
+        for context in contexts
+    ]

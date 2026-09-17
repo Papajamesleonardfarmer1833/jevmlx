@@ -2,7 +2,7 @@
 Parallel Constrained Structured Generation Engine.
 """
 
-from openjev.api import DEFAULT_MODEL, Decision, decide, schema_from_model
+from openjev.api import DEFAULT_MODEL, Decision, decide, decide_many, schema_from_model
 from openjev.engine import (
     load_engine,
     run_naive_generation,
@@ -16,6 +16,7 @@ __all__ = [
     "FieldDefinition",
     "StructuredSchema",
     "decide",
+    "decide_many",
     "load_engine",
     "run_parallel_generation",
     "run_naive_generation",

@@ -57,7 +57,7 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 **03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, no rounding tricks. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
-**04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences:
+**04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences — one context at a time with `openjev.decide`, or many contexts with `openjev.decide_many` (model and schema are loaded and compiled once, results come back in input order):
 
 ```python
 from typing import Literal
