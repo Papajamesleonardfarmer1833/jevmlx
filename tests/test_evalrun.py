@@ -73,10 +73,28 @@ def test_predictions_contract_lines(tmp_path):
     assert len(lines) == 4
     first = lines[0]
     assert set(first) == {
-        "run_id", "case_id", "group_id", "source", "workflow", "field", "type",
-        "track", "model", "permutation", "label", "prediction", "valid",
-        "correct", "log_scores", "confidence", "per_option", "latency_ms",
-        "rows", "passes", "error", "salvage_prediction",
+        "run_id",
+        "case_id",
+        "group_id",
+        "source",
+        "workflow",
+        "field",
+        "type",
+        "track",
+        "model",
+        "permutation",
+        "label",
+        "prediction",
+        "valid",
+        "correct",
+        "log_scores",
+        "confidence",
+        "per_option",
+        "latency_ms",
+        "rows",
+        "passes",
+        "error",
+        "salvage_prediction",
     }
     assert first["run_id"] == "r1"
     assert first["track"] == "parallel"
@@ -269,9 +287,7 @@ def test_load_cases_skips_comments_and_blank(tmp_path):
     path = tmp_path / "cases.jsonl"
     path.write_text(
         "# a comment\n"
-        "\n"
-        + json.dumps({"id": "c1", "schema": {}, "context": "", "labels": {}})
-        + "\n"
+        "\n" + json.dumps({"id": "c1", "schema": {}, "context": "", "labels": {}}) + "\n"
     )
     cases = evalrun.load_cases(str(path))
     assert len(cases) == 1 and cases[0]["id"] == "c1"

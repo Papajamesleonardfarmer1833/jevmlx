@@ -108,9 +108,7 @@ def parallel_decide_fn(model, tokenizer) -> DecideFn:
                 else:
                     raw_list = telemetry.get("scores")
                     if raw_list is not None:
-                        entry["log_scores"] = dict(
-                            zip(field.choices, raw_list, strict=True)
-                        )
+                        entry["log_scores"] = dict(zip(field.choices, raw_list, strict=True))
             out[fname] = entry
         out["_meta"] = {
             "latency_ms": result.get("elapsed_ms"),
@@ -294,8 +292,7 @@ def run_eval(
                         "source": case.get("source"),
                         "workflow": case.get("workflow"),
                         "field": fname,
-                        "type": res.get("type")
-                        or (field_def.field_type if field_def else None),
+                        "type": res.get("type") or (field_def.field_type if field_def else None),
                         "track": track,
                         "model": model,
                         "permutation": tag or "canonical",
