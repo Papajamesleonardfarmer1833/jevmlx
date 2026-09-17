@@ -66,7 +66,14 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
         return ("engine", "tokenizer")
 
     def fake_run_parallel(
-        engine_model, tokenizer, context, schema, *, temperature=1.0, scoring="slots"
+        engine_model,
+        tokenizer,
+        context,
+        schema,
+        *,
+        temperature=1.0,
+        scoring="slots",
+        multi_threshold=0.5,
     ):
         run_calls.append((engine_model, tokenizer, context, schema, temperature))
         return {

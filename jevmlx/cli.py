@@ -52,10 +52,13 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
     )
     print()
 
-    rows = [
-        (name, str(entry["value"]), _fmt_confidence(entry["probability"], 3), entry["type"])
-        for name, entry in result["field_telemetry"].items()
-    ]
+    rows = []
+    for name, entry in result["field_telemetry"].items():
+        prob = entry["probability"]
+        # Multi fields claim no field-level probability; the table shows the
+        # closest option's decision margin to the threshold instead.
+        conf = _fmt_confidence(prob, 3) if prob is not None else f"m={entry['margin']:.3f}"
+        rows.append((name, str(entry["value"]), conf, entry["type"]))
     width = max(len(r[0]) for r in rows) if rows else 10
 
     print(f"{'field':<{width}}  {'value':<22}  conf   type")
@@ -69,10 +72,14 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
 
 
 def _rounded_json_payload(result: dict) -> dict:
-    """--json output: engine values with confidences rounded to 4 decimals."""
+    """--json output: engine values with confidences rounded to 4 decimals.
+
+    Multi fields carry prob=None (no field-level probability is claimed);
+    round() would fail on None, so they are left as-is.
+    """
     parsed = copy.deepcopy(result["parsed_json"])
     for field in parsed.values():
-        if isinstance(field, dict) and "prob" in field:
+        if isinstance(field, dict) and isinstance(field.get("prob"), float):
             field["prob"] = round(field["prob"], 4)
     return parsed
 
@@ -108,6 +115,12 @@ def main(argv=None) -> None:
         help="scoring mode: slots (neutral aliases in the prompt, quoted "
         "alias candidates; default) or labels (real choice text through the "
         "token trie)",
+    )
+    decide.add_argument(
+        "--multi-threshold",
+        type=float,
+        default=0.5,
+        help="P(yes) above which a multi option is selected (default 0.5)",
     )
     decide.add_argument(
         "--backend",
@@ -309,6 +322,7 @@ def main(argv=None) -> None:
                 schema,
                 context,
                 timeout=args.timeout,
+                multi_threshold=args.multi_threshold,
             )
             model_label = args.api_model
         else:
@@ -323,6 +337,7 @@ def main(argv=None) -> None:
                 schema,
                 temperature=args.temperature,
                 scoring=args.scoring,
+                multi_threshold=args.multi_threshold,
             )
             model_label = args.model
 

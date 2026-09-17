@@ -168,9 +168,13 @@ def test_multi_field_returns_subset(engine):
     assert all(0.0 <= p <= 1.0 for p in telemetry["per_option"].values())
     assert "log_scores" not in telemetry  # multi: per_option instead, calibrate skips it
     assert len(telemetry["per_option"]) == 3
-    selected = value
-    if selected:
-        assert telemetry["probability"] == min(telemetry["per_option"][o] for o in selected)
+    # V4: no field-level probability is claimed; margin = how close the
+    # closest option's decision sat to the threshold.
+    assert telemetry["probability"] is None
+    assert telemetry["threshold"] == 0.5
+    assert telemetry["margin"] == pytest.approx(
+        min(abs(p - 0.5) for p in telemetry["per_option"].values())
+    )
 
     # The winner opinion lives in the fake-model fast test
     # (test_engine_fake.py); here we assert the per-option mechanics only:
