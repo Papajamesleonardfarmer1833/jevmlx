@@ -129,6 +129,42 @@ def main(argv=None) -> None:
     validate_p.add_argument(
         "--json", action="store_true", dest="as_json", help="print findings as JSON"
     )
+
+    eval_p = sub.add_parser(
+        "eval",
+        help="Run labeled cases through a decision track; writes predictions + run manifest",
+    )
+    eval_p.add_argument("--data", required=True, help="cases JSONL (see the eval contract)")
+    eval_p.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
+    eval_p.add_argument(
+        "--track",
+        required=True,
+        choices=["parallel", "naive_local", "api_baseline"],
+        help="decision track to run",
+    )
+    eval_p.add_argument("--api-base", help="chat-completions base URL (api_baseline track)")
+    eval_p.add_argument("--api-model", help="model name sent to the API (api_baseline track)")
+    eval_p.add_argument(
+        "--api-key-env",
+        default="OPENAI_API_KEY",
+        help="env var holding the API key (api_baseline track)",
+    )
+    eval_p.add_argument(
+        "--permutations",
+        default="none",
+        choices=["none", "rotations", "fieldperm", "all"],
+        help="order-sensitivity probe (parallel track only)",
+    )
+    eval_p.add_argument("--limit", type=int, default=None, help="only the first N cases")
+    eval_p.add_argument(
+        "--split",
+        default="all",
+        choices=["train", "holdout", "all"],
+        help="case split to run",
+    )
+    eval_p.add_argument(
+        "--out", required=True, help="output directory (predictions.jsonl, run.json)"
+    )
     args = ap.parse_args(argv)
 
     # serve defaults to INFO: the user must see the listen address. -v is a no-op there.
@@ -226,3 +262,64 @@ def main(argv=None) -> None:
                     print(f"  suggestion: {finding.suggestion}")
         if any(finding.kind == "collision" for finding in findings):
             sys.exit(1)
+
+    elif args.command == "eval":
+        _run_eval_command(args)
+
+
+def _run_eval_command(args) -> None:
+    """openjev eval: batch labeled cases through one decision track."""
+    import logging
+
+    from openjev import evalrun
+
+    cases = evalrun.load_cases(args.data)
+    if args.limit is not None:
+        cases = cases[: args.limit]
+
+    extra: dict = {"dataset_path": os.path.abspath(args.data)}
+    lock = os.path.join(os.path.dirname(os.path.abspath(args.data)), "dataset.lock.json")
+
+    if args.track == "parallel":
+        print(f"Loading {args.model} ...", flush=True)
+        model, tokenizer = load_engine(args.model)
+        decide_fn = evalrun.parallel_decide_fn(model, tokenizer)
+        chat_template = getattr(tokenizer, "chat_template", None)
+        plan_provider = lambda schema: schema.compile_batch_plan(tokenizer)  # noqa: E731
+    elif args.track == "naive_local":
+        print(f"Loading {args.model} ...", flush=True)
+        model, tokenizer = load_engine(args.model)
+        decide_fn = evalrun.naive_local_decide_fn(model, tokenizer)
+        chat_template = getattr(tokenizer, "chat_template", None)
+        plan_provider = None
+    else:
+        if not (args.api_base and args.api_model):
+            eval_p_error = "api_baseline track requires --api-base and --api-model"
+            raise SystemExit(eval_p_error)
+        api_key = os.environ.get(args.api_key_env)
+        decide_fn, api_params = evalrun.api_baseline_decide_fn(
+            args.api_base, args.api_model, api_key
+        )
+        extra.update(api_params)
+        chat_template = None
+        plan_provider = None
+
+    logging.getLogger("openjev.evalrun").setLevel(logging.INFO)
+    run = evalrun.run_eval(
+        cases,
+        decide_fn,
+        track=args.track,
+        model=args.api_model if args.track == "api_baseline" else args.model,
+        permutations=args.permutations,
+        split=args.split,
+        out_dir=args.out,
+        extra_config=extra,
+        chat_template=chat_template,
+        plan_provider=plan_provider,
+        dataset_lock_path=lock if os.path.exists(lock) else None,
+        dataset_path=os.path.abspath(args.data),
+    )
+    print(
+        f"run {run['run_id']}: {run['counts']['cases']} cases, "
+        f"{run['counts']['prediction_lines']} prediction lines -> {args.out}/"
+    )
