@@ -70,8 +70,6 @@ accuracy       : 0.5972
 
 ## Measured results (M5 MacBook Air, 16 GB)
 
-## Measured results (M5 MacBook Air, 16 GB)
-
 28-field fraud preset. "Naive" = the same model writing the whole JSON object token-by-token.
 
 | Model (4-bit) | Naive JSON | Parallel decisions | Speedup | Naive schema-valid? | Parallel schema-valid? |
@@ -83,6 +81,21 @@ accuracy       : 0.5972
 Also measured: 4-field / 255-choice tariff preset (1.5B: 0.15 s, 5.9x) and support-triage (1.5B: 0.76 s, 4.4x — collision handling costs extra). Full logs and JSON: `results/`.
 
 **Punchline: none of the three models could reliably emit 28-field JSON unconstrained — all three are always schema-valid through the constrained path.** Model size does not fix JSON reliability; the decoding structure does.
+
+> Latency numbers in the older sections come from the upstream M5 MacBook Air study; the table below was measured on the current development machine.
+
+## Model compatibility
+
+Every preset field is decided in one batched pass — measured on a MacBook Pro M2 Pro, 34 GB, macOS (warm runs, `tools/compat.py`). "Warm latency" is the average of the second run on both presets; peak memory is Metal's process high-water mark after both presets.
+
+| Model | loads | presets valid | warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |
+|---|---|---|---|---|---|
+| `mlx-community/Qwen2.5-1.5B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 866 | 469 | 2.26 |
+| `mlx-community/Qwen2.5-7B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 3818 | 469 | 7.17 |
+| `mlx-community/Llama-3.2-3B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 1957 | 422 | 10.19 |
+| `mlx-community/gemma-2-2b-it-4bit` | y | fintech_fraud:ok, support_triage:ok | 1414 | 474 | 4.83 |
+| `mlx-community/Mistral-7B-Instruct-v0.3-4bit` | y | fintech_fraud:ok, support_triage:ok | 7335 | 557 | 11.80 |
+| `mlx-community/Phi-3.5-mini-instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 7814 | 569 | 13.73 |
 
 ## Is a bigger model worth it? (measured)
 
