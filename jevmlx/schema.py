@@ -187,29 +187,45 @@ class StructuredSchema:
         lines.append("}")
         return "\n".join(lines)
 
-    def to_alias_schema_str(self) -> str:
-        """Schema block for prompt v2: per field, type, and its allowed choices
-        as neutral aliases ``A) <choice> — <gloss>`` in choice order.
+    def to_schema_str(self, mode: str = "slots") -> str:
+        """Schema block for prompt v2, rendered per scoring mode.
 
-        The gloss is the choice's description when provided
-        (:attr:`FieldDefinition.choice_descriptions`), else the choice string
-        itself. Multi fields carry the "select all that apply" marker. The
-        aliases are what slot-trie scoring reads back on assembly.
+        mode ``"slots"`` lists each field's choices as neutral aliases
+        (``A) <choice>`` plus `` — <gloss>`` when a gloss exists); mode
+        ``"labels"`` lists the real choice strings (``LOW | MEDIUM``). The
+        aliases are what slot-trie scoring reads back on assembly; labels
+        mode shows exactly the text the scorer reads.
         """
+        if mode not in ("slots", "labels"):
+            raise ValueError(f"mode must be 'slots' or 'labels', got {mode!r}")
         lines = []
         for name, field in self.fields.items():
             desc = field.description.split("\n")[0].strip()
             choices_list = (
                 ["true", "false"] if field.field_type == "boolean" else list(field.choices)
             )
-            parts = []
-            for i, choice in enumerate(choices_list):
-                alias = _alias_code(i)
-                gloss = field.choice_descriptions.get(choice) or choice
-                parts.append(f"{alias}) {choice} — {gloss}")
+            if mode == "slots":
+                parts = []
+                for i, choice in enumerate(choices_list):
+                    alias = _alias_code(i)
+                    gloss = field.choice_descriptions.get(choice)
+                    parts.append(f"{alias}) {choice} — {gloss}" if gloss else f"{alias}) {choice}")
+            else:
+                parts = []
+                for choice in choices_list:
+                    gloss = field.choice_descriptions.get(choice)
+                    parts.append(f"{choice} — {gloss}" if gloss else choice)
             marker = " (select all that apply)" if field.field_type == "multi" else ""
             lines.append(f'  "{name}": {"  ".join(parts)}  // {desc}{marker}')
         return "\n".join(lines)
+
+    def to_alias_schema_str(self) -> str:
+        """Schema block in slots mode (neutral aliases)."""
+        return self.to_schema_str("slots")
+
+    def to_labels_schema_str(self) -> str:
+        """Schema block in labels mode (real choice strings)."""
+        return self.to_schema_str("labels")
 
     @staticmethod
     def alias_for_index(index: int) -> str:

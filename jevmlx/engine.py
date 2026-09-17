@@ -20,6 +20,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from jinja2.exceptions import TemplateError
+
 from jevmlx.schema import StructuredSchema
 from jevmlx.trie import build_trie, score_trie, softmax
 
@@ -174,10 +176,12 @@ def _chat_ids(tokenizer, user_content: str, system_content: str | None = None) -
     messages.append({"role": "user", "content": user_content})
     try:
         return tokenizer.apply_chat_template(messages, add_generation_prompt=True, tokenize=True)
-    except Exception:
-        # Templates that reject a system role (e.g. Gemma) raise from
-        # apply_chat_template; merge the system text into the user turn.
-        # Without a system message there is nothing to fall back to.
+    except TemplateError:
+        # Templates that reject a system role (e.g. Gemma) raise TemplateError
+        # from apply_chat_template (transformers maps template `raise_exception`
+        # calls to jinja2.exceptions.TemplateError); merge the system text
+        # into the user turn. Without a system message there is nothing to
+        # fall back to.
         if not system_content:
             raise
         merged = f"{system_content}\n\n{user_content}"
@@ -463,7 +467,7 @@ def run_parallel_generation(
     #    the chat template's generation marker; '{\n' and everything after is
     #    part of the candidate rows (T3 boundary alignment).
     schema_str = (
-        schema.to_alias_schema_str() if scoring == "slots" else schema.to_json_schema_prompt_str()
+        schema.to_alias_schema_str() if scoring == "slots" else schema.to_labels_schema_str()
     )
     user_content = (
         f"Classify the following fields.\n\n{schema_str}\n\n<<<CONTEXT\n{context}\nCONTEXT>>>"

@@ -3,6 +3,7 @@ hard-delimited context, and the neutral alias schema block."""
 
 import mlx.core as mx
 import pytest
+from jinja2.exceptions import TemplateError
 
 from jevmlx.engine import PROMPT_V2_SYSTEM, PROMPT_VERSION, run_parallel_generation
 from jevmlx.schema import StructuredSchema, _alias_code
@@ -84,10 +85,18 @@ def test_alias_codes_base26():
 
 def test_alias_schema_block_lists_aliases_with_gloss():
     block = SCHEMA.to_alias_schema_str()
-    assert "A) LOW — stable income" in block
-    assert "C) HIGH — HIGH" not in block  # gloss present for LOW; HIGH has none
-    assert "C) HIGH — HIGH" in block or "C) HIGH" in block
+    assert "A) LOW — stable income" in block  # gloss present
+    assert "C) HIGH — many missed payments" in block  # gloss present
+    assert "B) MEDIUM\n" in block or "B) MEDIUM " in block  # MEDIUM: no gloss part
+    assert "B) MEDIUM —" not in block
     assert "A) true" in block and "B) false" in block  # boolean uses aliases too
+
+
+def test_labels_schema_block_lists_real_choices():
+    block = SCHEMA.to_labels_schema_str()
+    assert "LOW — stable income" in block  # gloss present
+    assert "A)" not in block  # labels mode shows no aliases
+    assert "true | false" in block or "true  false" in block  # boolean as real values
 
 
 def test_prompt_v2_sends_system_and_user():
@@ -133,7 +142,7 @@ def test_gemma_style_template_rejects_system_role():
         def apply_chat_template(self, messages, add_generation_prompt=True, tokenize=True):
             seen.append(messages)
             if any(m["role"] == "system" for m in messages):
-                raise ValueError("system role not supported")
+                raise TemplateError("system role not supported")
             return super().apply_chat_template(messages, add_generation_prompt, tokenize)
 
     tok = GemmaTokenizer()
