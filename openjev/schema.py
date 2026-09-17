@@ -5,8 +5,11 @@ Supports booleans, categorical enums (cardinality up to 255), and multi fields
 """
 
 import json
+import logging
 import weakref
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
@@ -118,7 +121,7 @@ class StructuredSchema:
         # that cannot be weakly referenced). One schema object can be reused
         # with several models, and token IDs are tokenizer-specific.
         self._plans: weakref.WeakKeyDictionary[Any, dict[str, Any]] = weakref.WeakKeyDictionary()
-        self._plans_by_id: dict[int, dict[str, Any]] = {}
+        self._logged_non_weakref = False
 
     def get_field_names(self) -> list[str]:
         return list(self.fields.keys())
@@ -187,9 +190,17 @@ class StructuredSchema:
         try:
             cached = self._plans.get(tokenizer)  # weakref: keyed by object identity
         except TypeError:
-            # Tokenizer is not weak-referenceable: fall back to id(), relying
-            # on the caller keeping the tokenizer alive for the session.
-            cached = self._plans_by_id.get(id(tokenizer))
+            # Not weak-referenceable: do NOT cache (N3 — an id()-keyed cache
+            # can return a dead tokenizer's plan after id reuse). Compile
+            # every time instead; log once at DEBUG so the cost is visible.
+            if not self._logged_non_weakref:
+                _LOGGER.debug(
+                    "tokenizer %s is not weak-referenceable; plan cache disabled "
+                    "for it (compiling on every call)",
+                    type(tokenizer).__name__,
+                )
+                self._logged_non_weakref = True
+            cached = None
         if cached is not None:
             return cached
 
@@ -329,7 +340,7 @@ class StructuredSchema:
             try:
                 self._plans[tokenizer] = wrapped
             except TypeError:
-                self._plans_by_id[id(tokenizer)] = wrapped
+                pass  # not weak-referenceable: no caching (N3)
             return wrapped
         lead_in = _common_token_prefix(field_shared_prefixes)
         # An empty schema-wide lead-in is legal (e.g. char-level tokenizers
@@ -353,5 +364,5 @@ class StructuredSchema:
         try:
             self._plans[tokenizer] = result
         except TypeError:
-            self._plans_by_id[id(tokenizer)] = result
+            pass  # not weak-referenceable: no caching (N3)
         return result

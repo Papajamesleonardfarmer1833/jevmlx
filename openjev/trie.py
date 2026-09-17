@@ -47,7 +47,14 @@ def build_trie(remainders: list[list[int]]) -> list[dict]:
 
     branch_nodes: list[dict] = []
 
-    def walk(node: dict, path: list[int]) -> None:
+    # Iterative pre-order walk with an explicit stack (N1: a long remainder
+    # must not depend on the interpreter recursion limit). Children are
+    # pushed in REVERSE sorted order so the pop order — and therefore the
+    # branch_nodes output order — matches the old recursive pre-order walk
+    # exactly.
+    stack: list[tuple[dict, list[int]]] = [(root, [])]
+    while stack:
+        node, path = stack.pop()
         if len(node["children"]) >= 2:
             branch_nodes.append(
                 {
@@ -58,10 +65,9 @@ def build_trie(remainders: list[list[int]]) -> list[dict]:
                     },
                 }
             )
-        for token in sorted(node["children"]):
-            walk(node["children"][token], [*path, token])
+        for token in sorted(node["children"], reverse=True):
+            stack.append((node["children"][token], [*path, token]))
 
-    walk(root, [])
     return branch_nodes
 
 

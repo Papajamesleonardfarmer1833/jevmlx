@@ -347,3 +347,59 @@ def test_schema_compile_error_is_value_error():
     assert isinstance(err, ValueError)
     assert err.field == "flag"
     assert str(err) == "boom"
+
+
+def test_rotation_suggestion_rejected_if_name_exists_in_full_choice_set():
+    """N2: BLOCK_TRANSACTION, BLOCK_USER + pre-existing TRANSACTION_BLOCK ->
+    rotation would create a duplicate, so suggestion is None."""
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "TRANSACTION_BLOCK"],
+            }
+        }
+    )
+    collisions = [f for f in findings if f.kind == "collision"]
+    assert len(collisions) == 1
+    assert collisions[0].suggestion is None
+
+
+def test_rotation_suggestion_still_works_without_conflicts():
+    """N2: same rotation but no pre-existing rotated name -> suggestion kept."""
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "ALLOW"],
+            }
+        }
+    )
+    collisions = [f for f in findings if f.kind == "collision"]
+    assert len(collisions) == 1
+    assert collisions[0].suggestion == "TRANSACTION_BLOCK, USER_BLOCK"
+
+
+def test_non_weakrefable_tokenizer_compiles_fresh_each_time():
+    """N3: no id() fallback — a non-weakrefable tokenizer gets two
+    independent plans (no dead-object cache reuse)."""
+
+    class Uncacheable:
+        __slots__ = ("name_or_path",)  # no __dict__/__weakref__: not weakrefable
+
+        def __init__(self):
+            self.name_or_path = "fake-uncacheable"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            return [ord(c) for c in text]
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    plan_a = schema.compile_batch_plan(Uncacheable())
+    plan_b = schema.compile_batch_plan(Uncacheable())
+    assert plan_a is not plan_b
+    # Both plans are complete and correct.
+    assert plan_a["fields"]["action"]["remainders"] == (plan_b["fields"]["action"]["remainders"])

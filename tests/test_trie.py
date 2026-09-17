@@ -578,3 +578,59 @@ def test_field_named_lead_in_ids_does_not_collide():
     # The fields' plans are exactly the per-field data, no metadata mixed in.
     all_values = {v for p in plan["fields"].values() for v in p}
     assert all_values <= {"shared_ids", "remainders", "options", "suffix_ids_list"}
+
+
+def test_build_trie_handles_5000_token_remainder():
+    """N1: build_trie walks iteratively — a 5000-token remainder builds."""
+    remainders = [
+        list(range(1, 5001)),  # 1..5000
+        list(range(1, 4001)) + [9999] + list(range(4001, 5001)),
+    ]
+    nodes = build_trie(remainders)
+    # The remainders share the first 4000 tokens, diverge at token 4001
+    # (one branch point holding the shared path), and re-converge after.
+    assert len(nodes) == 1
+    assert len(nodes[0]["path"]) == 4000
+    assert nodes[0]["children"] == {4001: [0], 9999: [1]}
+
+
+def test_build_trie_output_order_unchanged_vs_reference():
+    """N1: the iterative walk reproduces the recursive pre-order exactly."""
+    import sys
+
+    sys.setrecursionlimit(60)  # would explode on the recursive version
+
+    # Reference: independent recursive implementation.
+    def recursive_nodes(remainders):
+        root: dict = {"children": {}, "choices": []}
+        for idx, remainder in enumerate(remainders):
+            root["choices"].append(idx)
+            node = root
+            for token in remainder:
+                node = node["children"].setdefault(token, {"children": {}, "choices": []})
+                node["choices"].append(idx)
+        out = []
+
+        def walk(node, path):
+            if len(node["children"]) >= 2:
+                out.append(
+                    (
+                        list(path),
+                        {t: node["children"][t]["choices"] for t in sorted(node["children"])},
+                    )
+                )
+            for token in sorted(node["children"]):
+                walk(node["children"][token], [*path, token])
+
+        walk(root, [])
+        return out
+
+    remainders = [
+        [1, 2, 3],
+        [1, 2, 4],
+        [1, 5],
+        [6, 7],
+        [6, 8, 9],
+    ]
+    got = [(n["path"], n["children"]) for n in build_trie(remainders)]
+    assert got == recursive_nodes(remainders)

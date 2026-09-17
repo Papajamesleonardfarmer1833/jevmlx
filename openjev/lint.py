@@ -31,14 +31,17 @@ class Finding:
     suggestion: str | None = None
 
 
-def _rotation_suggestion(choices: list[str]) -> str | None:
+def _rotation_suggestion(choices: list[str], all_choices: list[str]) -> str | None:
     """Suggest renames that break a first-token tie, or None if the rule does not apply.
 
     Rule: when every colliding choice shares the same first underscore-separated
     word, move that word to the end so the distinguishing word leads
     (``BLOCK_TRANSACTION`` / ``BLOCK_USER`` -> ``TRANSACTION_BLOCK`` / ``USER_BLOCK``).
     This is best-effort; if any choice is a single word, or the rotated forms
-    would still collide, no suggestion is made.
+    are not unique within the colliding subset, or any rotated name already
+    exists in the field's COMPLETE choice set (N2: suggesting a name the
+    schema already uses would trade a collision for a duplicate), no
+    suggestion is made.
     """
     parts_list = [choice.split("_") for choice in choices]
     if any(len(parts) < 2 for parts in parts_list):
@@ -48,6 +51,11 @@ def _rotation_suggestion(choices: list[str]) -> str | None:
         return None
     rotated = ["_".join(parts[1:] + parts[:1]) for parts in parts_list]
     if len(set(rotated)) != len(rotated):
+        return None
+    # Validate against the complete choice set after renaming: the colliding
+    # choices are replaced by their rotations, everything else keeps its name.
+    renamed = set(all_choices) - set(choices) | set(rotated)
+    if len(renamed) != len(all_choices):
         return None
     return ", ".join(rotated)
 
@@ -130,7 +138,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                         "trie branch point instead of one row per field (slower). "
                         f"Rename to keep one row per field: {', '.join(colliding)}"
                     ),
-                    suggestion=_rotation_suggestion(colliding),
+                    suggestion=_rotation_suggestion(colliding, fdef.choices),
                 )
             )
 
