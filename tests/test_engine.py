@@ -219,3 +219,31 @@ def test_slots_scoring_fintech_fraud(engine):
             assert set(telemetry["log_scores"]) == set(
                 ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
             )
+
+
+@pytest.mark.slow
+def test_labels_scoring_fintech_fraud_valid(engine):
+    """Labels mode on the 0.5B model: every value valid, log_scores keyed by
+    the real choice strings (same contract as slots, no alias hop)."""
+    model, tokenizer = engine
+    preset = load_preset("fintech_fraud")
+    schema = StructuredSchema(preset["schema"])
+    result = run_parallel_generation(model, tokenizer, preset["context"], schema, scoring="labels")
+
+    assert result["confidence_model"] == "labels"
+    assert result["sequential_forward_passes"] == 1
+
+    for fname, fdef in schema.fields.items():
+        parsed = result["parsed_json"][fname]
+        telemetry = result["field_telemetry"][fname]
+        if fdef.field_type == "multi":
+            assert isinstance(parsed["value"], list)
+            assert set(parsed["value"]) <= set(fdef.choices)
+        elif fdef.field_type == "boolean":
+            assert isinstance(parsed["value"], bool)
+        else:
+            assert parsed["value"] in fdef.choices
+        if fdef.field_type != "multi":
+            assert set(telemetry["log_scores"]) == set(
+                ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
+            )
