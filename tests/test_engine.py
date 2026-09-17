@@ -108,7 +108,8 @@ def test_multi_field_returns_subset(engine):
     assert telemetry["type"] == "multi"
     assert set(telemetry["per_option"]) == {"billing_issue", "technical_issue", "account_issue"}
     assert all(0.0 <= p <= 1.0 for p in telemetry["per_option"].values())
-    assert len(telemetry["scores"]) == 3  # p_true per option, in choices order
+    assert "scores" not in telemetry  # one key, one meaning: multi has no raw scores
+    assert len(telemetry["per_option"]) == 3
     selected = value
     if selected:
         assert telemetry["confidence"] == min(telemetry["per_option"][o] for o in selected)

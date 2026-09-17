@@ -260,10 +260,11 @@ def run_parallel_generation(
         p = plan[fname]
         if "options" in p:
             # multi: one boolean row per option (same true/false token lists).
-            lists = p["choice_token_lists"]
             collides[fname] = False
             for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
-                rows.append(list(suffix_ids) + [lists[0][0]])
+                # Suffix-only row, like the boolean case: the p_true logit is
+                # read at the suffix's last position.
+                rows.append(list(suffix_ids))
                 row_field.append(fname)
                 row_choice.append(None)
                 row_option[len(rows) - 1] = oi
@@ -397,8 +398,9 @@ def run_parallel_generation(
                 "type": "multi",
                 "confidence": round(confidence, 4),
                 "cardinality": fdef.cardinality,
-                # p_true per option (NOT log-scores): calibrate skips multi.
-                "scores": [round(probs_true[o], 6) for o in p["options"]],
+                # No 'scores' key for multi: for every other type it holds raw
+                # choice scores, which do not exist here. per_option carries
+                # the p_true values instead; calibrate skips multi fields.
                 "per_option": {o: round(pt, 4) for o, pt in probs_true.items()},
                 "top_choices": [
                     {"choice": o, "probability": round(pt, 4)}
