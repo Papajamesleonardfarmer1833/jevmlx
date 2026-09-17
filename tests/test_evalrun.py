@@ -477,3 +477,40 @@ def test_carry_perturbation_flag_passes_meta_through(tmp_path):
     from jevmlx.evalmetrics import perturbation_flip_rate
 
     assert perturbation_flip_rate(lines) == 0.0  # same predictions -> no flip
+
+
+def test_carry_consensus_flag_adds_consensus_distribution(tmp_path):
+    """carry_consensus=True puts meta.consensus on lines that have one."""
+    base = _two_cases()[0]
+    cases = [
+        {**base, "source": "typesafe", "meta": {"consensus": {"true": 0.9, "false": 0.1}}},
+        {**base, "id": "wf/case-2", "group_id": "wf/case-2", "source": "typesafe", "meta": {}},
+    ]
+
+    def decide(schema_dict, context):
+        return {"action": {"prediction": "APPROVE"}, "flag": {"prediction": True}}
+
+    # Default: no consensus key (contract unchanged).
+    evalrun.run_eval(
+        cases, decide, track="parallel", model="m", out_dir=str(tmp_path / "a"), run_id="r0"
+    )
+    lines_default = _read_lines(tmp_path / "a" / "predictions.jsonl")
+    assert all("consensus" not in line for line in lines_default)
+
+    # With the flag: lines from cases with a consensus distribution carry it;
+    # lines from cases without one do not get an empty key.
+    evalrun.run_eval(
+        cases,
+        decide,
+        track="parallel",
+        model="m",
+        out_dir=str(tmp_path / "b"),
+        run_id="r1",
+        carry_consensus=True,
+    )
+    lines = _read_lines(tmp_path / "b" / "predictions.jsonl")
+    by_case = {}
+    for line in lines:
+        by_case.setdefault(line["case_id"], []).append(line.get("consensus"))
+    assert by_case["wf/case-1"] == [{"true": 0.9, "false": 0.1}, {"true": 0.9, "false": 0.1}]
+    assert by_case["wf/case-2"] == [None, None]

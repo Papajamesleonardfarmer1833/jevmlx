@@ -49,3 +49,29 @@ version, and the hash of the written cases file.
   `int(sha1(id)[:8], 16) % 5 == 0` (~20%). It is a pure function of the id.
   Same-family cases may straddle the split — group by `group_id` when
   evaluating.
+
+## How to read the numbers vs evals.typesafe.ai
+
+When a run over this dataset is reported, two metrics in `report.json`
+(`metrics.agreement`, `metrics.tvd_vs_consensus`) make it comparable with
+the numbers published on evals.typesafe.ai — with the caveats above firmly
+in mind. **Agreement** (`agreement.overall`, per workflow in
+`agreement.by_workflow`) is the share of labelled fields where jevmlx's
+prediction equals the fetcher's consensus label; it is TypeSafe's headline
+metric computed against our reconstructed pseudo-labels, so it measures
+jevmlx against the published reviewer consensus, not against independent
+ground truth. `agreement.agreement_common_subset` is the same rate computed
+only on fields the fetcher did not flag ambiguous (consensus top1−top2
+margin < 0.1 or an exact tie) — the closest analogue to TypeSafe's own
+presentation, which does not include our low-margin cases. **TVD vs
+consensus** (`tvd_vs_consensus`) is the mean total-variation distance
+between jevmlx's per-field choice distribution (softmax of the constrained
+log-scores at T=1) and the published reviewer distribution: lower is better,
+0.0 means the model's ranking of the options exactly matches the
+reviewers', and it is defined even where the argmax disagrees. Run with
+`jevmlx eval --carry-consensus` (or the flag on `run_eval`) so the
+consensus distributions reach the prediction lines; the report's
+"Agreement vs TypeSafe consensus" table shows both metrics per workflow.
+These numbers are comparable across *models and scorers on this dataset*;
+treat any comparison to evals.typesafe.ai itself as indicative, since the
+case selection, field reconstruction, and consensus computation are ours.

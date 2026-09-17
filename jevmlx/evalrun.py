@@ -249,6 +249,7 @@ def run_eval(
     dataset_lock_path: str | None = None,
     dataset_path: str | None = None,
     carry_perturbation: bool = False,
+    carry_consensus: bool = False,
 ) -> dict:
     """Run the batch and write ``predictions.jsonl`` + ``run.json`` into out_dir.
 
@@ -262,6 +263,10 @@ def run_eval(
     ``"ws"`` or ``"shuffle3"``) or null for original cases. Pairs of lines
     sharing a ``group_id`` (original vs variant) feed
     :func:`jevmlx.evalmetrics.perturbation_flip_rate`.
+
+    With ``carry_consensus=True`` each prediction line whose case carries a
+    ``meta.consensus`` distribution (TypeSafe fetcher) gets a ``"consensus"``
+    key with that dict, feeding :func:`jevmlx.evalmetrics.tvd_vs_consensus`.
     """
     run_id = run_id or make_run_id()
     os.makedirs(out_dir, exist_ok=True)
@@ -321,6 +326,10 @@ def run_eval(
                 }
                 if carry_perturbation:
                     line["perturbation"] = (case.get("meta") or {}).get("perturbation")
+                if carry_consensus:
+                    consensus = (case.get("meta") or {}).get("consensus")
+                    if isinstance(consensus, dict) and consensus:
+                        line["consensus"] = consensus
                 lines.append(line)
 
     config: dict[str, Any] = {
