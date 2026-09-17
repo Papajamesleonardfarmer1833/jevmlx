@@ -12,11 +12,10 @@ from __future__ import annotations
 import json
 import time
 
-from jevmlx.http import ChatCompletionsError, chat_completions_raw, extract_content
+from jevmlx.http import chat_completions_raw, extract_content
 from jevmlx.schema import StructuredSchema
 
 __all__ = [
-    "ChatCompletionsError",
     "baseline_decide",
     "build_baseline_messages",
     "call_chat_completions",

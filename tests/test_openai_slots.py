@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from jevmlx.baseline import ChatCompletionsError
+from jevmlx.http import ChatCompletionsError
 from jevmlx.openai_slots import decide_openai
 from jevmlx.schema import StructuredSchema
 

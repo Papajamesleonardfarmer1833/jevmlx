@@ -7,12 +7,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from jevmlx.baseline import (
-    ChatCompletionsError,
     baseline_decide,
     build_baseline_messages,
     call_chat_completions,
     parse_baseline_output,
 )
+from jevmlx.http import ChatCompletionsError
 from jevmlx.schema import StructuredSchema
 
 SCHEMA = StructuredSchema(
