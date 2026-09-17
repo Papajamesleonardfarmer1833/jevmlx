@@ -16,7 +16,6 @@ import argparse
 import copy
 import json
 import os
-import sys
 import time
 
 import mlx.core as mx
@@ -25,7 +24,6 @@ from mlx_lm.models.cache import make_prompt_cache
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DEFAULT_ARTIFACT = os.path.join(ROOT, "source", "Qwen-2.5-1B-RLCD")
 
 
 def build_schema_dict(questions: list[dict], tokenizer, schema_mod):
@@ -55,14 +53,12 @@ def main() -> None:
     ap.add_argument("--tag", default="qwen2.5-7b")
     ap.add_argument("--chunk-size", type=int, default=8)
     ap.add_argument("--full", default=os.path.join(HERE, "full_eval.json"))
-    ap.add_argument("--artifact", default=DEFAULT_ARTIFACT)
     ap.add_argument("--outdir", default=os.path.join(HERE, "results"))
     ap.add_argument("--workflow", default=None)
     ap.add_argument("--case", default=None)
     args = ap.parse_args()
 
-    sys.path.insert(0, os.path.abspath(args.artifact))
-    from core.schema import StructuredSchema  # noqa: E402
+    from openjev.schema import StructuredSchema  # noqa: E402
 
     print(f"loading {args.model} ...", flush=True)
     t0 = time.perf_counter()

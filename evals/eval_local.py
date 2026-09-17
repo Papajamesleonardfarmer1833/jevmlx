@@ -17,12 +17,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-DEFAULT_ARTIFACT = os.path.join(ROOT, "source", "Qwen-2.5-1B-RLCD")
 
 
 def build_schema_dict(questions: list[dict]) -> dict:
@@ -48,23 +46,14 @@ def main() -> None:
     ap.add_argument("--model", default="mlx-community/Qwen3-8B-4bit")
     ap.add_argument("--tag", default="local-qwen3-8b")
     ap.add_argument("--mini", default=os.path.join(HERE, "typesafe", "mini_eval.json"))
-    ap.add_argument("--artifact", default=DEFAULT_ARTIFACT)
     ap.add_argument("--outdir", default=os.path.join(HERE, "results"))
     args = ap.parse_args()
 
-    artifact = os.path.abspath(args.artifact)
-    sys.path.insert(0, artifact)
-
-    import core.engine_mlx as engine_mlx  # noqa: E402
-
-    engine_mlx.MODEL_ID = args.model
-    print(f"MODEL_ID -> {engine_mlx.MODEL_ID}", flush=True)
-
-    from core.engine_mlx import get_engine, run_parallel_generation  # noqa: E402
-    from core.schema import StructuredSchema  # noqa: E402
+    from openjev.engine import load_engine, run_parallel_generation  # noqa: E402
+    from openjev.schema import StructuredSchema  # noqa: E402
 
     t0 = time.perf_counter()
-    get_engine()
+    model, tokenizer = load_engine(args.model)
     print(f"[load+warmup] {time.perf_counter() - t0:.1f}s", flush=True)
 
     mini = json.load(open(args.mini))
