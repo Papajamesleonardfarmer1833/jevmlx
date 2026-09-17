@@ -20,7 +20,7 @@
 - W3: correctness gate merged — token-aligned candidate plans, one scoring objective (token trie), full-precision engine output, strict temperature/memory validation, correct multi-field confidence.
 - X: repo rename (openjev -> jevmlx) and README claims cleanup.
 - V1: prompt v2 + slot-trie default scoring (neutral aliases in the prompt, quoted-alias candidates; labels mode remains opt-in via `--scoring labels`).
-- V2: prior correction — for `null` contexts the engine falls back to the prior distribution instead of forcing a decision.
+- V2: opt-in prior correction (`--prior-correction`): the engine measures each field's choice distribution on a neutral context once per schema and subtracts that prior from the evidence scores before selecting; off by default (it lowered accuracy on the 0.5B bundled set).
 - V3: provenance API — per-field `Decision.fields` (probability, score, margin, alternatives, calibration status, scoring mode), per-choice glosses, and `allow_unknown` mapping an UNKNOWN choice to None for Optional fields.
 - V4: multi fields as natural yes/no rows — described options, Y/N aliases, exposed threshold.
 - V5: synthetic labeled cases for the named failure modes, feeding the eval harness.

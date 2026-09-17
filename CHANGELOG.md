@@ -9,7 +9,7 @@
 - CLI presentation: confidences are rounded only at display time (3 decimals in the table, 4 in `--json`), never in the engine.
 - Documentation: README and ROADMAP claims aligned with the code (chunked suffix passes, tested-model boundary, no memory-bound guarantee).
 - Prompt v2 and a new default scoring mode: the prompt uses neutral aliases (A, B, C) for the choices and the engine scores quoted-alias candidates through the token trie; the original choice-text mode is still available as `--scoring labels`.
-- Prior correction for empty contexts: when there is nothing to decide on, the engine returns the model's prior distribution over the choices instead of forcing a decision.
+- Opt-in prior correction (`--prior-correction`): the engine measures each field's choice distribution on a neutral context once per schema and subtracts that prior from the evidence scores before selecting; off by default (it lowered accuracy on the 0.5B bundled set).
 - Per-field provenance in the Python API: every decision exposes its probability, score, margin, the top alternatives, whether a calibration has been applied, and which scoring mode produced it; optional per-choice glosses can be attached to the schema, and Optional enum fields can accept an explicit "insufficient evidence" answer mapped to None.
 - Multi-select fields are decided as separate yes/no rows with a documented threshold, instead of one ranked list.
 - Synthetic labeled cases covering the known failure modes ship with the benchmark data.
