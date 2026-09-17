@@ -31,7 +31,7 @@ class Finding:
     suggestion: str | None = None
 
 
-def _rotation_suggestion(choices: list[str], all_choices: list[str]) -> str | None:
+def _rotation_suggestion(choices: list[str], all_choices: list[str], tokenizer) -> str | None:
     """Suggest renames that break a first-token tie, or None if the rule does not apply.
 
     Rule: when every colliding choice shares the same first underscore-separated
@@ -54,9 +54,28 @@ def _rotation_suggestion(choices: list[str], all_choices: list[str]) -> str | No
         return None
     # Validate against the complete choice set after renaming: the colliding
     # choices are replaced by their rotations, everything else keeps its name.
-    renamed = set(all_choices) - set(choices) | set(rotated)
-    if len(renamed) != len(all_choices):
+    renamed_list = [rotated[choices.index(c)] if c in choices else c for c in all_choices]
+    if len(set(renamed_list)) != len(all_choices):
         return None
+
+    # Tokenizer-verified: the renamed set must compile AND score in one row
+    # per field (no first-token collision) — rotation can merely move the
+    # collision to the next word (P1), e.g. BLOCK_* -> *_BLOCK that still
+    # shares its first token with another choice.
+    try:
+        from openjev.schema import StructuredSchema
+
+        probe = StructuredSchema(
+            {"_probe": {"type": "enum", "description": "", "choices": renamed_list}}
+        )
+        probe_entry = probe.compile_batch_plan(tokenizer)["fields"]["_probe"]
+    except ValueError:
+        return None
+    seen_first: set[int] = set()
+    for remainder in probe_entry["remainders"]:
+        if remainder[0] in seen_first:
+            return None
+        seen_first.add(remainder[0])
     return ", ".join(rotated)
 
 
@@ -138,7 +157,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                         "trie branch point instead of one row per field (slower). "
                         f"Rename to keep one row per field: {', '.join(colliding)}"
                     ),
-                    suggestion=_rotation_suggestion(colliding, fdef.choices),
+                    suggestion=_rotation_suggestion(colliding, fdef.choices, tokenizer),
                 )
             )
 

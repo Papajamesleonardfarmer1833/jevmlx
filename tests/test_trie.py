@@ -634,3 +634,53 @@ def test_build_trie_output_order_unchanged_vs_reference():
     ]
     got = [(n["path"], n["children"]) for n in build_trie(remainders)]
     assert got == recursive_nodes(remainders)
+
+
+def test_equal_but_distinct_tokenizers_get_distinct_plans():
+    """P2: WeakKeyDictionary keyed by __eq__/__hash__; two equal-but-distinct
+    fakes with different encodings must get two different plans."""
+
+    class EqTokenizer:
+        def __init__(self, shift: int):
+            self.shift = shift
+            self.name_or_path = f"fake-eq-{shift}"
+
+        def __eq__(self, other):
+            return isinstance(other, EqTokenizer)  # all instances equal
+
+        def __hash__(self):
+            return 42  # identical hash
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            return [(ord(c) + self.shift) % 65536 for c in text]
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    plan_a = schema.compile_batch_plan(EqTokenizer(shift=0))
+    plan_b = schema.compile_batch_plan(EqTokenizer(shift=10))
+    # The plans must differ: under a shared (equal-keyed) cache entry the
+    # second tokenizer would silently reuse the first one's token ids.
+    assert plan_a["fields"]["action"]["remainders"] != plan_b["fields"]["action"]["remainders"]
+    # And each matches a fresh compile with the same tokenizer.
+    again = schema.compile_batch_plan(EqTokenizer(shift=10))
+    assert again["fields"]["action"]["remainders"] == plan_b["fields"]["action"]["remainders"]
+
+
+def test_cache_evicts_entry_when_tokenizer_dies():
+    """P2: weakref.finalize evicts the plan when the tokenizer is collected."""
+    import gc
+    import weakref as _weakref
+
+    schema = StructuredSchema(
+        {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
+    )
+    tok = NonCompositionalTokenizer()
+    schema.compile_batch_plan(tok)
+    key = id(tok)
+    assert key in schema._plans
+    ref = _weakref.ref(tok)
+    del tok
+    gc.collect()
+    assert ref() is None
+    assert key not in schema._plans

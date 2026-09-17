@@ -116,11 +116,14 @@ class StructuredSchema:
                 description=spec.get("description", ""),
                 choices=spec.get("choices", None),
             )
-        # Compiled plans, keyed by tokenizer object identity (weakref so the
-        # cache never keeps a tokenizer alive; dict-by-id fallback for objects
-        # that cannot be weakly referenced). One schema object can be reused
-        # with several models, and token IDs are tokenizer-specific.
-        self._plans: weakref.WeakKeyDictionary[Any, dict[str, Any]] = weakref.WeakKeyDictionary()
+        # Compiled plans, keyed by tokenizer OBJECT IDENTITY (P2: a
+        # WeakKeyDictionary keys by __eq__/__hash__, so two equal-but-distinct
+        # tokenizers would wrongly share one plan). dict[id] =
+        # (weakref.ref(tok), plan); weakref.finalize evicts the entry when the
+        # tokenizer dies, so an id can never be reused by a live object while
+        # its entry lingers. One schema object can be reused with several
+        # models, and token IDs are tokenizer-specific.
+        self._plans: dict[int, tuple[weakref.ref, dict[str, Any]]] = {}
         self._logged_non_weakref = False
 
     def get_field_names(self) -> list[str]:
@@ -162,6 +165,28 @@ class StructuredSchema:
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
+    def _cache_plan(self, tokenizer, plan: dict[str, Any]) -> None:
+        """Store a plan keyed by tokenizer identity, evicted on tokenizer death.
+
+        Non-weak-referenceable tokenizers are not cached at all (N3): an
+        id()-keyed entry without a liveness check could be returned for a
+        different object after id reuse.
+        """
+        try:
+            ref = weakref.ref(tokenizer)
+        except TypeError:
+            if not self._logged_non_weakref:
+                _LOGGER.debug(
+                    "tokenizer %s is not weak-referenceable; plan cache disabled "
+                    "for it (compiling on every call)",
+                    type(tokenizer).__name__,
+                )
+                self._logged_non_weakref = True
+            return
+        key = id(tokenizer)
+        self._plans[key] = (ref, plan)
+        weakref.finalize(tokenizer, self._plans.pop, key, None)
+
     def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
         """Pre-index everything the engine needs for the batched suffix pass.
 
@@ -188,7 +213,13 @@ class StructuredSchema:
         identity (name_or_path + vocab size).
         """
         try:
-            cached = self._plans.get(tokenizer)  # weakref: keyed by object identity
+            entry = self._plans.get(id(tokenizer))
+            # Identity check: ref() must resolve to THIS tokenizer, not just
+            # an equal one (P2).
+            if entry is not None and entry[0]() is tokenizer:
+                cached = entry[1]
+            else:
+                cached = None
         except TypeError:
             # Not weak-referenceable: do NOT cache (N3 — an id()-keyed cache
             # can return a dead tokenizer's plan after id reuse). Compile
@@ -337,10 +368,7 @@ class StructuredSchema:
         ]
         if not field_shared_prefixes:
             wrapped: dict[str, Any] = {"lead_in_ids": [], "fields": plan}
-            try:
-                self._plans[tokenizer] = wrapped
-            except TypeError:
-                pass  # not weak-referenceable: no caching (N3)
+            self._cache_plan(tokenizer, wrapped)
             return wrapped
         lead_in = _common_token_prefix(field_shared_prefixes)
         # An empty schema-wide lead-in is legal (e.g. char-level tokenizers
@@ -361,8 +389,5 @@ class StructuredSchema:
         # Metadata lives beside the field plans, never mixed into them (D1:
         # a field could legally be named "_lead_in_ids").
         result = {"lead_in_ids": list(lead_in), "fields": plan}
-        try:
-            self._plans[tokenizer] = result
-        except TypeError:
-            pass  # not weak-referenceable: no caching (N3)
+        self._cache_plan(tokenizer, result)
         return result

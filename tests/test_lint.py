@@ -403,3 +403,64 @@ def test_non_weakrefable_tokenizer_compiles_fresh_each_time():
     assert plan_a is not plan_b
     # Both plans are complete and correct.
     assert plan_a["fields"]["action"]["remainders"] == (plan_b["fields"]["action"]["remainders"])
+
+
+def test_rotation_rejected_when_it_merely_moves_the_collision():
+    """P1: BLOCK_TRANSACTION, BLOCK_USER, TRANSACTION_ALLOW — rotation gives
+    TRANSACTION_BLOCK, USER_BLOCK, TRANSACTION_ALLOW which still collide on
+    the first word token, so the tokenizer-verified suggestion is None."""
+
+    class WordTok:
+        """Underscore-separated words each become one crc32 token."""
+
+        name_or_path = "fake-p1-word"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            out: list[int] = []
+            i = 0
+            while i < len(text):
+                if text[i] in '{}\n ":,':
+                    out.append(ord(text[i]))
+                    i += 1
+                    continue
+                if text[i] == "_":
+                    out.append(zlib.crc32(b"_"))
+                    i += 1
+                    continue
+                j = i
+                while j < len(text) and text[j] not in '{}\n ":,_':
+                    j += 1
+                out.append(zlib.crc32(text[i:j].encode()))
+                i = j
+            return out
+
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "TRANSACTION_ALLOW"],
+            }
+        },
+        tokenizer=WordTok(),
+    )
+    collisions = [f for f in findings if f.kind == "collision"]
+    assert len(collisions) == 1
+    assert collisions[0].suggestion is None
+
+
+def test_rotation_kept_when_renamed_set_compiles_collision_free():
+    """P1: BLOCK_TRANSACTION, BLOCK_USER, ALLOW — renamed set compiles and has
+    no first-token collision, so the suggestion survives."""
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "ALLOW"],
+            }
+        }
+    )
+    collisions = [f for f in findings if f.kind == "collision"]
+    assert len(collisions) == 1
+    assert collisions[0].suggestion == "TRANSACTION_BLOCK, USER_BLOCK"
