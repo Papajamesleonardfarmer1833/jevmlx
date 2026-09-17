@@ -177,6 +177,55 @@ def test_identical_remainders_rejected():
         schema.compile_batch_plan(NonCompositionalTokenizer())
 
 
+def test_choice_with_double_quote_is_json_escaped():
+    """F1: candidates are json.dumps-escaped, never f-string interpolated.
+
+    A choice containing a double quote must appear in the candidate text with
+    the backslash escape, exactly as the assembled JSON will contain it.
+    """
+    tok = NonCompositionalTokenizer()
+    schema = StructuredSchema(
+        {
+            "quote": {
+                "type": "enum",
+                "description": "d",
+                "choices": ['say "hi"', "plain"],
+            }
+        }
+    )
+    plan = schema.compile_batch_plan(tok)
+    shared = plan["quote"]["shared_ids"]
+    remainders = plan["quote"]["remainders"]
+
+    expected_escaped = tok.encode('  "quote": "say \\"hi\\""')
+    assert shared + remainders[0] == expected_escaped
+    # A naive f-string candidate (invalid JSON) would tokenize differently.
+    assert tok.encode('  "quote": "say ""hi"""') != expected_escaped
+
+
+def test_strict_token_prefix_remainder_rejected():
+    """F2: remainder A strict-prefix of B -> never distinguished -> ValueError."""
+
+    class Prefixing:
+        name_or_path = "fake-prefixing"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            if 'ABC"' in text:
+                return [10, 11]
+            if 'AB"' in text:
+                return [10]
+            return [ord(c) for c in text]
+
+        def __len__(self) -> int:
+            return 100
+
+    schema = StructuredSchema(
+        {"x": {"type": "enum", "description": "d", "choices": ["AB", "ABC", "OK"]}}
+    )
+    with pytest.raises(ValueError, match="strict token-prefix"):
+        schema.compile_batch_plan(Prefixing())
+
+
 def test_choice_that_is_token_prefix_of_another_is_rejected():
     """A remainder that is a strict prefix of another leaves a choice unscored.
 
@@ -205,5 +254,5 @@ def test_choice_that_is_token_prefix_of_another_is_rejected():
     schema = StructuredSchema(
         {"x": {"type": "enum", "description": "d", "choices": ["AB", "ABC", "ABD"]}}
     )
-    with pytest.raises(ValueError, match="token-identical"):
+    with pytest.raises(ValueError, match="strict token-prefix"):
         schema.compile_batch_plan(Nested())

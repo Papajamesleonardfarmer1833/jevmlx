@@ -74,12 +74,10 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
       by the engine's branch scoring.
     """
     findings: list[Finding] = []
-    plan = schema.compile_batch_plan(tokenizer)
 
     for fname, fdef in schema.fields.items():
         if fdef.field_type not in ("enum", "choice", "selection"):
             continue
-        entry = plan[fname]
 
         counts = Counter(fdef.choices)
         for choice, count in counts.items():
@@ -94,6 +92,15 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                         ),
                     )
                 )
+
+        # Token-aligned plan for this field alone: schema-wide compilation
+        # raises on token-identical/prefix choices, but the lint must report
+        # those as findings instead of crashing.
+        try:
+            plan = schema.compile_batch_plan(tokenizer)
+            entry = plan[fname]
+        except ValueError:
+            continue
 
         groups: dict[int, list[int]] = {}
         for idx, tokens in enumerate(entry["remainders"]):
@@ -117,7 +124,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
 
         for choice, remainder in zip(fdef.choices, entry["remainders"], strict=True):
             if any(
-                other != remainder and other[: len(remainder)] == remainder
+                other is not remainder and other[: len(remainder)] == remainder
                 for other in entry["remainders"]
             ):
                 findings.append(

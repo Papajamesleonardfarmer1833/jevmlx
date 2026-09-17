@@ -4,6 +4,7 @@ Supports booleans, categorical enums (cardinality up to 255), and multi fields
 (subset of choices, 2-64 options, decided as one boolean decision per option).
 """
 
+import json
 from typing import Any
 
 
@@ -164,7 +165,10 @@ class StructuredSchema:
                 # full ' true'/' false' sequences with the common token prefix
                 # removed.
                 full_lists = [
-                    tokenizer.encode(f'  "{fname}.{option}": {literal}', add_special_tokens=False)
+                    tokenizer.encode(
+                        f"  {json.dumps(f'{fname}.{option}')}: {literal}",
+                        add_special_tokens=False,
+                    )
                     for option in fdef.choices
                     for literal in ("true", "false")
                 ]
@@ -172,7 +176,10 @@ class StructuredSchema:
                 plan[fname] = {
                     "options": list(fdef.choices),
                     "suffix_ids_list": [
-                        tokenizer.encode(f'  "{fname}.{option}": ', add_special_tokens=False)
+                        tokenizer.encode(
+                            f"  {json.dumps(f'{fname}.{option}')}: ",
+                            add_special_tokens=False,
+                        )
                         for option in fdef.choices
                     ],
                     "shared_ids": shared,
@@ -182,25 +189,34 @@ class StructuredSchema:
 
             if fdef.field_type == "boolean":
                 candidates = [
-                    tokenizer.encode(f'  "{fname}": {literal}', add_special_tokens=False)
+                    tokenizer.encode(f"  {json.dumps(fname)}: {literal}", add_special_tokens=False)
                     for literal in ("true", "false")
                 ]
             else:
                 candidates = [
-                    tokenizer.encode(f'  "{fname}": "{choice}"', add_special_tokens=False)
+                    tokenizer.encode(
+                        f"  {json.dumps(fname)}: {json.dumps(choice)}", add_special_tokens=False
+                    )
                     for choice in fdef.choices
                 ]
 
             shared = _common_token_prefix(candidates)
             remainders = [full[len(shared) :] for full in candidates]
-            if any(len(remainder) == 0 for remainder in remainders):
-                same = [
-                    fdef.choices[i] for i, remainder in enumerate(remainders) if len(remainder) == 0
-                ]
-                raise ValueError(
-                    f"field '{fname}': choices {same} are token-identical to another "
-                    "choice of the same field; the engine cannot distinguish them"
-                )
+            for i, remainder in enumerate(remainders):
+                for j, other in enumerate(remainders):
+                    if i == j or other[: len(remainder)] != remainder:
+                        continue
+                    if other == remainder:
+                        raise ValueError(
+                            f"field '{fname}': choices '{fdef.choices[i]}' and "
+                            f"'{fdef.choices[j]}' are token-identical; the engine "
+                            "cannot distinguish them"
+                        )
+                    raise ValueError(
+                        f"field '{fname}': choice '{fdef.choices[i]}' is a strict "
+                        f"token-prefix of '{fdef.choices[j]}' in token space; the "
+                        "engine would never distinguish them"
+                    )
             plan[fname] = {
                 "shared_ids": shared,
                 "remainders": remainders,
