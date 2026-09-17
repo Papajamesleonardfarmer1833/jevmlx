@@ -208,6 +208,22 @@ def main(argv=None) -> None:
     )
     report_p.add_argument("--predictions", required=True, help="path to predictions.jsonl")
     report_p.add_argument("--out", required=True, help="output path for the JSON report")
+
+    doctor_p = sub.add_parser(
+        "doctor",
+        help="Environment checks: run before filing an issue or a bench run",
+    )
+    doctor_p.add_argument(
+        "--model",
+        default=None,
+        help="model id to dry-run check (tokenizer load only, no weights)",
+    )
+    doctor_p.add_argument(
+        "--json",
+        dest="as_json",
+        action="store_true",
+        help="print the checks as JSON instead of a table",
+    )
     args = ap.parse_args(argv)
 
     # serve defaults to INFO: the user must see the listen address. -v is a no-op there.
@@ -314,6 +330,11 @@ def main(argv=None) -> None:
         records = load_predictions(args.predictions)
         write_report(args.out, {"environment": environment(), "metrics": compute_metrics(records)})
         print(f"wrote {args.out} (+ .md)")
+
+    elif args.command == "doctor":
+        from jevmlx.doctor import run_doctor
+
+        raise SystemExit(run_doctor(model=args.model, as_json=args.as_json))
 
     elif args.command == "validate":
         from dataclasses import asdict
