@@ -128,7 +128,7 @@ Where this is going next: [ROADMAP.md](ROADMAP.md). A correctness gate from an e
 
 ## Contributing
 
-Branch off `main`, run `ruff check --fix . && ruff format .` and `pytest -m "not slow"` before pushing. Details: [CONTRIBUTING.md](CONTRIBUTING.md).
+Branch off `main`, run `ruff check --fix . && ruff format .` and `pytest -m "not slow"` before pushing. Details: [CONTRIBUTING.md](CONTRIBUTING.md). Code layout and module responsibilities: [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Credits & license
 
