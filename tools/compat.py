@@ -4,9 +4,14 @@ Loads each model, runs the fintech_fraud and support_triage presets through
 run_parallel_generation, and prints a markdown table with load status,
 schema validity, warm latency, prompt size, and peak GPU memory.
 
+Each model is probed in its own subprocess so peak-memory readings are
+isolated (models share a process-wide Metal memory high-water mark).
+
 Usage: .venv/bin/python tools/compat.py [model_id ...]
 """
 
+import json
+import subprocess
 import sys
 import time
 
@@ -27,12 +32,14 @@ MODELS = [
 
 PRESETS = ["fintech_fraud", "support_triage"]
 
+EMPTY_ROW = {"loads": "n", "presets": "", "latency_ms": "-", "prompt_tokens": "-",
+             "peak_mem_gb": "-", "error": ""}
 
-def probe(model_id: str) -> dict:
-    row = {"model": model_id, "loads": "n", "presets": "", "latency_ms": "-",
-           "prompt_tokens": "-", "peak_mem_gb": "-", "error": ""}
+
+def probe_row(model_id: str) -> dict:
+    """Probe one model; returns the table row (never raises)."""
+    row = {"model": model_id, **EMPTY_ROW}
     try:
-        mx.metal.reset_peak_memory()  # peak is process-wide; isolate per model
         model, tokenizer = load_engine(model_id)
         row["loads"] = "y"
         presets_ok = []
@@ -51,7 +58,7 @@ def probe(model_id: str) -> dict:
                 else isinstance(result["parsed_json"][f]["value"], bool)
                 for f, entry in result["parsed_json"].items()
             )
-            presets_ok.append(f"{name}:{'ok' if valid else 'INVALID'}")
+            presets_ok.append("ok" if valid else "INVALID")
             prompt_tokens += len(tokenizer.encode(preset["context"]))
         row["presets"] = ", ".join(presets_ok)
         row["latency_ms"] = f"{sum(latencies) / len(latencies):.0f}"
@@ -63,11 +70,32 @@ def probe(model_id: str) -> dict:
 
 
 def main() -> None:
-    models = sys.argv[1:] or MODELS
+    args = sys.argv[1:]
+    if args and args[0] == "--row":
+        # Child mode: probe one model, print the row as the last stdout line.
+        row = probe_row(args[1])
+        print("ROW_JSON=" + json.dumps(row), flush=True)
+        return
+
+    models = args or MODELS
     rows = []
     for model_id in models:
         print(f"Probing {model_id} ...", flush=True)
-        rows.append(probe(model_id))
+        # Subprocess isolation: load_engine caches models and Metal tracks a
+        # process-wide peak, so later models would inherit earlier peaks.
+        proc = subprocess.run(
+            [sys.executable, __file__, "--row", model_id],
+            capture_output=True, text=True,
+        )
+        row = None
+        for line in proc.stdout.splitlines():
+            if line.startswith("ROW_JSON="):
+                row = json.loads(line[len("ROW_JSON="):])
+        if row is None:
+            first_err = (proc.stderr or "unknown error").strip().splitlines()
+            row = {"model": model_id, **EMPTY_ROW,
+                   "error": (first_err[-1] if first_err else "unknown error")[:60]}
+        rows.append(row)
 
     print()
     print("| Model | loads | presets valid | warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |")

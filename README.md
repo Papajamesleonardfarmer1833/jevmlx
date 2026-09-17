@@ -90,12 +90,12 @@ Every preset field is decided in one batched pass — measured on a MacBook Pro 
 
 | Model | loads | presets valid | warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |
 |---|---|---|---|---|---|
-| `mlx-community/Qwen2.5-1.5B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 866 | 469 | 2.26 |
-| `mlx-community/Qwen2.5-7B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 3818 | 469 | 7.17 |
-| `mlx-community/Llama-3.2-3B-Instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 1957 | 422 | 10.19 |
-| `mlx-community/gemma-2-2b-it-4bit` | y | fintech_fraud:ok, support_triage:ok | 1414 | 474 | 4.83 |
-| `mlx-community/Mistral-7B-Instruct-v0.3-4bit` | y | fintech_fraud:ok, support_triage:ok | 7335 | 557 | 11.80 |
-| `mlx-community/Phi-3.5-mini-instruct-4bit` | y | fintech_fraud:ok, support_triage:ok | 7814 | 569 | 13.73 |
+| `mlx-community/Qwen2.5-1.5B-Instruct-4bit` | y | ok, ok | 862 | 469 | 2.26 |
+| `mlx-community/Qwen2.5-7B-Instruct-4bit` | y | ok, ok | 3785 | 469 | 6.30 |
+| `mlx-community/Llama-3.2-3B-Instruct-4bit` | y | ok, ok | 1701 | 422 | 5.03 |
+| `mlx-community/gemma-2-2b-it-4bit` | y | ok, ok | 1407 | 474 | 4.83 |
+| `mlx-community/Mistral-7B-Instruct-v0.3-4bit` | y | ok, ok | 5519 | 557 | 10.32 |
+| `mlx-community/Phi-3.5-mini-instruct-4bit` | y | ok, ok | 7562 | 569 | 13.73 |
 
 ## Is a bigger model worth it? (measured)
 
