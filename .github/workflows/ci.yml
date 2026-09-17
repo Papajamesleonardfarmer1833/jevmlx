@@ -15,11 +15,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install
-        run: |
-          uv python install 3.12
-          uv venv --python 3.12 .venv
-          uv pip install --python .venv/bin/python -e '.[dev]'
+      - name: Install (setup-uv already created .venv)
+        run: uv pip install --python .venv/bin/python -e '.[dev]'
 
       - name: Fast tests (no model downloads)
         run: .venv/bin/pytest -m "not slow" -q
