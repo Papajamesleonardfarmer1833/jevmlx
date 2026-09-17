@@ -127,6 +127,10 @@ Code and docs: [CONTRIBUTING.md](CONTRIBUTING.md). Benchmark results: [BENCHMARK
 
 ## Credits and license
 
-Inspired by and built on [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop). Not affiliated with TypeSafe.
+jevmlx started from [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop), which reproduced the parallel constrained decoding technique on a laptop.
+
+The engine descends from [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD), an MLX demo of parallel constrained decoding with one 1.5B checkpoint; jevmlx is the maintained, generic version: any MLX instruct model or OpenAI-compatible server, choices in the prompt, multi-select, UNKNOWN, per-field probability, an eval harness.
+
+Not affiliated with TypeSafe.
 
 MIT — see [LICENSE](LICENSE); third-party credits in [NOTICE](NOTICE).
