@@ -26,10 +26,12 @@ openjev makes any local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) 
 | From source | `git clone https://github.com/bnsd55/openjev && cd openjev && ./setup.sh` | Creates `.venv`, editable install with dev extras |
 | Requirements | — | Apple Silicon Mac (macOS, arm64), Python 3.12; engine fails fast elsewhere |
 
+From-source installs run it as `.venv/bin/openjev`.
+
 ## Quickstart (Apple Silicon Mac)
 
 ```bash
-.venv/bin/openjev decide --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --preset fintech_fraud
+openjev decide --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --preset fintech_fraud
 ```
 
 Sample output:
@@ -53,7 +55,7 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 **02. Always-valid JSON.** The JSON object is assembled programmatically from per-field decisions — it is never generated token by token, so it cannot be malformed. Every value comes from the field's allowed choices.
 
-**03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, no rounding tricks. Raw probabilities run overconfident; [Calibration](#calibration) fits one temperature to fix that.
+**03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, no rounding tricks. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
 **04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences:
 
@@ -71,8 +73,8 @@ class Fraud(BaseModel):
 context = "Wire transfer to a new IBAN, requested from a Tor exit node on an unrecognized device"
 
 d = openjev.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
-d.value  # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
-d.confidence  # {"is_fraudulent": 0.99, "risk_tier": 0.97}
+d.value  # Fraud(is_fraudulent=..., risk_tier=...)
+d.confidence  # {"is_fraudulent": 0.xx, "risk_tier": 0.xx}
 d.latency_ms
 ```
 
