@@ -287,11 +287,7 @@ class StructuredSchema:
         share a plan; token ids are tokenizer-specific). Callers compile and
         call _cache_plan when this returns None.
         """
-        try:
-            entry = self._plans.get((id(tokenizer), mode))
-        except TypeError:
-            # Not weak-referenceable (N3): nothing was ever cached for it.
-            return None
+        entry = self._plans.get((id(tokenizer), mode))
         if entry is not None and entry[0]() is tokenizer:
             return entry[1]
         return None
