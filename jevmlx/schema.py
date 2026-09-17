@@ -4,6 +4,7 @@ Supports booleans, categorical enums (cardinality up to 255), and multi fields
 (subset of choices, 2-64 options, decided as one boolean decision per option).
 """
 
+import hashlib
 import json
 import logging
 import weakref
@@ -259,6 +260,24 @@ class StructuredSchema:
     def alias_for_index(index: int) -> str:
         """The neutral alias for the choice at ``index`` (A, B, ..., AA, AB...)."""
         return _alias_code(index)
+
+    def plan_hash(self, tokenizer, mode: str) -> str:
+        """sha256 of the compiled plan for ``mode`` (stable within a process).
+
+        The plan captures the schema block, choice order, and token
+        segmentation the scoring pass depends on — everything the neutral
+        prior must match. Compiled on demand; the result equals the hash of
+        ``json.dumps(plan, sort_keys=True)`` with token ids as ints.
+        """
+        if mode == "slots":
+            plan = self.compile_slot_plan(tokenizer)
+        elif mode == "labels":
+            plan = self.compile_labels_plan(tokenizer)
+        else:
+            raise ValueError(f"mode must be 'slots' or 'labels', got {mode!r}")
+        return hashlib.sha256(
+            json.dumps(plan, sort_keys=True, default=list).encode("utf-8")
+        ).hexdigest()
 
     def _cache_plan(self, tokenizer, plan: dict[str, Any], mode: str) -> None:
         """Store a plan keyed by tokenizer identity, evicted on tokenizer death.

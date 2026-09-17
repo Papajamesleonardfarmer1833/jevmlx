@@ -149,6 +149,13 @@ def main(argv=None) -> None:
         default=120.0,
         help="per-request timeout in seconds (openai backend)",
     )
+    decide.add_argument(
+        "--prior-correction",
+        action="store_true",
+        help="subtract the neutral-context prior (one batched pass with "
+        "'(no context provided)') from the per-choice log scores before "
+        "selecting; the neutral pass is cached per schema",
+    )
 
     calib = sub.add_parser(
         "calibrate", help="Fit a temperature on labeled JSONL cases and report ECE"
@@ -209,6 +216,12 @@ def main(argv=None) -> None:
         default="slots",
         help="parallel-track scoring mode (slots = neutral aliases, the "
         "default; labels = real choice text through the token trie)",
+    )
+    eval_p.add_argument(
+        "--prior-correction",
+        action="store_true",
+        help="parallel track: subtract the neutral-context prior from the "
+        "per-choice log scores; the neutral pass runs once per schema",
     )
     eval_p.add_argument(
         "--permutations",
@@ -314,6 +327,8 @@ def main(argv=None) -> None:
 
             if not (args.base_url and args.api_model):
                 decide.error("--backend openai requires --base-url and --api-model")
+            if args.prior_correction:
+                decide.error("--prior-correction is native-backend only")
             schema = StructuredSchema(schema_dict)
             result = decide_openai(
                 args.base_url,
@@ -338,6 +353,7 @@ def main(argv=None) -> None:
                 temperature=args.temperature,
                 scoring=args.scoring,
                 multi_threshold=args.multi_threshold,
+                prior_correction=args.prior_correction,
             )
             model_label = args.model
 
@@ -450,13 +466,16 @@ def _run_eval_command(args) -> None:
     extra: dict = {
         "dataset_path": os.path.abspath(args.data),
         "scoring": args.scoring if args.track == "parallel" else "slots",
+        "prior_correction": bool(args.prior_correction) if args.track == "parallel" else False,
     }
     lock = os.path.join(os.path.dirname(os.path.abspath(args.data)), "dataset.lock.json")
 
     if args.track == "parallel":
         print(f"Loading {args.model} ...", flush=True)
         model, tokenizer = load_engine(args.model)
-        decide_fn = evalrun.parallel_decide_fn(model, tokenizer, scoring=args.scoring)
+        decide_fn = evalrun.parallel_decide_fn(
+            model, tokenizer, scoring=args.scoring, prior_correction=args.prior_correction
+        )
         chat_template = getattr(tokenizer, "chat_template", None)
         plan_provider = lambda schema: schema.compile_labels_plan(tokenizer)  # noqa: E731
     elif args.track == "naive_local":

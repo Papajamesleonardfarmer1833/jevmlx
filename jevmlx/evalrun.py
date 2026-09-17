@@ -76,12 +76,15 @@ def _sha256_file(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
-def parallel_decide_fn(model, tokenizer, scoring: str = "slots") -> DecideFn:
+def parallel_decide_fn(
+    model, tokenizer, scoring: str = "slots", prior_correction: bool = False
+) -> DecideFn:
     """Track ``parallel``: the jevmlx engine at T=1.
 
     Log scores come from field telemetry's finalized ``log_scores`` key — a
-    dict mapping choice to constrained-path log P at T=1. Multi fields
-    report ``per_option`` instead; log_scores stays None for them.
+    dict mapping choice to constrained-path log P at T=1 (prior-corrected
+    and renormalised when ``prior_correction`` is set). Multi fields report
+    ``per_option`` instead; log_scores stays None for them.
     """
 
     def decide(schema_dict: dict, context: str) -> dict[str, dict[str, Any]]:
@@ -89,7 +92,13 @@ def parallel_decide_fn(model, tokenizer, scoring: str = "slots") -> DecideFn:
 
         schema = StructuredSchema(schema_dict)
         result = run_parallel_generation(
-            model, tokenizer, context, schema, temperature=1.0, scoring=scoring
+            model,
+            tokenizer,
+            context,
+            schema,
+            temperature=1.0,
+            scoring=scoring,
+            prior_correction=prior_correction,
         )
         out: dict[str, dict[str, Any]] = {}
         for fname, telemetry in result["field_telemetry"].items():

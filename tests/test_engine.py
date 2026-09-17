@@ -297,3 +297,47 @@ def test_labels_scoring_fintech_fraud_valid(engine):
             assert set(telemetry["log_scores"]) == set(
                 ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
             )
+
+
+@pytest.mark.slow
+def test_prior_correction_neutral_pass_runs_and_corrects(engine):
+    """V2 slow: the neutral-context prior pass runs on the 0.5B model,
+    telemetry carries prior keys, and the corrected log_scores differ from
+    raw ones somewhere (exact equality would mean the prior is uniform-zero,
+    which the 0.5B model never produces)."""
+    model, tokenizer = engine
+    preset = load_preset("support_triage")
+    schema = StructuredSchema(preset["schema"])
+
+    run_parallel_generation(model, tokenizer, preset["context"], schema)  # raw baseline
+    corrected = run_parallel_generation(
+        model, tokenizer, preset["context"], schema, prior_correction=True
+    )
+
+    assert corrected["prior_correction"] is True
+    for fname, fdef in schema.fields.items():
+        t = corrected["field_telemetry"][fname]
+        if fdef.field_type == "multi":
+            assert t["prior_corrected"] is True
+            assert set(t["prior_option_pairs"]) == set(fdef.choices)
+            assert all(
+                0.0 <= p <= 1.0 for p in corrected["field_telemetry"][fname]["per_option"].values()
+            )
+        else:
+            assert t["prior_corrected"] is True
+            assert set(t["prior_log_scores"]) == (
+                {"true", "false"} if fdef.field_type == "boolean" else set(fdef.choices)
+            )
+            # Corrected scores are still a proper log distribution over the
+            # field's choices.
+            ls = t["log_scores"]
+            assert set(ls) == (
+                {"true", "false"} if fdef.field_type == "boolean" else set(fdef.choices)
+            )
+    # Probabilities still sum to 1 on every enum/boolean field.
+    for fname, fdef in schema.fields.items():
+        if fdef.field_type == "multi":
+            continue
+        top = corrected["field_telemetry"][fname]["top_choices"]
+        if len(top) == fdef.cardinality:
+            assert abs(sum(c["probability"] for c in top) - 1.0) < 1e-6

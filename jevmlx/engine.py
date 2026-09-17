@@ -381,6 +381,99 @@ def _rows_per_chunk(budget_bytes: int, bytes_per_row: int, max_rows: int | None)
     return auto_cap
 
 
+# Process-lifetime prior cache: keyed by (model id, revision if known,
+# tokenizer identity, prompt_version, scoring mode, plan hash). The prior
+# depends only on the prompt shape and scoring plan, never on the context,
+# so eval and decide_many pay the neutral pass once per schema.
+_PRIOR_CACHE: dict[tuple, dict[str, Any]] = {}
+_PRIOR_CACHE_MAX = 256
+
+
+def _model_identity(model, tokenizer) -> tuple:
+    """(model id, revision if known, tokenizer identity) for cache keys."""
+    model_id = getattr(model, "name_or_path", None) or getattr(
+        tokenizer, "name_or_path", type(model).__name__
+    )
+    revision = (
+        getattr(model, "revision", None)
+        or getattr(model, "model_revision", None)
+        or getattr(tokenizer, "revision", None)
+    )
+    tok_id = id(tokenizer)
+    return (model_id, revision, tok_id)
+
+
+def _get_or_compute_prior(
+    model,
+    tokenizer,
+    schema: StructuredSchema,
+    scoring: str,
+    temperature: float,
+    max_rows: int | None,
+    neutral_context: str,
+) -> dict[str, Any]:
+    """Return the cached per-field prior for this schema+model+plan.
+
+    The prior is the per-field ``log_scores`` vector from one normal batched
+    pass with the neutral context inside the delimiters: choice -> log P at
+    T=1 with no evidence. Multi fields carry ``option_pairs`` (the raw
+    true/false logit pair per option) instead of log_scores — their binary
+    decision does not produce a choice distribution.
+
+    temperature participates in the cache key only when it differs from 1.0
+    (the prior is defined at T=1; a caller temperature is applied to the
+    CORRECTED scores downstream, so the prior itself is temperature-free —
+    the key slot exists to prevent accidental sharing, not to vary).
+    """
+    plan_hash = schema.plan_hash(tokenizer, scoring)
+    identity = _model_identity(model, tokenizer)
+    key = (identity, PROMPT_VERSION, scoring, plan_hash)
+    hit = _PRIOR_CACHE.get(key)
+    if hit is not None:
+        return hit
+
+    result = run_parallel_generation(
+        model,
+        tokenizer,
+        neutral_context,
+        schema,
+        temperature=temperature,
+        max_rows=max_rows,
+        scoring=scoring,
+        prior_correction=False,
+    )
+
+    prior: dict[str, Any] = {}
+    for fname, telemetry in result["field_telemetry"].items():
+        if telemetry["type"] == "multi":
+            # Binary Y/N pairs are not exposed by telemetry (per_option holds
+            # post-softmax P(yes)). Re-derive the pair prior from per_option:
+            # log(p_yes) and log(1 - p_yes) at T=1 are exact inverses of the
+            # pair softmax — an additive prior in log space on the Y/N pair
+            # (P(yes) semantics, same as the evidence pass applies).
+            per_option = telemetry["per_option"]
+            prior[fname] = {
+                "type": "multi",
+                "option_pairs": {
+                    option: [
+                        math.log(max(pt, 1e-12)),
+                        math.log(max(1.0 - pt, 1e-12)),
+                    ]
+                    for option, pt in per_option.items()
+                },
+            }
+        else:
+            prior[fname] = {
+                "type": telemetry["type"],
+                "log_scores": dict(telemetry["log_scores"]),
+            }
+
+    if len(_PRIOR_CACHE) >= _PRIOR_CACHE_MAX:
+        _PRIOR_CACHE.pop(next(iter(_PRIOR_CACHE)))
+    _PRIOR_CACHE[key] = prior
+    return prior
+
+
 def run_parallel_generation(
     model,
     tokenizer,
@@ -390,6 +483,7 @@ def run_parallel_generation(
     max_rows: int | None = None,
     scoring: str = "slots",
     multi_threshold: float = 0.5,
+    prior_correction: bool = False,
 ) -> dict[str, Any]:
     """Decide every schema field in one batched forward pass.
 
@@ -432,6 +526,17 @@ def run_parallel_generation(
         raise ValueError(f"multi_threshold must be in (0, 1), got {multi_threshold!r}")
     if max_rows is not None and max_rows < 1:
         raise ValueError(f"max_rows must be >= 1, got {max_rows!r}")
+
+    # Neutral-context prior: what the model would emit with no evidence. The
+    # same prompt v2 with the literal string "(no context provided)" inside
+    # the delimiters; the resulting per-choice log-scores are the prior that
+    # prior_correction subtracts from the evidence pass.
+    NEUTRAL_CONTEXT = "(no context provided)"
+    prior: dict[str, Any] | None = None
+    if prior_correction:
+        prior = _get_or_compute_prior(
+            model, tokenizer, schema, scoring, temperature, max_rows, NEUTRAL_CONTEXT
+        )
 
     t0 = time.perf_counter()
 
@@ -588,10 +693,23 @@ def run_parallel_generation(
             # is claimed (calibrate skips multi fields). The margin is how
             # close the closest option's decision sat to the threshold.
             probs_yes = {}
+            prior_entry = prior.get(fname) if prior is not None else None
+            prior_pairs = prior_entry["option_pairs"] if prior_entry else None
             for oi, ridx in enumerate(idxs):
-                pair = option_pair[ridx]
+                pair = list(option_pair[ridx])
+                option_name = p["options"][oi]
+                if prior_pairs is not None and option_name in prior_pairs:
+                    # Per-option additive prior in log space on the Y/N pair
+                    # (P(yes) semantics: prior_pairs[option] =
+                    # [log P_prior(yes), log P_prior(no)]), then renormalise
+                    # (same log-softmax shape as the enum path).
+                    pp = prior_pairs[option_name]
+                    pair = [p - q for p, q in zip(pair, pp, strict=True)]
+                    m = max(pair)
+                    total = sum(math.exp(v - m) for v in pair)
+                    pair = [v - (m + math.log(total)) for v in pair]
                 (p_yes, _p_no) = softmax(pair, temperature=temperature)
-                probs_yes[p["options"][oi]] = p_yes
+                probs_yes[option_name] = p_yes
             selected, _prob, margin = _fold_multi(probs_yes, multi_threshold)
             ranked = sorted(probs_yes.items(), key=lambda kv: -kv[1])
             parsed_json[fname] = {
@@ -616,6 +734,11 @@ def run_parallel_generation(
                 "rows": len(idxs),
                 "threshold": multi_threshold,
             }
+            if prior_entry is not None:
+                field_telemetry[fname]["prior_option_pairs"] = {
+                    k: list(v) for k, v in prior_pairs.items()
+                }
+                field_telemetry[fname]["prior_corrected"] = True
             continue
 
         if scoring == "slots":
@@ -662,7 +785,30 @@ def run_parallel_generation(
         ) -> list[float]:
             return _lookup[_index[id(node)]]
 
-        scores = score_trie(field_trie, n_choices, logits_at_node)
+        raw_scores = score_trie(field_trie, n_choices, logits_at_node)
+        # Prior correction (V2): subtract the neutral-context prior per
+        # choice, then renormalise (log-softmax) over the choices. The
+        # winner, probability, margin, tie policy and telemetry all use the
+        # corrected values.
+        prior_entry = prior.get(fname) if prior is not None else None
+        if prior_entry is not None:
+            # display_choices here are alias strings in slots mode; the
+            # prior is keyed by REAL choice string, so map first.
+            real_choices = (
+                [p["alias_map"][raw] for raw in choices_list]
+                if scoring == "slots"
+                else list(choices_list)
+            )
+            prior_scores = prior_entry["log_scores"]
+            scores = [
+                s - prior_scores.get(c, 0.0) for s, c in zip(raw_scores, real_choices, strict=True)
+            ]
+            m = max(scores)
+            total = sum(math.exp(s - m) for s in scores)
+            # log-softmax renormalisation keeps scores as proper log-probs.
+            scores = [s - (m + math.log(total)) for s in scores]
+        else:
+            scores = raw_scores
         # Confidence temperature applied once to the final per-choice scores
         # (softmax(scores / T)): ranking is invariant, calibrate.py fits this T.
         probs_list = softmax(scores, temperature=temperature)
@@ -713,7 +859,8 @@ def run_parallel_generation(
             "cardinality": fdef.cardinality,
             # Constrained-path log-probabilities at T=1, keyed by the real
             # choice string. Temperature is applied once downstream, to the
-            # final distribution.
+            # final distribution. With prior_correction these are the
+            # CORRECTED (prior-subtracted, renormalised) scores.
             "log_scores": {choice: lp for choice, lp in zip(display_choices, scores, strict=True)},
             "top_choices": scored_choices[:5],
             "rows": len(field_trie),
@@ -721,6 +868,9 @@ def run_parallel_generation(
             # resolved by schema order, not by the model.
             "tie": is_tie,
         }
+        if prior_entry is not None:
+            field_telemetry[fname]["prior_log_scores"] = dict(prior_entry["log_scores"])
+            field_telemetry[fname]["prior_corrected"] = True
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
     confidence_model = scoring
@@ -757,7 +907,9 @@ def run_parallel_generation(
         "prompt_version": PROMPT_VERSION,
         "probability_status": (
             "constrained-path probability at T=1; uncalibrated as decision confidence"
+            + ("; prior-corrected against the neutral-context pass" if prior_correction else "")
         ),
+        "prior_correction": prior_correction,
         "parsed_json": parsed_json,
         "field_telemetry": field_telemetry,
         "num_fields": len(schema),

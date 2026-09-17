@@ -293,6 +293,7 @@ def _decide_once[T: BaseModel](
     scoring: str = "slots",
     allow_unknown: bool = False,
     multi_threshold: float = 0.5,
+    prior_correction: bool = False,
 ) -> Decision[T]:
     """Decide one context with a loaded engine and a compiled schema."""
     result = run_parallel_generation(
@@ -303,6 +304,7 @@ def _decide_once[T: BaseModel](
         temperature=temperature,
         scoring=scoring,
         multi_threshold=multi_threshold,
+        prior_correction=prior_correction,
     )
 
     kwargs = {}
@@ -368,6 +370,7 @@ def decide[T: BaseModel](
     scoring: str = "slots",
     allow_unknown: bool = False,
     multi_threshold: float = 0.5,
+    prior_correction: bool = False,
 ) -> Decision[T]:
     """Run parallel constrained decisions and return a validated model instance.
 
@@ -380,6 +383,12 @@ def decide[T: BaseModel](
     in the returned model; declare the field Optional to receive it. Every
     enum field must be Optional when this is set — ``decide`` raises a
     TypeError naming the first non-Optional enum field otherwise.
+
+    ``prior_correction`` subtracts the model's neutral-context prior (one
+    batched pass with "(no context provided)" in the delimiters) from the
+    per-choice log scores and renormalises; the neutral pass is cached per
+    (model, tokenizer, prompt version, scoring mode, plan hash), so
+    decide_many pays it once per schema.
     """
     # Validate allow_unknown against the model BEFORE touching the engine: a
     # usage error must not pay for a model load (same rule as decide_many's
@@ -396,6 +405,7 @@ def decide[T: BaseModel](
         scoring=scoring,
         allow_unknown=allow_unknown,
         multi_threshold=multi_threshold,
+        prior_correction=prior_correction,
     )
 
 
@@ -408,6 +418,7 @@ def decide_many[T: BaseModel](
     scoring: str = "slots",
     allow_unknown: bool = False,
     multi_threshold: float = 0.5,
+    prior_correction: bool = False,
 ) -> list[Decision[T]]:
     """Decide many contexts against one schema and return one Decision per context.
 
@@ -447,6 +458,7 @@ def decide_many[T: BaseModel](
             scoring=scoring,
             allow_unknown=allow_unknown,
             multi_threshold=multi_threshold,
+            prior_correction=prior_correction,
         )
         for context in contexts
     ]
