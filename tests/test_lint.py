@@ -6,6 +6,7 @@ import pytest
 
 from openjev.lint import lint_schema
 from openjev.schema import StructuredSchema
+from tests.test_trie import NonCompositionalTokenizer
 
 
 class FakeTokenizer:
@@ -32,8 +33,8 @@ class FakeTokenizer:
         return out
 
 
-def _findings(schema_dict: dict) -> list:
-    return lint_schema(StructuredSchema(schema_dict), FakeTokenizer())
+def _findings(schema_dict: dict, tokenizer=None) -> list:
+    return lint_schema(StructuredSchema(schema_dict), tokenizer or FakeTokenizer())
 
 
 def test_collision_detected_with_suggestion():
@@ -184,3 +185,87 @@ def test_collision_without_rotation_suggestion():
     assert len(collisions) == 1
     assert "X, X_Y" in collisions[0].message
     assert collisions[0].suggestion is None
+
+
+def test_single_choice_enum_lints_without_raising():
+    """L1a: a cardinality-1 enum has an empty remainder — no crash, and an
+    informational single_choice finding (chosen behavior: informational)."""
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["ONLY"],
+            }
+        }
+    )
+    assert [f.kind for f in findings] == ["single_choice"]
+    assert findings[0].field == "action"
+
+
+def test_token_identical_pair_yields_compile_error_finding():
+    """L1b: compile-time ValueErrors become compile_error findings, not
+    silently-clean lint results."""
+
+    class SameTokens(NonCompositionalTokenizer):
+        name_or_path = "fake-lint-same-tokens"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            if "OK1" in text or "OK2" in text:
+                return [ord(c) for c in text.replace("OK1", "OK").replace("OK2", "OK")]
+            return super().encode(text, add_special_tokens)
+
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["OK1", "OK2"],
+            }
+        },
+        tokenizer=SameTokens(),
+    )
+    assert [f.kind for f in findings] == ["compile_error"]
+    assert findings[0].field == "action"
+    assert "token-identical" in findings[0].message
+
+
+def test_no_common_prefix_yields_compile_error_finding():
+    """L1b: a no-common-prefix schema also lints as compile_error."""
+
+    class NoCommon(NonCompositionalTokenizer):
+        name_or_path = "fake-lint-no-common"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            if '"action": "A' in text:
+                return [65]
+            if '"action": "B' in text:
+                return [66]
+            return super().encode(text, add_special_tokens)
+
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["A", "B"],
+            }
+        },
+        tokenizer=NoCommon(),
+    )
+    assert [f.kind for f in findings] == ["compile_error"]
+    assert "share no token prefix" in findings[0].message
+
+
+def test_valid_schema_lints_with_no_compile_error():
+    """A healthy schema produces no compile_error findings."""
+    findings = _findings(
+        {
+            "action": {
+                "type": "enum",
+                "description": "next action",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "ALLOW"],
+            }
+        }
+    )
+    assert all(f.kind != "compile_error" for f in findings)

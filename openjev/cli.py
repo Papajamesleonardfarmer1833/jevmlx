@@ -275,7 +275,10 @@ def main(argv=None) -> None:
                 print(f"{finding.field}: [{finding.kind}] {finding.message}")
                 if finding.suggestion:
                     print(f"  suggestion: {finding.suggestion}")
-        if any(finding.kind == "collision" for finding in findings):
+        # compile_error findings mean the schema cannot run at all: exit 1.
+        # (collisions only slow the engine down; they stay exit 0 with a
+        # warning printed above).
+        if any(finding.kind == "compile_error" for finding in findings):
             sys.exit(1)
 
     elif args.command == "eval":

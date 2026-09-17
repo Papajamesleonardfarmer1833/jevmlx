@@ -20,7 +20,7 @@ class Finding:
 
     Attributes:
         field: Name of the schema field the finding applies to.
-        kind: One of ``"collision"``, ``"empty_choice"``, ``"duplicate_choice"``.
+        kind: One of ``"collision"``, ``"compile_error"``, ``"single_choice"``.
         message: Human-readable description of the problem.
         suggestion: A concrete rename, when one can be computed mechanically.
     """
@@ -67,10 +67,13 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     - collision: two or more choices share their first diverging token. The
       engine still scores them correctly, but the field needs one row per
       trie branch point instead of one row total (slower).
-    - duplicate_choice: the same literal appears more than once.
-    - empty_choice: a choice's token remainder is a strict prefix of another
-      choice's remainder, so the shorter choice is never uniquely determined
-      by the engine's branch scoring.
+    - compile_error: the schema cannot be compiled for this tokenizer at all
+      (token-identical choices, strict token-prefix continuations, choices
+      with no shared token prefix) — the compile-time ValueError becomes a
+      finding so invalid schemas never lint clean.
+    - single_choice (informational): a cardinality-1 enum has no branch
+      points; the engine scores it deterministically (P = 1.0). Reported so
+      the degenerate schema is visible, not an error.
     """
     findings: list[Finding] = []
 
@@ -78,18 +81,38 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
         if fdef.field_type not in ("enum", "choice", "selection"):
             continue
 
-        # Duplicate literals are rejected by FieldDefinition (B4), so they can
-        # never reach plan compilation; nothing to scan here anymore.
-
-        # Token-aligned plan for this field alone: schema-wide compilation
-        # raises on token-identical/prefix choices, but the lint must report
-        # those as findings instead of crashing.
+        # Compile the plan once per schema; a compile-time ValueError
+        # (token-identical, strict-prefix, no-common-prefix) becomes a
+        # compile_error finding naming the field — invalid schemas must not
+        # lint clean (L1b).
         try:
             compiled = schema.compile_batch_plan(tokenizer)
-            entry = compiled["fields"][fname]
-        except ValueError:
+        except ValueError as exc:
+            findings.append(
+                Finding(
+                    field=fname,
+                    kind="compile_error",
+                    message=f"schema cannot be compiled: {exc}",
+                )
+            )
             continue
 
+        if len(fdef.choices) == 1:
+            # Cardinality-1 enum: empty remainder, no branch points, nothing
+            # to collide — informational only (L1a).
+            findings.append(
+                Finding(
+                    field=fname,
+                    kind="single_choice",
+                    message=(
+                        "single-choice enum: the value is fully determined by "
+                        "the schema; the engine scores it deterministically (P=1.0)"
+                    ),
+                )
+            )
+            continue
+
+        entry = compiled["fields"][fname]
         groups: dict[int, list[int]] = {}
         for idx, tokens in enumerate(entry["remainders"]):
             groups.setdefault(tokens[0], []).append(idx)
@@ -109,21 +132,5 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                     suggestion=_rotation_suggestion(colliding),
                 )
             )
-
-        for choice, remainder in zip(fdef.choices, entry["remainders"], strict=True):
-            if any(
-                other is not remainder and other[: len(remainder)] == remainder
-                for other in entry["remainders"]
-            ):
-                findings.append(
-                    Finding(
-                        field=fname,
-                        kind="empty_choice",
-                        message=(
-                            f'choice "{choice}" is a token-prefix of another choice; '
-                            "its value is never uniquely determined by branch scoring"
-                        ),
-                    )
-                )
 
     return findings

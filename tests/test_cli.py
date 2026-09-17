@@ -1,5 +1,7 @@
 """Tests for the openjev CLI argument handling and version output."""
 
+import json
+
 import pytest
 
 from openjev import __version__
@@ -53,3 +55,36 @@ def test_decide_rejects_preset_with_context(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["decide", "--preset", "fintech_fraud", "--context", "context.txt"])
     assert exc.value.code == 2
+
+
+def test_validate_exits_1_on_compile_error(tmp_path, capsys, monkeypatch):
+    """`openjev validate` exits 1 when the schema cannot compile (L1b)."""
+
+    class FakeTok:
+        name_or_path = "fake-cli-tok"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            # OK1/OK2 tokenize identically -> compile_error.
+            if "OK1" in text or "OK2" in text:
+                return [ord(c) for c in text.replace("OK1", "OK").replace("OK2", "OK")]
+            return [ord(c) for c in text]
+
+    schema_path = tmp_path / "schema.json"
+    schema_path.write_text(
+        json.dumps(
+            {
+                "action": {
+                    "type": "enum",
+                    "description": "d",
+                    "choices": ["OK1", "OK2"],
+                }
+            }
+        )
+    )
+    tok = FakeTok()
+    monkeypatch.setattr("transformers.AutoTokenizer.from_pretrained", lambda _model: tok)
+    with pytest.raises(SystemExit) as exc:
+        main(["validate", str(schema_path)])
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "compile_error" in out
