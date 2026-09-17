@@ -27,11 +27,15 @@ git clone https://github.com/bnsd55/openjev && cd openjev
 Sample output:
 
 ```
-field                  value               conf
----------------------  ------------------  -----
-is_fraudulent          True                0.999
-risk_tier              CRITICAL            0.997
-recommended_action     FREEZE_ACCOUNT      0.982
+Preset : FinTech Fraud & Autonomous AML Compliance (28 Fields)
+Model  : mlx-community/Qwen2.5-1.5B-Instruct-4bit
+Latency: 970.9 ms (prefill 416.6 + batched pass 530.4)
+
+field                           value                   conf   type
+------------------------------  ----------------------  -----  -----
+is_fraudulent                   True                    0.825  boolean
+risk_tier                       HIGH                    0.752  enum
+recommended_action              BLOCK_TRANSACTION       0.702  enum
 ...
 ```
 
@@ -48,6 +52,8 @@ class Fraud(BaseModel):
     is_fraudulent: bool = Field(description="Whether the transaction is fraudulent")
     risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
 
+context = "Wire transfer to a new IBAN, requested from a Tor exit node on an unrecognized device"
+
 d = openjev.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
 d.value            # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
 d.confidence       # {"is_fraudulent": 0.99, "risk_tier": 0.97}
@@ -56,7 +62,14 @@ d.latency_ms
 
 ## Calibration
 
-Raw confidences are softmax(scores) at T=1 and run overconfident. One scalar temperature, fitted by minimizing NLL on labeled data, fixes most of it — no other tuning. Build a labeled JSONL (`{"schema": ..., "context": ..., "labels": {field: value}}` per line), then `openjev calibrate --model M --data cases.jsonl`; pass the fitted value to decisions with `openjev decide --temperature T`.
+Raw confidences are softmax(scores) at T=1 and run overconfident. One scalar temperature, fitted by minimizing NLL on labeled data, fixes most of it — no other tuning. Build a labeled JSONL (`{"schema": ..., "context": ..., "labels": {field: value}}` per line) from the repo's labeled cases with `tools/quality_eval_to_jsonl.py`, then:
+
+```bash
+.venv/bin/python tools/quality_eval_to_jsonl.py > cases.jsonl
+openjev calibrate --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --data cases.jsonl
+```
+
+Pass the fitted value to decisions with `openjev decide --temperature T`.
 
 Measured on the repo's 24 labeled quality-eval cases (72 field decisions, Qwen2.5-1.5B-Instruct-4bit, via `tools/quality_eval_to_jsonl.py`):
 
