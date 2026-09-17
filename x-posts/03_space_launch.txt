@@ -1,9 +1,0 @@
-I put the "Jev-style" decision engine on a Hugging Face Space - runs right in your browser, nothing to install.
-
-Pick a preset -> see typed decisions with confidence, live recorded from a stock 1.5B model on a laptop. No training. Unofficial demo.
-
-👉 huggingface.co/spaces/rorshopping/parallel-constrained-decisions
-
-Code: github.com/rorshopping/jev-on-a-laptop
-
-Context: a ChatGPT co-inventor's new startup (TypeSafe) launched Jev this week - a model that returns typed decisions instead of text, 20-200x faster. I reproduced the decoding trick behind it locally to see how much of that you get from an off-the-shelf small model. Answer: the structure and speed mostly yes, the trained calibration no.

@@ -5,7 +5,7 @@
 ## What we did
 
 ```bash
-cd /Users/richardbaecker/Documents/projects/rlcd-research
+cd openjev   # repo root
 uv venv --python 3.12 .venv                      # system Python is 3.14; 3.12 is the safe target
 uv pip install --python .venv/bin/python mlx-lm  # pulls mlx 0.32.2 + mlx-lm 0.31.3
 
@@ -43,7 +43,7 @@ Raw log: `results/raw-1.5b.log`
 The artifact hardcodes `MODEL_ID` in `core/engine_mlx.py`, but it reads the module global at load time, so we can override it without editing their code:
 
 ```bash
-cd /Users/richardbaecker/Documents/projects/rlcd-research
+cd openjev   # repo root
 .venv/bin/python -u tools/bench_model.py mlx-community/Qwen2.5-7B-Instruct-4bit
 # or: --tag my-label  (results land in results/<tag>.json)
 ```

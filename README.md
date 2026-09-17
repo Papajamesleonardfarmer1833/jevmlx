@@ -1,8 +1,10 @@
-# Jev-style decisions on a laptop
+# openjev
 
-**Unofficial research repo. Not affiliated with TypeSafe AI.** This is a hands-on study of the *parallel constrained decoding* idea behind [Jev](https://typesafe.ai/) — the "System One" model launched by Diogo Almeida's TypeSafe AI in Sep 2026 — reproduced on a stock, untrained small model, on an Apple Silicon laptop.
+Jev-style parallel constrained decisions for any MLX model on Apple Silicon. Typed, schema-valid JSON in one forward pass.
 
-The trick: instead of generating JSON token-by-token, define your schema as a set of typed fields, prefill the context **once**, broadcast the KV cache across one batch row per field, and evaluate **all fields in a single forward pass**. JSON is assembled programmatically, so it can never be malformed. The interesting claim: **a 1.5B model that cannot reliably write 28-field JSON can still make 28 schema-valid decisions in ~0.4 s.**
+openjev makes any local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in a single batched forward pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in ~0.4 s on a MacBook Air.
+
+Unofficial. Not affiliated with TypeSafe AI or Jev. Fork of rorshopping/jev-on-a-laptop, see NOTICE.
 
 ```
 [context + schema] ──► prefill (once) ──► KV cache
@@ -14,38 +16,12 @@ The trick: instead of generating JSON token-by-token, define your schema as a se
               slice logits → softmax → pick value + probability
 ```
 
-Engine: [`harshatheg/Qwen-2.5-1B-RLCD`](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD) (Apache-2.0, cloned at setup, **not** vendored here). We wrote our own runner, benchmarked three model sizes on a 16 GB M5 MacBook Air, and documented what's real vs. marketing.
-
 ## Quickstart (Apple Silicon Mac)
 
 ```bash
-git clone https://github.com/rorshopping/jev-on-a-laptop
-cd jev-on-a-laptop
-./setup.sh          # creates .venv, installs mlx-lm, clones the upstream engine
-./run_benchmark.sh  # default: Qwen2.5-1.5B-Instruct-4bit
-```
-
-**Windows / NVIDIA GPU:** use the released `parallel-decisions` library's
-[GPU setup and performance guide](https://github.com/rorshopping/parallel-decisions/blob/main/GPU_SETUP.md)
-for installation, configuration and reproducible benchmarks. Our integrated Torch
-backend supports shared-prefix reuse and optional CUDA Graphs. On separate warmed
-0.5B workloads, graphs reduced request latency **60.1 → 51.8 ms** (8 fields) and
-**240.9 → 83.8 ms** (custom 27 fields). Capture needs free VRAM and may fall back
-to eager; these are not browser-click timings or universal gains. See
-[doc 14](docs/14-gpu-torch-backend.md) for evidence and limitations, and
-[doc 07](docs/07-hardware-mac-vs-pc-analysis.md) for the memory analysis.
-
-**See it without installing anything:** a static showcase with real recorded outputs is live at
-**[huggingface.co/spaces/rorshopping/parallel-constrained-decisions](https://huggingface.co/spaces/rorshopping/parallel-constrained-decisions)**
-(source in `hf-space-static/`). Its interactive sibling — a Gradio app that runs live on ZeroGPU — is
-ready in `hf-space/`; deploying it requires a Hugging Face **PRO** account (free accounts can't host
-Gradio Spaces; static Spaces are free). One command when you have PRO: `python hf-space/push_to_hub.py`.
-
-Try a single decision instead:
-
-```bash
-.venv/bin/python tools/demo.py                          # fintech fraud preset
-.venv/bin/python tools/demo.py support_triage --model mlx-community/Qwen2.5-7B-Instruct-4bit
+git clone https://github.com/bnsd55/openjev && cd openjev
+./setup.sh
+.venv/bin/openjev decide --model mlx-community/Qwen2.5-1.5B-Instruct-4bit --preset fintech_fraud
 ```
 
 Sample output:
@@ -124,21 +100,18 @@ Where this is going next: [ROADMAP.md](ROADMAP.md) (calibration, evaluation expa
 ## Repo layout
 
 ```
+openjev/                     engine + schema + CLI (lands in P1)
+presets/                     example schemas (lands in P1)
 setup.sh, run_benchmark.sh   one-command setup + benchmark (Mac)
-tools/bench_model.py         benchmark any mlx-lm model, saves results/*.json
-tools/demo.py                single decision call, pretty-printed
-tools/export_demo_data.py    record demo.json for the static showcase
+tools/                       benchmark scripts
 quality-eval/                labeled accuracy + calibration comparison (1.5B/7B/8B)
 evals/                       head-to-head on TypeSafe's published security-incident questions
-hf-space-static/             static showcase Space (live now, free hosting)
-hf-space/                    interactive Gradio Space (needs HF PRO to host)
-x-posts/                     copy-paste-ready posts + optional Playwright helper
-docs/                        full research notes (start at 04 → 05 → 07 → 08)
 results/                     raw benchmark outputs
+docs/                        full research notes (start at 04 → 05 → 07 → 08)
 ```
 
 ## Credits & license
 
-- Engine: [harshatheg/Qwen-2.5-1B-RLCD](https://huggingface.co/harshatheg/Qwen-2.5-1B-RLCD) — Apache-2.0, cloned by `setup.sh`, not redistributed here.
 - Jev / RLCD (Reinforcement Learning for Calibrated Decisions): [TypeSafe AI](https://typesafe.ai/) — we have no affiliation and no access to their model. "RLCD" here refers to the community parallel-decoding recreation.
+- Origins and third-party credits: see `NOTICE`.
 - Our code and docs: MIT (see `LICENSE`).

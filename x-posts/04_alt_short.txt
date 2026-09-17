@@ -1,7 +1,0 @@
-A 1.5B model can't reliably write 28-field JSON.
-
-This one does: 0.41 s, always schema-valid - by evaluating all decisions in a single batched pass instead of generating tokens.
-
-Reproduced the decoding trick behind Jev on a laptop. No training, stock model.
-
-Code + benchmarks: github.com/rorshopping/jev-on-a-laptop

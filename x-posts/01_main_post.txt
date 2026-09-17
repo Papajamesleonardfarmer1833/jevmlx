@@ -1,7 +1,0 @@
-TypeSafe (founded by a ChatGPT co-inventor) just launched Jev: a model that returns typed decisions + probabilities instead of text. Claims: 20-200x faster than frontier LLMs, output tokens free.
-
-I wanted to know if the *idea* needs their frontier model.
-
-Turns out it doesn't. I ran the same shape of thing on a stock 1.5B model - on a laptop. No training.
-
-Benchmarks and code below 🧵

@@ -10,6 +10,8 @@ vendor/
 # Local outputs
 *.log
 .DS_Store
+*.egg-info/
+dist/
 
 # Generated from TypeSafe's public eval data at runtime; not redistributed
 evals/prompts/
