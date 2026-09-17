@@ -10,8 +10,8 @@ constrained decisions and returns validated, typed results.
         risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
 
     d = jevmlx.decide(Fraud, context)
-    d.value        # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
-    d.confidence   # {"is_fraudulent": 0.99, "risk_tier": 0.97}
+    d.value                  # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
+    d.fields["risk_tier"].probability  # constrained or slot P of the winner
     d.latency_ms
 """
 
@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import dataclasses
 import enum
+import math
 import typing
 from collections.abc import Sequence
 
@@ -33,6 +34,11 @@ _SUPPORTED = (
     "supported field types: bool, Literal[str, ...], enum.Enum/enum.StrEnum with str values, "
     "list[Literal[...]] / set[Literal[...]] (multi)"
 )
+
+# Synthetic unknown choice appended to every enum field when allow_unknown is
+# set; the engine decides it like any other choice and the API maps it to None.
+UNKNOWN = "UNKNOWN"
+UNKNOWN_DESCRIPTION = "insufficient evidence or none of the options"
 
 
 def _choice_values(name: str, values: list) -> list[str]:
@@ -57,10 +63,40 @@ def _choice_values(name: str, values: list) -> list[str]:
     return values
 
 
+@dataclasses.dataclass(frozen=True)
+class FieldResult:
+    """Provenance for one decided field.
+
+    Attributes:
+        value: The decided value (engine-side: str for enums, bool for
+            booleans, list[str] for multi).
+        score: Log P of the winning choice (constrained-path log score).
+        margin: Top-1 minus top-2 log score; 0.0 when the field has fewer
+            than two scored choices.
+        probability: P of the winner — constrained-path probability in trie
+            mode, slot softmax probability in letters mode. In [0, 1].
+        calibrated: True only after a fitted calibrator has been applied to
+            ``probability``. The engine never calibrates; this is False in
+            every decide() result until calibration runs.
+        model: Which scoring model produced the probability: "labels" (trie
+            over choice text) or "slots" (lettered options).
+        alternatives: Top 3 (choice, probability) pairs, most probable
+            first. Empty for multi fields (no single distribution).
+    """
+
+    value: object
+    score: float
+    margin: float
+    probability: float
+    calibrated: bool
+    model: str
+    alternatives: tuple[tuple[str, float], ...]
+
+
 @dataclasses.dataclass
 class Decision[T: BaseModel]:
     value: T
-    confidence: dict[str, float]
+    fields: dict[str, FieldResult]
     latency_ms: float
 
 
@@ -68,12 +104,84 @@ def _description(name: str, info) -> str:
     return info.description or name.replace("_", " ")
 
 
+def _choice_descriptions(name: str, info) -> dict[str, str]:
+    """Per-choice glosses from Field(json_schema_extra={"choice_descriptions": ...})."""
+    extra = info.json_schema_extra
+    if not isinstance(extra, dict):
+        return {}
+    glosses = extra.get("choice_descriptions")
+    if glosses is None:
+        return {}
+    if not isinstance(glosses, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in glosses.items()
+    ):
+        raise TypeError(
+            f"Field '{name}': json_schema_extra['choice_descriptions'] must be "
+            "a dict mapping choice strings to gloss strings"
+        )
+    return dict(glosses)
+
+
+def _enum_class_descriptions(ann) -> dict[str, str]:
+    """Per-choice glosses from an Enum class attribute ``descriptions``.
+
+    A plain dict class attribute on an Enum becomes an enum member whose
+    value is the dict (Python enum semantics), so it must be excluded from
+    the choice list (done by the str-value filter) and read back through the
+    member value here. The required shape is a dict mapping member values to
+    gloss strings.
+    """
+    descriptions = None
+    for member in ann:
+        if member.name == "descriptions":
+            descriptions = member.value
+            break
+    if descriptions is None:
+        return {}
+    if not isinstance(descriptions, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in descriptions.items()
+    ):
+        raise TypeError(
+            f"Enum '{ann.__name__}': class attribute 'descriptions' must be a dict "
+            "mapping member values to gloss strings"
+        )
+    return dict(descriptions)
+
+
+def _optional_inner(ann):
+    """Inner type of Optional[X] (Union with exactly one non-None arg), else None."""
+    if typing.get_origin(ann) is not typing.Union:
+        return None
+    args = [a for a in typing.get_args(ann) if a is not type(None)]
+    return args[0] if len(args) == 1 else None
+
+
 def schema_from_model(model_cls: type[BaseModel]) -> dict:
-    """Map a Pydantic model to the engine's schema dict (bool / enum fields)."""
+    """Map a Pydantic model to the engine's schema dict (bool / enum fields).
+
+    Literal fields take per-choice glosses from
+    ``Field(json_schema_extra={"choice_descriptions": {...}})``; enum classes
+    take them from a class attribute ``descriptions`` (a dict mapping member
+    values to glosses). Glosses are carried into the schema dict as the
+    optional ``choice_descriptions`` key.
+
+    Optional[Literal[...]] and Optional[enum] are accepted: the schema is
+    identical to the non-Optional form — None is the UNKNOWN mapping, not a
+    decided value. Any other Optional raises.
+    """
     schema: dict = {}
     for name, info in model_cls.model_fields.items():
         ann = info.annotation
         origin = typing.get_origin(ann)
+        if origin is typing.Union:
+            inner = _optional_inner(ann)
+            if inner is None:
+                raise TypeError(
+                    f"Field '{name}' has unsupported type {ann!r}; only "
+                    f"Optional[<enum>] is supported. {_SUPPORTED}"
+                )
+            ann = inner
+            origin = typing.get_origin(ann)
         if ann is bool:
             schema[name] = {"type": "boolean", "description": _description(name, info)}
         elif origin in (list, set) and typing.get_args(ann):
@@ -84,23 +192,90 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
                 "type": "multi",
                 "choices": _choice_values(name, list(typing.get_args(lit))),
                 "description": _description(name, info),
+                "choice_descriptions": _choice_descriptions(name, info),
             }
         elif origin is typing.Literal:
             schema[name] = {
                 "type": "enum",
                 "choices": _choice_values(name, list(typing.get_args(ann))),
                 "description": _description(name, info),
+                "choice_descriptions": _choice_descriptions(name, info),
             }
         elif isinstance(ann, type) and issubclass(ann, enum.Enum):
-            values = _choice_values(name, [member.value for member in ann])
+            # Collect member values, skipping the synthetic 'descriptions'
+            # member (its value is the gloss dict, not a choice). Any OTHER
+            # non-str member value must raise: silent str() coercion or a
+            # silently-dropped member would both produce a wrong schema.
+            values = _choice_values(
+                name,
+                [m.value for m in ann if m.name != "descriptions"],
+            )
             schema[name] = {
                 "type": "enum",
                 "choices": values,
                 "description": _description(name, info),
+                "choice_descriptions": _enum_class_descriptions(ann),
             }
         else:
             raise TypeError(f"Field '{name}' has unsupported type {ann!r}. {_SUPPORTED}")
     return schema
+
+
+def _is_optional_enum(model_cls: type[BaseModel], name: str) -> bool:
+    """True when the field's annotation is Optional[<enum-like>]."""
+    ann = model_cls.model_fields[name].annotation
+    origin = typing.get_origin(ann)
+    if origin is not typing.Union:
+        return False
+    args = [a for a in typing.get_args(ann) if a is not type(None)]
+    if len(args) != 1:
+        return False
+    inner = args[0]
+    return (typing.get_origin(inner) is typing.Literal) or (
+        isinstance(inner, type) and issubclass(inner, enum.Enum)
+    )
+
+
+def _build_field_results(result: dict, confidence_model: str) -> dict[str, FieldResult]:
+    """Build Decision.fields from the engine's field_telemetry.
+
+    Telemetry contract per field: ``log_scores`` ({choice: log P}, enum and
+    boolean fields only), ``confidence`` (P of the winner), ``top_choices``
+    (top 5 {choice, probability}). Multi fields carry ``per_option`` instead
+    of log_scores; their margin is 0.0 and alternatives come from per_option.
+    """
+    fields: dict[str, FieldResult] = {}
+    for name, telemetry in result["field_telemetry"].items():
+        probability = telemetry["confidence"]
+        log_scores: dict[str, float] | None = telemetry.get("log_scores")
+        if log_scores:
+            ranked = sorted(log_scores.items(), key=lambda kv: -kv[1])
+            score = ranked[0][1]
+            margin = ranked[0][1] - ranked[1][1] if len(ranked) > 1 else 0.0
+            # Top 3 by probability, from top_choices (same ranking as log
+            # scores; probabilities are monotone in the log scores).
+            alternatives = tuple(
+                (entry["choice"], entry["probability"])
+                for entry in telemetry.get("top_choices", [])[:3]
+            )
+        else:
+            per_option = telemetry.get("per_option") or {}
+            score = math.log(probability) if probability > 0 else float("-inf")
+            margin = 0.0
+            alternatives = tuple(
+                (choice, prob)
+                for choice, prob in sorted(per_option.items(), key=lambda kv: -kv[1])[:3]
+            )
+        fields[name] = FieldResult(
+            value=telemetry["value"],
+            score=score,
+            margin=margin,
+            probability=probability,
+            calibrated=False,
+            model="slots" if confidence_model == "letter_slots" else "labels",
+            alternatives=alternatives,
+        )
+    return fields
 
 
 def _decide_once[T: BaseModel](
@@ -111,6 +286,7 @@ def _decide_once[T: BaseModel](
     schema: StructuredSchema,
     temperature: float,
     scoring: str = "trie",
+    allow_unknown: bool = False,
 ) -> Decision[T]:
     """Decide one context with a loaded engine and a compiled schema."""
     result = run_parallel_generation(
@@ -122,7 +298,11 @@ def _decide_once[T: BaseModel](
         value = result["parsed_json"][name]["value"]
         ann = info.annotation
         origin = typing.get_origin(ann)
-        if isinstance(ann, type) and issubclass(ann, enum.Enum):
+        if allow_unknown and value == UNKNOWN:
+            # Synthetic unknown choice maps to None (the field is Optional;
+            # _prepare_schema already verified that).
+            value = None
+        elif isinstance(ann, type) and issubclass(ann, enum.Enum):
             value = ann(value)
         elif origin in (list, set):
             value = origin(value)  # list or set of the selected literal strings
@@ -130,9 +310,41 @@ def _decide_once[T: BaseModel](
 
     return Decision(
         value=model_cls(**kwargs),
-        confidence={k: v["confidence"] for k, v in result["field_telemetry"].items()},
+        fields=_build_field_results(result, result["confidence_model"]),
         latency_ms=result["elapsed_ms"],
     )
+
+
+def _prepare_schema(model_cls: type[BaseModel], allow_unknown: bool) -> StructuredSchema:
+    """Schema dict for the model, with the UNKNOWN choice folded in if asked.
+
+    Raises the caller-facing TypeError when allow_unknown targets a
+    non-Optional enum field: without Optional there is no None to map UNKNOWN
+    to, so the request is a usage error, not a runtime fallback.
+    """
+    schema_dict = schema_from_model(model_cls)
+    if not allow_unknown:
+        return StructuredSchema(schema_dict)
+    for name, spec in schema_dict.items():
+        if spec["type"] != "enum":
+            continue
+        if not _is_optional_enum(model_cls, name):
+            raise TypeError(
+                f"Field '{name}': allow_unknown requires the field to be "
+                f"Optional (e.g. {name}: Literal[...] | None) so UNKNOWN can "
+                "map to None"
+            )
+        if UNKNOWN in spec["choices"]:
+            raise TypeError(
+                f"Field '{name}': a choice named '{UNKNOWN}' already exists; "
+                "allow_unknown cannot be used"
+            )
+        spec["choices"] = [*spec["choices"], UNKNOWN]
+        spec["choice_descriptions"] = {
+            **spec.get("choice_descriptions", {}),
+            UNKNOWN: UNKNOWN_DESCRIPTION,
+        }
+    return StructuredSchema(schema_dict)
 
 
 def decide[T: BaseModel](
@@ -142,17 +354,34 @@ def decide[T: BaseModel](
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
     scoring: str = "trie",
+    allow_unknown: bool = False,
 ) -> Decision[T]:
     """Run parallel constrained decisions and return a validated model instance.
 
     ``scoring`` selects the engine mode: ``"trie"`` (default) scores the
     choice text via token-trie branches; ``"letters"`` lists the choices as
     lettered options in the prompt and reads one slot token per choice.
+
+    ``allow_unknown`` adds a synthetic ``UNKNOWN`` choice (gloss: insufficient
+    evidence or none of the options) to every enum field and maps it to None
+    in the returned model; declare the field Optional to receive it. Every
+    enum field must be Optional when this is set — ``decide`` raises a
+    TypeError naming the first non-Optional enum field otherwise.
     """
+    # Validate allow_unknown against the model BEFORE touching the engine: a
+    # usage error must not pay for a model load (same rule as decide_many's
+    # input validation).
+    schema = _prepare_schema(model_cls, allow_unknown)
     engine_model, tokenizer = load_engine(model)
-    schema = StructuredSchema(schema_from_model(model_cls))
     return _decide_once(
-        model_cls, context, engine_model, tokenizer, schema, temperature, scoring=scoring
+        model_cls,
+        context,
+        engine_model,
+        tokenizer,
+        schema,
+        temperature,
+        scoring=scoring,
+        allow_unknown=allow_unknown,
     )
 
 
@@ -163,13 +392,15 @@ def decide_many[T: BaseModel](
     model: str = DEFAULT_MODEL,
     temperature: float = 1.0,
     scoring: str = "trie",
+    allow_unknown: bool = False,
 ) -> list[Decision[T]]:
     """Decide many contexts against one schema and return one Decision per context.
 
     Loads the model once and compiles the schema once (the engine's batch plan
     is cached on the StructuredSchema instance, so the compiled suffix and
     choice tokens are reused across contexts); the parallel decision pass then
-    runs once per context. Results are returned in input order.
+    runs once per context. Results are returned in input order. ``allow_unknown``
+    behaves exactly as in :func:`decide`.
 
     Raises:
         TypeError: If ``contexts`` is a bare str or bytes (a common mistake
@@ -188,11 +419,18 @@ def decide_many[T: BaseModel](
     if not contexts:
         return []
 
+    schema = _prepare_schema(model_cls, allow_unknown)
     engine_model, tokenizer = load_engine(model)
-    schema = StructuredSchema(schema_from_model(model_cls))
     return [
         _decide_once(
-            model_cls, context, engine_model, tokenizer, schema, temperature, scoring=scoring
+            model_cls,
+            context,
+            engine_model,
+            tokenizer,
+            schema,
+            temperature,
+            scoring=scoring,
+            allow_unknown=allow_unknown,
         )
         for context in contexts
     ]

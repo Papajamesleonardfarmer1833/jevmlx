@@ -51,7 +51,7 @@ context = "Wire transfer to a new IBAN, requested from a Tor exit node on an unr
 
 d = jevmlx.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
 d.value  # validated Fraud instance
-d.confidence  # {"is_fraudulent": 0.xx, "risk_tier": 0.xx}
+d.fields["risk_tier"].probability  # P of the winner; see score/margin/alternatives
 ```
 
 ## Why not just ask for JSON?

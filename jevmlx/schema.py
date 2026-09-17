@@ -45,11 +45,20 @@ class SchemaCompileError(ValueError):
 
 class FieldDefinition:
     def __init__(
-        self, name: str, field_type: str, description: str, choices: list[str] | None = None
+        self,
+        name: str,
+        field_type: str,
+        description: str,
+        choices: list[str] | None = None,
+        choice_descriptions: dict[str, str] | None = None,
     ):
         self.name = name
         self.field_type = field_type.lower()
         self.description = description
+        # Optional per-choice glosses keyed by choice string. Validated only
+        # when choices exist: every key must be a declared choice. (coder1's
+        # prompt v2 renders them; the engine never reads them.)
+        self.choice_descriptions: dict[str, str] = dict(choice_descriptions or {})
 
         if self.field_type == "boolean":
             self.choices = ["true", "false"]
@@ -77,6 +86,13 @@ class FieldDefinition:
                 "Supported types: 'boolean', 'enum' and 'multi'."
             )
         if self.field_type in ("multi", "enum", "choice", "selection"):
+            if self.choice_descriptions:
+                unknown = sorted(set(self.choice_descriptions) - set(self.choices))
+                if unknown:
+                    raise ValueError(
+                        f"Field '{name}': choice_descriptions keys not in choices: "
+                        f"{', '.join(repr(u) for u in unknown)}"
+                    )
             seen: set[str] = set()
             for choice in self.choices:
                 if choice in seen:
@@ -97,6 +113,7 @@ class FieldDefinition:
             "description": self.description,
             "choices": self.choices,
             "cardinality": self.cardinality,
+            "choice_descriptions": self.choice_descriptions,
         }
 
 
@@ -119,6 +136,7 @@ class StructuredSchema:
                 field_type=spec.get("type", "enum"),
                 description=spec.get("description", ""),
                 choices=spec.get("choices", None),
+                choice_descriptions=spec.get("choice_descriptions", None),
             )
         # Compiled plans, keyed by tokenizer OBJECT IDENTITY (P2: a
         # WeakKeyDictionary keys by __eq__/__hash__, so two equal-but-distinct
