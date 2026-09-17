@@ -10,10 +10,10 @@ import json
 import urllib.error
 import urllib.request
 
-__all__ = ["BaselineError", "chat_completions_raw", "extract_content"]
+__all__ = ["ChatCompletionsError", "chat_completions_raw", "extract_content"]
 
 
-class BaselineError(RuntimeError):
+class ChatCompletionsError(RuntimeError):
     """A chat-completions call failed (non-2xx response, or no choices)."""
 
     def __init__(self, status: int, body: str):
@@ -35,7 +35,7 @@ def chat_completions_raw(
     """POST to ``{base_url}/chat/completions`` and return the first choice dict.
 
     ``extra_payload`` merges into the request body (max_tokens, logprobs,
-    response_format, ...). Raises BaselineError on any non-2xx response with
+    response_format, ...). Raises ChatCompletionsError on any non-2xx response with
     the status and the first 200 chars of the body, and when the response
     carries no choices.
     """
@@ -56,10 +56,10 @@ def chat_completions_raw(
         with urllib.request.urlopen(request, timeout=timeout) as response:
             body = response.read().decode("utf-8")
     except urllib.error.HTTPError as e:
-        raise BaselineError(e.code, e.read().decode("utf-8", errors="replace")) from e
+        raise ChatCompletionsError(e.code, e.read().decode("utf-8", errors="replace")) from e
     choices = json.loads(body).get("choices") or []
     if not choices:
-        raise BaselineError(200, f"no choices in response body: {body[:200]}")
+        raise ChatCompletionsError(200, f"no choices in response body: {body[:200]}")
     return choices[0]
 
 

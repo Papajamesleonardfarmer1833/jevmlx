@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from jevmlx.baseline import BaselineError
+from jevmlx.baseline import ChatCompletionsError
 from jevmlx.openai_slots import decide_openai
 from jevmlx.schema import StructuredSchema
 
@@ -211,7 +211,7 @@ def test_request_payload_shape():
 def test_http_500_raises_baseline_error():
     server, thread = _make_server([{"status": 500, "body": {"error": {"message": "kaboom"}}}])
     try:
-        with pytest.raises(BaselineError, match="500"):
+        with pytest.raises(ChatCompletionsError, match="500"):
             decide_openai(f"http://127.0.0.1:{server.server_port}", "m", None, _schema(), "ctx")
     finally:
         server.shutdown()

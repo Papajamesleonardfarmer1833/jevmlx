@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 import pytest
 
 from jevmlx.baseline import (
-    BaselineError,
+    ChatCompletionsError,
     baseline_decide,
     build_baseline_messages,
     call_chat_completions,
@@ -234,7 +234,7 @@ class TestCallChatCompletions:
         _CannedHandler.status = 500
         _CannedHandler.payload = {"error": "x" * 500}
         try:
-            with pytest.raises(BaselineError) as excinfo:
+            with pytest.raises(ChatCompletionsError) as excinfo:
                 call_chat_completions(
                     base_url, "glm-5.3", [{"role": "user", "content": "x"}], api_key=None
                 )
@@ -245,7 +245,7 @@ class TestCallChatCompletions:
             _CannedHandler.payload = {"choices": [{"message": {"content": "{}"}}]}
 
     def test_error_is_runtimeerror(self):
-        assert issubclass(BaselineError, RuntimeError)
+        assert issubclass(ChatCompletionsError, RuntimeError)
 
 
 class TestBaselineDecide:

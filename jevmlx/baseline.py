@@ -12,11 +12,11 @@ from __future__ import annotations
 import json
 import time
 
-from jevmlx.http import BaselineError, chat_completions_raw, extract_content
+from jevmlx.http import ChatCompletionsError, chat_completions_raw, extract_content
 from jevmlx.schema import StructuredSchema
 
 __all__ = [
-    "BaselineError",
+    "ChatCompletionsError",
     "baseline_decide",
     "build_baseline_messages",
     "call_chat_completions",
@@ -76,7 +76,7 @@ def call_chat_completions(
     Thin wrapper over the shared client in :mod:`jevmlx.http`.
     ``mode='text'`` (default) sends no response_format — truly naive;
     ``mode='json'`` adds ``response_format={'type': 'json_object'}``
-    best-effort. Raises BaselineError on any non-2xx response with the status
+    best-effort. Raises ChatCompletionsError on any non-2xx response with the status
     and the first 200 chars of the body.
     """
     extra = {"response_format": {"type": "json_object"}} if mode == "json" else None
@@ -193,7 +193,7 @@ def baseline_decide(
     Returns ``{"values", "salvage_values", "errors", "raw", "latency_ms",
     "strict_valid", "schema_valid"}`` (``schema_valid`` is kept as an alias of
     ``strict_valid``). Never raises on bad model output — only on
-    transport-level failures (BaselineError).
+    transport-level failures (ChatCompletionsError).
     """
     messages = build_baseline_messages(schema, context, mode=mode)
     t0 = time.perf_counter()

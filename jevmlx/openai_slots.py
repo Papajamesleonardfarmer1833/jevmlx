@@ -23,14 +23,12 @@ import math
 import time
 from typing import Any
 
-from jevmlx.baseline import BaselineError  # noqa: F401 — re-exported for callers
 from jevmlx.engine import PROMPT_V2_SYSTEM
-from jevmlx.http import BaselineError as _BaselineErrorImported  # noqa: F401
-from jevmlx.http import chat_completions_raw
+from jevmlx.http import ChatCompletionsError, chat_completions_raw
 from jevmlx.schema import StructuredSchema
 
 __all__ = [
-    "BaselineError",
+    "ChatCompletionsError",
     "OPENAI_SLOTS_PROMPT_VERSION",
     "decide_openai",
 ]
@@ -270,7 +268,7 @@ def decide_openai(
     ``alternatives``, ``rows``, ``passes``), ``confidence_model:
     "openai_slots"``, ``prompt_version``, ``prompt_sha256``, ``elapsed_ms``.
     One ``max_tokens=1`` request per scalar field; one yes/no request per
-    multi option. Raises BaselineError on non-2xx responses.
+    multi option. Raises ChatCompletionsError on non-2xx responses.
     """
     t0 = time.perf_counter()
     parsed_json: dict[str, Any] = {}
