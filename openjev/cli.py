@@ -8,6 +8,7 @@ openjev decide --json --preset support_triage
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import os
@@ -69,7 +70,7 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
 
 def _rounded_json_payload(result: dict) -> dict:
     """--json output: engine values with confidences rounded to 4 decimals."""
-    parsed = json.loads(json.dumps(result["parsed_json"], default=str))
+    parsed = copy.deepcopy(result["parsed_json"])
     for field in parsed.values():
         if isinstance(field, dict) and "prob" in field:
             field["prob"] = round(field["prob"], 4)
