@@ -17,25 +17,34 @@ import re
 import time
 from typing import Any
 
-import mlx.core as mx
-from mlx.utils import tree_flatten
-from mlx_lm import load
-from mlx_lm.models.cache import make_prompt_cache
-
 from openjev.schema import StructuredSchema
 
 logger = logging.getLogger(__name__)
 
+# Run before any mlx import: on a non-Apple-Silicon machine the mlx import
+# itself fails with a low-level error, and the platform message is the useful one.
 if platform.system() != "Darwin" or platform.machine() != "arm64":
     raise RuntimeError(
         "openjev requires Apple Silicon (macOS + arm64) with mlx-lm installed. "
         "The PyTorch/CUDA backend was removed."
     )
 
+import mlx.core as mx  # noqa: E402  (must follow the platform check, see above)
+from mlx.utils import tree_flatten  # noqa: E402
+from mlx_lm import load  # noqa: E402
+from mlx_lm.models.cache import make_prompt_cache  # noqa: E402
 
-@functools.lru_cache(maxsize=4)
+
+@functools.lru_cache(maxsize=1)
 def load_engine(model_id: str):
-    """Load a model + tokenizer once per model id, with Metal shader warmup."""
+    """Load a model + tokenizer once per model id, with Metal shader warmup.
+
+    The cache holds at most one model: models live in Apple Silicon's unified
+    memory, which is shared with the OS and the GPU, so keeping several loaded
+    at once is the fastest way to OOM. Loading a different model id evicts the
+    previous one. Call :func:`clear_engine_cache` to release memory without
+    loading anything else.
+    """
     logger.info("Loading %s into Apple Silicon unified memory...", model_id)
     t0 = time.perf_counter()
     model, tokenizer = load(model_id)
@@ -54,6 +63,14 @@ def load_engine(model_id: str):
     mx.eval(w_suf)
     logger.info("Metal shaders compiled & warmed up.")
     return model, tokenizer
+
+
+def clear_engine_cache() -> None:
+    """Drop every cached engine, releasing the model's unified memory.
+
+    Safe to call when nothing is loaded.
+    """
+    load_engine.cache_clear()
 
 
 def _broadcast_cache(cache, batch: int):
@@ -218,15 +235,16 @@ def _fold_multi(probs_true: dict[str, float], threshold: float = 0.5) -> tuple[l
     """Fold per-option probabilities into a multi field's decision.
 
     Returns (selected options, confidence): an option is selected when its
-    p_true >= threshold; confidence is the min p_true over the selected
-    options, or the min p_false (= 1 - p_true) over the rejected options
-    when nothing is selected.
+    p_true >= threshold. Confidence is the per-option margin of the least
+    certain option — min over ALL options of (p_true if the option is
+    selected, else 1 - p_true) — so a field is only as confident as its
+    weakest accept OR reject.
     """
     selected = [option for option, p_true in probs_true.items() if p_true >= threshold]
-    if selected:
-        confidence = min(probs_true[option] for option in selected)
-    else:
-        confidence = min(1.0 - p_true for p_true in probs_true.values())
+    confidence = min(
+        (p_true if p_true >= threshold else 1.0 - p_true for p_true in probs_true.values()),
+        default=1.0,
+    )
     return selected, confidence
 
 

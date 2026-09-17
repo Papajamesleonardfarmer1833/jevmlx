@@ -73,12 +73,19 @@ def test_schema_from_model_non_literal_list_raises():
 
 
 def test_fold_multi():
-    # Two selected: value is the subset, confidence = min p_true of selected.
+    # Two selected; confidence is the min margin over ALL options, so the
+    # near-threshold REJECT (c: 1 - 0.2 = 0.8) no longer wins — the weakest
+    # selected option does (b: 0.6).
     selected, conf = _fold_multi({"a": 0.9, "b": 0.6, "c": 0.2})
     assert selected == ["a", "b"]
     assert conf == pytest.approx(0.6)
 
-    # Empty selection: confidence = min p_false over rejected options.
+    # A rejected option can be the weakest: c sits just under threshold.
+    selected, conf = _fold_multi({"a": 0.99, "b": 0.55, "c": 0.48})
+    assert selected == ["a", "b"]
+    assert conf == pytest.approx(0.52)  # 1 - 0.48
+
+    # Empty selection: confidence = min (1 - p_true) over rejected options.
     selected, conf = _fold_multi({"a": 0.2, "b": 0.4, "c": 0.49})
     assert selected == []
     assert conf == pytest.approx(0.51)  # 1 - 0.49
@@ -87,3 +94,8 @@ def test_fold_multi():
     selected, conf = _fold_multi({"a": 0.5, "b": 0.49})
     assert selected == ["a"]
     assert conf == pytest.approx(0.5)
+
+    # No options at all: nothing selected, maximally confident.
+    selected, conf = _fold_multi({})
+    assert selected == []
+    assert conf == 1.0

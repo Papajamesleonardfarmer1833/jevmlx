@@ -6,6 +6,7 @@ __version__ = importlib.metadata.version("openjev")
 
 from openjev.api import DEFAULT_MODEL, Decision, decide, decide_many, schema_from_model
 from openjev.engine import (
+    clear_engine_cache,
     load_engine,
     run_naive_generation,
     run_parallel_generation,
@@ -17,6 +18,7 @@ __all__ = [
     "Decision",
     "FieldDefinition",
     "StructuredSchema",
+    "clear_engine_cache",
     "decide",
     "decide_many",
     "load_engine",
