@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/bnsd55/openjev/actions/workflows/ci.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/ci.yml) [![Build](https://github.com/bnsd55/openjev/actions/workflows/build.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/build.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 
-Jev-style parallel constrained decisions for any MLX model on Apple Silicon. Typed, schema-valid JSON in one forward pass.
+Jev-style parallel constrained decisions for MLX models on Apple Silicon. Typed, schema-valid JSON from one batched decision pass.
 
 **Inspired by and built on [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)**, the research repo that reproduced the technique on a laptop. openjev turns that study into an installable library. Unofficial, not affiliated with TypeSafe AI or Jev.
 
-openjev makes any local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in a single batched forward pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in under a second on an Apple Silicon laptop (see [Model compatibility](#model-compatibility)).
+openjev makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in one batched decision pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in under a second on an Apple Silicon laptop (see [Model compatibility](#model-compatibility)).
 
 ```
 [context + schema] ──► prefill (once) ──► KV cache
@@ -51,11 +51,11 @@ recommended_action              BLOCK_TRANSACTION       0.702  enum
 
 ## Features
 
-**01. One forward pass for every field.** The context is prefilled once, then the KV cache is broadcast so all schema fields are scored in a single batched pass. Latency grows with the longest suffix, not with field count.
+**01. One decision pass for every field.** The context is prefilled once, then the KV cache is broadcast so all schema fields are scored in one batched suffix pass when the rows fit in memory; otherwise the suffix pass is chunked. Latency grows with the longest suffix, not with field count.
 
 **02. Always-valid JSON.** The JSON object is assembled programmatically from per-field decisions — it is never generated token by token, so it cannot be malformed. Every value comes from the field's allowed choices; `multi` fields return the subset of options that apply, decided as one boolean decision per option.
 
-**03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, no rounding tricks. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
+**03. Honest confidence.** Each field reports softmax over the per-choice scores at the decision position — no clamps, full-precision values. Raw probabilities run overconfident; the temperature calibration in feature 06 fits one scalar to fix that.
 
 **04. Typed Python API.** Pass a Pydantic model, get a validated instance back with per-field confidences — one context at a time with `openjev.decide`, or many contexts with `openjev.decide_many` (model and schema are loaded and compiled once, results come back in input order):
 
@@ -97,7 +97,7 @@ ECE after      : 0.0773  (T=1.7178)
 accuracy       : 0.5972
 ```
 
-**07. Works with any mlx-lm instruct model.** Prompts are built with the tokenizer's own chat template — no hand-rolled role tags, no system-role assumptions. Cross-model measurements: [Model compatibility](#model-compatibility).
+**07. Works with causal decoder models served by mlx-lm.** Prompts are built with the tokenizer's own chat template — no hand-rolled role tags, no system-role assumptions; tested models are in the table below. Cross-model measurements: [Model compatibility](#model-compatibility).
 
 **08. Schema linting before you ship.** `openjev validate SCHEMA.json` loads the tokenizer only (no model download) and reports enum choices that collide on their first token, duplicate choices, and choices that add nothing beyond the shared prefix — with a rename suggestion for collisions.
 
@@ -105,8 +105,8 @@ accuracy       : 0.5972
 
 1. **Prefill once.** The context plus a compact schema catalog goes through the model a single time ([engine.py](openjev/engine.py)).
 2. **One row per field.** Each field's choice suffixes are teacher-forced as rows against the broadcast KV cache; choices that share a first token get their own rows.
-3. **Memory guard.** Row batches are auto-chunked over the same prefill cache so peak Metal memory stays bounded.
-4. **Batched pass.** All rows are evaluated in one forward pass.
+3. **Chunking heuristic.** Rows run in batches over the same prefill cache, sized by a memory heuristic (see the engine docstring for its limits).
+4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked.
 5. **Scoring.** Each field's logits are sliced at its decision position, softmaxed over its choices, and the JSON object is assembled from the winners.
 
 ## Model compatibility
@@ -132,7 +132,7 @@ Three scripts in [benchmarks/](benchmarks/), each run against a local mlx-lm mod
 
 ## Roadmap
 
-Where this is going next: [ROADMAP.md](ROADMAP.md). Latency profiling, an evaluation loop, `openjev serve` completion, more field types on request, then PyPI.
+Where this is going next: [ROADMAP.md](ROADMAP.md). A correctness gate from an external review, an evaluation loop, latency profiling, then PyPI.
 
 ## Contributing
 

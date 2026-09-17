@@ -34,6 +34,12 @@ def load_preset(name: str) -> dict:
     )
 
 
+def _fmt_confidence(value: float, decimals: int) -> str:
+    """Presentation rounding for confidences: 3 decimals in the table, 4 in --json.
+    The engine returns full-precision floats; rounding happens only here."""
+    return f"{value:.{decimals}f}"
+
+
 def print_result(preset_title: str, model_id: str, result: dict) -> None:
     """The demo table: preset, latency split, per-field values + confidences."""
     print()
@@ -46,7 +52,7 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
     print()
 
     rows = [
-        (name, str(entry["value"]), f"{entry['confidence']:.3f}", entry["type"])
+        (name, str(entry["value"]), _fmt_confidence(entry["confidence"], 3), entry["type"])
         for name, entry in result["field_telemetry"].items()
     ]
     width = max(len(r[0]) for r in rows) if rows else 10
@@ -59,6 +65,15 @@ def print_result(preset_title: str, model_id: str, result: dict) -> None:
     print()
     print("Assembled JSON (never generated token-by-token, so always well-formed):")
     print(json.dumps(result["parsed_json"], indent=2, default=str))
+
+
+def _rounded_json_payload(result: dict) -> dict:
+    """--json output: engine values with confidences rounded to 4 decimals."""
+    parsed = json.loads(json.dumps(result["parsed_json"], default=str))
+    for field in parsed.values():
+        if isinstance(field, dict) and "prob" in field:
+            field["prob"] = round(field["prob"], 4)
+    return parsed
 
 
 def main(argv=None) -> None:
@@ -160,7 +175,7 @@ def main(argv=None) -> None:
         )
 
         if args.as_json:
-            print(json.dumps(result["parsed_json"], indent=2, default=str))
+            print(json.dumps(_rounded_json_payload(result), indent=2))
         else:
             print_result(title, args.model, result)
 
