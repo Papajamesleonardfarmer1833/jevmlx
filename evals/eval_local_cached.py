@@ -10,6 +10,7 @@ Usage:
   .venv/bin/python evals/eval_local_cached.py --model mlx-community/Qwen2.5-7B-Instruct-4bit \
       --tag qwen2.5-7b --chunk-size 8 --workflow invoice_processing
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,16 +35,24 @@ def build_schema_dict(questions: list[dict], tokenizer, schema_mod):
         if q["type"] == "noul":
             desc = q["instructions"]
             if isinstance(crit, dict):
-                desc += f" (true: {crit.get('true','')}; false: {crit.get('false','')})"
+                desc += f" (true: {crit.get('true', '')}; false: {crit.get('false', '')})"
             out[q["qid"]] = {"type": "boolean", "description": desc}
         elif q["type"] == "score":
-            levels = "; ".join(f"{i}={v}" for i, v in enumerate(crit)) if isinstance(crit, list) else ""
-            out[q["qid"]] = {"type": "enum", "choices": ["0", "1", "2", "3"],
-                             "description": f"{q['instructions']} Levels: {levels}"}
+            levels = (
+                "; ".join(f"{i}={v}" for i, v in enumerate(crit)) if isinstance(crit, list) else ""
+            )
+            out[q["qid"]] = {
+                "type": "enum",
+                "choices": ["0", "1", "2", "3"],
+                "description": f"{q['instructions']} Levels: {levels}",
+            }
         else:
             opts = "; ".join(f"{k}={v}" for k, v in crit.items()) if isinstance(crit, dict) else ""
-            out[q["qid"]] = {"type": "enum", "choices": list(crit.keys()) if isinstance(crit, dict) else [],
-                             "description": f"{q['instructions']} Options: {opts}"}
+            out[q["qid"]] = {
+                "type": "enum",
+                "choices": list(crit.keys()) if isinstance(crit, dict) else [],
+                "description": f"{q['instructions']} Options: {opts}",
+            }
     return out
 
 
@@ -78,9 +87,15 @@ def main() -> None:
             if args.case and cid != args.case:
                 continue
             questions = case["questions"]
-            chunks = [questions[i:i + args.chunk_size] for i in range(0, len(questions), args.chunk_size)]
-            print(f"[{wf}/{cid}] {len(questions)} q in {len(chunks)} chunk(s), "
-                  f"{case['input_chars']} chars", flush=True)
+            chunks = [
+                questions[i : i + args.chunk_size]
+                for i in range(0, len(questions), args.chunk_size)
+            ]
+            print(
+                f"[{wf}/{cid}] {len(questions)} q in {len(chunks)} chunk(s), "
+                f"{case['input_chars']} chars",
+                flush=True,
+            )
 
             # ---- prefill once ----
             schema_all = StructuredSchema(build_schema_dict(questions, tokenizer, None))
@@ -133,7 +148,6 @@ def main() -> None:
                     w_prob = float(probs[w_idx])
                     ftype = fdef.field_type
                     if ftype == "boolean":
-                        val = (["true", "false"][w_idx].lower() == "true")
                         answers[fname] = {"raw": w_prob, "kind": "noul"}
                     elif fdef.choices and all(c in ("0", "1", "2", "3") for c in fdef.choices):
                         answers[fname] = {"raw": str(w_idx), "kind": "score"}
@@ -143,8 +157,11 @@ def main() -> None:
                 print(f"    chunk {ci}/{len(chunks)}: {suffix_ms:.0f} ms (batch {M})", flush=True)
 
             out[wf][cid] = answers
-            timings[f"{wf}/{cid}"] = {"prefill_ms": prefill_ms, "chunks": len(chunks),
-                                      "fields": len(questions)}
+            timings[f"{wf}/{cid}"] = {
+                "prefill_ms": prefill_ms,
+                "chunks": len(chunks),
+                "fields": len(questions),
+            }
             print(f"    -> {len(answers)} answers", flush=True)
 
     os.makedirs(args.outdir, exist_ok=True)
@@ -155,8 +172,9 @@ def main() -> None:
         merged.setdefault(wf, {}).update(cases)
     merged_t = existing.get("timings", {})
     merged_t.update(timings)
-    json.dump({"model": args.model, "timings": merged_t, "answers": merged},
-              open(path, "w"), indent=1)
+    json.dump(
+        {"model": args.model, "timings": merged_t, "answers": merged}, open(path, "w"), indent=1
+    )
     n = sum(len(v) for wf in merged.values() for v in wf.values())
     print(f"saved {path} ({n} answers total)")
 

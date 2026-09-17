@@ -4,6 +4,7 @@
 Output: evals/prompts_full/<workflow>.txt
 The model must reply with one JSON object: {"<case_id>": {"<qid>": <answer>, ...}, ...}
 """
+
 from __future__ import annotations
 
 import json
@@ -29,7 +30,8 @@ Reply with ONLY one JSON object mapping case id -> (question id -> answer).
 No prose, no markdown fences.
 
 Example shape:
-{ "case_id_1": { "some_qid": 0.7, "another_qid": 2, "choice_qid": "option_key" }, "case_id_2": { ... } }
+{ "case_id_1": { "some_qid": 0.7, "another_qid": 2, "choice_qid": "option_key" },": { ... } }
+""case_id_2": { ... } }
 
 === CASES ===
 """
@@ -67,9 +69,14 @@ def main() -> None:
                     elif isinstance(crit, list):
                         for idx, v in enumerate(crit):
                             q_lines.append(f"    {idx}: {v}")
-                chunks.append(CASE.format(i=i, cid=case["case_id"],
-                                          input_text=case["input_text"],
-                                          questions="\n".join(q_lines)))
+                chunks.append(
+                    CASE.format(
+                        i=i,
+                        cid=case["case_id"],
+                        input_text=case["input_text"],
+                        questions="\n".join(q_lines),
+                    )
+                )
             safe = label.replace("/", "_")
             path = os.path.join(OUT, f"{safe}.txt" if split else f"{wf}.txt")
             with open(path, "w", encoding="utf-8") as f:

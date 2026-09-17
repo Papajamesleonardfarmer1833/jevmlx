@@ -2,8 +2,10 @@
 """Record subagent answers for the TypeSafe mini-eval into the standard result format.
 
 Usage:
-  python record_subagent_answers.py            # reads answers.json (hand-maintained) and writes results/deepseek-v4.1-flash.json
+  python record_subagent_answers.py            # reads answers.json (hand-maintained),
+#                                              # writes results/deepseek-v4.1-flash.json
 """
+
 import json
 import os
 
@@ -28,11 +30,19 @@ QIDS = [
     "affected_scope",
     "attack_type",
 ]
-NOUL = {"is_true_positive", "context_explains_activity", "credentials_exposed",
-        "session_in_attacker_hands", "malicious_content_in_mailboxes",
-        "attacker_persistence_present", "malicious_process_running",
-        "outbound_channel_active", "attacker_modified_configuration",
-        "activity_ongoing", "spread_beyond_initial_entity"}
+NOUL = {
+    "is_true_positive",
+    "context_explains_activity",
+    "credentials_exposed",
+    "session_in_attacker_hands",
+    "malicious_content_in_mailboxes",
+    "attacker_persistence_present",
+    "malicious_process_running",
+    "outbound_channel_active",
+    "attacker_modified_configuration",
+    "activity_ongoing",
+    "spread_beyond_initial_entity",
+}
 SCORE = {"evidence_strength"}
 CHOICE = {"affected_scope", "attack_type"}
 
@@ -53,9 +63,12 @@ def main() -> None:
     for case_id, raw_answers in data.items():
         answers[case_id] = {qid: normalize(qid, v) for qid, v in raw_answers.items()}
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    json.dump({"model": "deepseek-v4.1-flash (opencode-go, max)", "answers": answers}, open(OUT, "w"), indent=1)
-    print(f"wrote {OUT}: {len(answers)} cases, "
-          f"{sum(len(a) for a in answers.values())} answers")
+    json.dump(
+        {"model": "deepseek-v4.1-flash (opencode-go, max)", "answers": answers},
+        open(OUT, "w"),
+        indent=1,
+    )
+    print(f"wrote {OUT}: {len(answers)} cases, {sum(len(a) for a in answers.values())} answers")
 
 
 if __name__ == "__main__":

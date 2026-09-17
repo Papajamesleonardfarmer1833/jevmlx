@@ -19,14 +19,21 @@ import statistics
 import sys
 import time
 
-
 FRAUD_SCHEMA = {
-    "risk": {"type": "enum", "choices": ["LOW", "MEDIUM", "HIGH"],
-             "description": "fraud risk of this transaction"},
-    "needs_review": {"type": "boolean",
-                     "description": "true if a human must check the transaction"},
-    "action": {"type": "enum", "choices": ["APPROVE", "REVIEW", "BLOCK"],
-               "description": "recommended handling action"},
+    "risk": {
+        "type": "enum",
+        "choices": ["LOW", "MEDIUM", "HIGH"],
+        "description": "fraud risk of this transaction",
+    },
+    "needs_review": {
+        "type": "boolean",
+        "description": "true if a human must check the transaction",
+    },
+    "action": {
+        "type": "enum",
+        "choices": ["APPROVE", "REVIEW", "BLOCK"],
+        "description": "recommended handling action",
+    },
 }
 
 CONTEXT = (
@@ -44,29 +51,33 @@ CONTEXT = (
 def _worker(model: str, device: str, n: int, queue) -> None:
     from parallel_decisions import Decider, Schema
 
-    decider = Decider(backend="torch", model_id=model,
-                      torch_device=device, warmup=True, verbose=False)
+    decider = Decider(
+        backend="torch", model_id=model, torch_device=device, warmup=True, verbose=False
+    )
     schema = Schema(FRAUD_SCHEMA)
-    decider.decide(CONTEXT, schema)              # warmup (compile, allocator)
+    decider.decide(CONTEXT, schema)  # warmup (compile, allocator)
     latencies = []
     for _ in range(n):
         t0 = time.perf_counter()
         result = decider.decide(CONTEXT, schema)
         latencies.append((time.perf_counter() - t0) * 1000)
         last = result
-    queue.put({
-        "pid": _pid(),
-        "device": last.telemetry.get("device", device),
-        "prompt_tokens": last.telemetry.get("prompt_tokens"),
-        "latencies_ms": [round(x, 1) for x in latencies],
-        "p50_ms": round(statistics.median(latencies), 1),
-        "p95_ms": round(sorted(latencies)[int(0.95 * len(latencies)) - 1], 1),
-        "sample": last.json(),
-    })
+    queue.put(
+        {
+            "pid": _pid(),
+            "device": last.telemetry.get("device", device),
+            "prompt_tokens": last.telemetry.get("prompt_tokens"),
+            "latencies_ms": [round(x, 1) for x in latencies],
+            "p50_ms": round(statistics.median(latencies), 1),
+            "p95_ms": round(sorted(latencies)[int(0.95 * len(latencies)) - 1], 1),
+            "sample": last.json(),
+        }
+    )
 
 
 def _pid() -> int:
     import os
+
     return os.getpid()
 
 
@@ -80,8 +91,7 @@ def run_serial(model: str, device: str, n: int) -> dict:
 
 def run_parallel(model: str, device: str, processes: int, n: int) -> dict:
     queue = mp.Queue()
-    procs = [mp.Process(target=_worker, args=(model, device, n, queue))
-             for _ in range(processes)]
+    procs = [mp.Process(target=_worker, args=(model, device, n, queue)) for _ in range(processes)]
     t0 = time.perf_counter()
     for p in procs:
         p.start()
@@ -108,10 +118,12 @@ def main() -> int:
     parser.add_argument("--model", default="Qwen/Qwen2.5-0.5B-Instruct")
     parser.add_argument("--device", default="cuda", choices=["cpu", "cuda"])
     parser.add_argument("--runs", type=int, default=20, help="decisions per worker")
-    parser.add_argument("--processes", type=int, default=0,
-                        help="also run N model processes in parallel")
-    parser.add_argument("--cpu-baseline", action="store_true",
-                        help="also measure the same workload on CPU")
+    parser.add_argument(
+        "--processes", type=int, default=0, help="also run N model processes in parallel"
+    )
+    parser.add_argument(
+        "--cpu-baseline", action="store_true", help="also measure the same workload on CPU"
+    )
     args = parser.parse_args()
 
     lines = []

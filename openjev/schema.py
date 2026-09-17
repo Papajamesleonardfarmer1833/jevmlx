@@ -4,11 +4,13 @@ Supports booleans and categorical enums with cardinality up to 255.
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class FieldDefinition:
-    def __init__(self, name: str, field_type: str, description: str, choices: Optional[List[str]] = None):
+    def __init__(
+        self, name: str, field_type: str, description: str, choices: list[str] | None = None
+    ):
         self.name = name
         self.field_type = field_type.lower()
         self.description = description
@@ -19,16 +21,21 @@ class FieldDefinition:
             if not choices or len(choices) == 0:
                 raise ValueError(f"Field '{name}' of type enum must have choices defined.")
             if len(choices) > 255:
-                raise ValueError(f"Field '{name}' exceeds maximum cardinality of 255 choices (got {len(choices)}).")
+                raise ValueError(
+                    f"Field '{name}' exceeds maximum cardinality of 255 choices "
+                    f"(got {len(choices)})."
+                )
             self.choices = choices
         else:
-            raise ValueError(f"Unsupported field type '{field_type}'. Supported types: 'boolean' and 'enum'.")
+            raise ValueError(
+                f"Unsupported field type '{field_type}'. Supported types: 'boolean' and 'enum'."
+            )
 
     @property
     def cardinality(self) -> int:
         return len(self.choices)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "type": self.field_type,
@@ -39,8 +46,8 @@ class FieldDefinition:
 
 
 class StructuredSchema:
-    def __init__(self, schema_dict: Dict[str, Any]):
-        self.fields: Dict[str, FieldDefinition] = {}
+    def __init__(self, schema_dict: dict[str, Any]):
+        self.fields: dict[str, FieldDefinition] = {}
         for field_name, spec in schema_dict.items():
             self.fields[field_name] = FieldDefinition(
                 name=field_name,
@@ -49,7 +56,7 @@ class StructuredSchema:
                 choices=spec.get("choices", None),
             )
 
-    def get_field_names(self) -> List[str]:
+    def get_field_names(self) -> list[str]:
         return list(self.fields.keys())
 
     def __getitem__(self, key: str) -> FieldDefinition:
@@ -77,11 +84,11 @@ class StructuredSchema:
         """Returns a high-density, compact description catalog for minimal prefill token latency."""
         lines = []
         for name, field in self.fields.items():
-            desc = field.description.split('\n')[0].strip()
+            desc = field.description.split("\n")[0].strip()
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
-    def compile_batch_plan(self, tokenizer) -> Dict[str, Dict[str, Any]]:
+    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
         """Pre-indexes everything the engine needs for the batched suffix pass.
 
         Per field: the suffix token ids (the ``  "name": "`` tail, including the
@@ -94,7 +101,7 @@ class StructuredSchema:
         if cached is not None:
             return cached
 
-        plan: Dict[str, Dict[str, Any]] = {}
+        plan: dict[str, dict[str, Any]] = {}
         for fname, fdef in self.fields.items():
             if fdef.field_type == "boolean":
                 prefix = ""
@@ -107,7 +114,7 @@ class StructuredSchema:
                 suffix_ids = tokenizer.encode(f'  "{fname}": "{prefix}', add_special_tokens=False)
                 choice_token_lists = []
                 for choice in fdef.choices:
-                    toks = tokenizer.encode(choice[len(prefix):], add_special_tokens=False)
+                    toks = tokenizer.encode(choice[len(prefix) :], add_special_tokens=False)
                     if not toks:
                         toks = tokenizer.encode('"', add_special_tokens=False)
                     choice_token_lists.append(toks)

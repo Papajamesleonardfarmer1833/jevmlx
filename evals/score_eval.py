@@ -12,6 +12,7 @@ probabilities, as shipped in the viewer data) for every question the reference c
 Usage:
   .venv/bin/python evals/score_eval.py
 """
+
 from __future__ import annotations
 
 import json
@@ -143,7 +144,9 @@ def main() -> None:
     print()
     print("Note: these 5 cases are the viewer's curated *disagreement* examples, so absolute")
     print("accuracy here is not comparable to the published per-workflow numbers (61.7%-76.0%).")
-    print("Within-table comparisons are apples-to-apples: same cases, same questions, same reference.")
+    print(
+        "Within-table comparisons are apples-to-apples: same cases, same questions, same reference."
+    )
 
     out = {
         "rows": [{"model": n, "agreements": ok, "n": total} for n, ok, total in rows],
@@ -151,7 +154,9 @@ def main() -> None:
             "n_pairs": len(common_pairs),
             "rows": [{"model": n, "agreements": ok, "n": total} for n, ok, total in common_rows],
         },
-        "per_type": {m: {t: [bool(x) for x in v] for t, v in d.items()} for m, d in per_type.items()},
+        "per_type": {
+            m: {t: [bool(x) for x in v] for t, v in d.items()} for m, d in per_type.items()
+        },
     }
     path = os.path.join(RESULTS, "summary.json")
     os.makedirs(RESULTS, exist_ok=True)

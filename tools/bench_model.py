@@ -11,6 +11,7 @@ Usage:
 
 Requires `uv pip install -e .` first. Results are written to results/<tag>.json.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -28,7 +29,9 @@ DEFAULT_PRESETS = [
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("model_id", help="Hugging Face model id (mlx-lm compatible)")
     ap.add_argument("--presets", nargs="+", default=DEFAULT_PRESETS)
     ap.add_argument("--tag", default=None, help="output name (default: model id with '/' -> '_')")
@@ -78,7 +81,8 @@ def main() -> None:
         )
         print(
             f"    parallel {parallel['elapsed_ms']:.0f} ms "
-            f"(prefill {parallel['prefill_ms']:.0f} + batched pass {parallel['suffix_eval_ms']:.0f}) "
+            f"(prefill {parallel['prefill_ms']:.0f} "
+            f"+ batched pass {parallel['suffix_eval_ms']:.0f}) "
             f"| schema_ok={parallel['schema_match']} | speedup {speedup:.1f}x",
             flush=True,
         )

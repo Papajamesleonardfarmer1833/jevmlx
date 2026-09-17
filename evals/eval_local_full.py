@@ -5,6 +5,7 @@ Covers the 4 workflows (20 cases / 373 reference pairs).
 Output: evals/results/full-local-<tag>.json  in the published_answers shape:
   {"<wf>": {"<case_id>": {qid: {"raw":..., "kind":...}}}}
 """
+
 from __future__ import annotations
 
 import argparse
@@ -25,12 +26,18 @@ def build_schema(questions: list[dict]) -> dict:
             schema[q["qid"]] = {"type": "boolean", "description": desc}
         elif q["type"] == "score":
             levels = "; ".join(f"{i}={v}" for i, v in enumerate(crit))
-            schema[q["qid"]] = {"type": "enum", "choices": ["0", "1", "2", "3"],
-                                "description": f"{q['instructions']} Levels: {levels}"}
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": ["0", "1", "2", "3"],
+                "description": f"{q['instructions']} Levels: {levels}",
+            }
         else:
             opts = "; ".join(f"{k}={v}" for k, v in crit.items())
-            schema[q["qid"]] = {"type": "enum", "choices": list(crit.keys()),
-                                "description": f"{q['instructions']} Options: {opts}"}
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": list(crit.keys()),
+                "description": f"{q['instructions']} Options: {opts}",
+            }
     return schema
 
 
@@ -63,7 +70,10 @@ def main() -> None:
             if args.case and cid != args.case:
                 continue
             schema = StructuredSchema(build_schema(case["questions"]))
-            print(f"[{wf}/{cid}] {len(case['questions'])} q, {case['input_chars']} chars ...", flush=True)
+            print(
+                f"[{wf}/{cid}] {len(case['questions'])} q, {case['input_chars']} chars ...",
+                flush=True,
+            )
             res = run_parallel_generation(case["input_text"], schema)
 
             answers = {}
@@ -71,9 +81,14 @@ def main() -> None:
                 qid = q["qid"]
                 entry = res["field_telemetry"][qid]
                 if q["type"] == "noul":
-                    p_true = next((float(c["probability"]) for c in entry["top_choices"]
-                                   if str(c["choice"]).lower() == "true"),
-                                  1.0 - float(entry["confidence"]))
+                    p_true = next(
+                        (
+                            float(c["probability"])
+                            for c in entry["top_choices"]
+                            if str(c["choice"]).lower() == "true"
+                        ),
+                        1.0 - float(entry["confidence"]),
+                    )
                     answers[qid] = {"raw": p_true, "kind": "noul"}
                 else:
                     answers[qid] = {"raw": entry["value"], "kind": q["type"]}
@@ -84,8 +99,11 @@ def main() -> None:
                 "suffix_eval_ms": res["suffix_eval_ms"],
                 "fields": len(case["questions"]),
             }
-            print(f"    {res['elapsed_ms']:.0f} ms "
-                  f"(prefill {res['prefill_ms']:.0f} + pass {res['suffix_eval_ms']:.0f})", flush=True)
+            print(
+                f"    {res['elapsed_ms']:.0f} ms "
+                f"(prefill {res['prefill_ms']:.0f} + pass {res['suffix_eval_ms']:.0f})",
+                flush=True,
+            )
 
     os.makedirs(args.outdir, exist_ok=True)
     path = os.path.join(args.outdir, f"full-local-{args.tag}.json")

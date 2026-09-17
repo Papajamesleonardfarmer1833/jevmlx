@@ -50,15 +50,17 @@ from typing import Literal
 from pydantic import BaseModel, Field
 import openjev
 
+
 class Fraud(BaseModel):
     is_fraudulent: bool = Field(description="Whether the transaction is fraudulent")
     risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
 
+
 context = "Wire transfer to a new IBAN, requested from a Tor exit node on an unrecognized device"
 
 d = openjev.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
-d.value            # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
-d.confidence       # {"is_fraudulent": 0.99, "risk_tier": 0.97}
+d.value  # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
+d.confidence  # {"is_fraudulent": 0.99, "risk_tier": 0.97}
 d.latency_ms
 ```
 

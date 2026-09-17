@@ -14,3 +14,4 @@ uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
 - Branches: short descriptive branch off `main`, pushed, no direct commits to `main`.
 - KISS / YAGNI: delete more than you add; no plugin systems, registries, or config files.
 - No new dependencies without an issue describing why.
+- Run `ruff check --fix . && ruff format .` before pushing.

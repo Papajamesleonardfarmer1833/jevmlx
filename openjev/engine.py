@@ -14,7 +14,8 @@ import math
 import platform
 import re
 import time
-from typing import Any, Dict, Generator, List, Optional
+from collections.abc import Generator
+from typing import Any
 
 import mlx.core as mx
 from mlx.utils import tree_flatten
@@ -123,8 +124,11 @@ def _model_weight_bytes(model) -> int:
 
 def _cache_bytes_per_row(cache) -> int:
     """KV-cache bytes a single batch row occupies across all layers."""
-    return sum(int(c.keys.nbytes) + int(c.values.nbytes) for c in cache
-               if hasattr(c, "keys") and c.keys is not None)
+    return sum(
+        int(c.keys.nbytes) + int(c.values.nbytes)
+        for c in cache
+        if hasattr(c, "keys") and c.keys is not None
+    )
 
 
 def _max_recommended_working_set() -> int:
@@ -139,7 +143,7 @@ def run_naive_generation(
     schema: StructuredSchema,
     max_tokens: int = 700,
     temperature: float = 0.2,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     Standard autoregressive generation baseline:
     prompts the LLM to generate the entire JSON object token-by-token.
@@ -155,7 +159,7 @@ def run_naive_generation(
     input_ids = mx.array(prompt_ids)[None]
 
     t0 = time.perf_counter()
-    generated_tokens: List[int] = []
+    generated_tokens: list[int] = []
     current_text = "{\n  "
     cache = make_prompt_cache(model)
 
@@ -178,15 +182,18 @@ def run_naive_generation(
         generated_tokens.append(next_token)
         current_text += tokenizer.decode([next_token])
 
-        if current_text.strip().endswith("}") and current_text.count("{") == current_text.count("}"):
+        if current_text.strip().endswith("}") and current_text.count("{") == current_text.count(
+            "}"
+        ):
             break
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
     token_count = len(generated_tokens)
     tok_per_sec = (token_count / (elapsed_ms / 1000)) if elapsed_ms > 0 else 0.0
 
-    (parsed_json, is_valid_json, parse_error,
-     missing_keys, invalid_enums, schema_match) = _validate_json(current_text, schema)
+    (parsed_json, is_valid_json, parse_error, missing_keys, invalid_enums, schema_match) = (
+        _validate_json(current_text, schema)
+    )
 
     return {
         "mode": "naive_autoregressive",
@@ -212,7 +219,7 @@ def stream_naive_generation(
     schema: StructuredSchema,
     max_tokens: int = 700,
     temperature: float = 0.2,
-) -> Generator[Dict[str, Any], None, None]:
+) -> Generator[dict[str, Any], None, None]:
     """Yields incremental tokens for real-time streaming visualization."""
     prompt_ids = _chat_ids(
         tokenizer,
@@ -262,14 +269,17 @@ def stream_naive_generation(
             "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
         }
 
-        if current_text.strip().endswith("}") and current_text.count("{") == current_text.count("}"):
+        if current_text.strip().endswith("}") and current_text.count("{") == current_text.count(
+            "}"
+        ):
             break
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
     tok_per_sec = (token_count / (elapsed_ms / 1000)) if elapsed_ms > 0 else 0.0
 
-    (parsed_json, is_valid_json, parse_error,
-     missing_keys, invalid_enums, schema_match) = _validate_json(current_text, schema)
+    (parsed_json, is_valid_json, parse_error, missing_keys, invalid_enums, schema_match) = (
+        _validate_json(current_text, schema)
+    )
 
     yield {
         "type": "done",
@@ -297,8 +307,8 @@ def run_parallel_generation(
     context: str,
     schema: StructuredSchema,
     temperature: float = 1.0,
-    max_rows: Optional[int] = None,
-) -> Dict[str, Any]:
+    max_rows: int | None = None,
+) -> dict[str, Any]:
     """Decide every schema field in one batched forward pass.
 
     Each choice is scored as the sum of its tokens' log-probs (teacher forced);
@@ -312,11 +322,11 @@ def run_parallel_generation(
     # 1. Batch plan: per field, suffix ids and per-choice token lists.
     plan = schema.compile_batch_plan(tokenizer)
 
-    rows: List[List[int]] = []          # token ids per row
-    row_field: List[str] = []           # field each row belongs to
-    row_choice: List[Optional[int]] = []  # choice index for choice-rows, else None
-    collides: Dict[str, bool] = {}
-    for fname, fdef in schema.fields.items():
+    rows: list[list[int]] = []  # token ids per row
+    row_field: list[str] = []  # field each row belongs to
+    row_choice: list[int | None] = []  # choice index for choice-rows, else None
+    collides: dict[str, bool] = {}
+    for fname in schema.fields:
         p = plan[fname]
         lists = p["choice_token_lists"]
         # Collision = two choices share the FIRST token (not merely identical lists).
@@ -344,8 +354,9 @@ def run_parallel_generation(
     t_pre0 = time.perf_counter()
     cache = make_prompt_cache(model)
     model(base_arr, cache=cache)
-    mx.eval(*[t for c in cache if hasattr(c, "keys") and c.keys is not None
-              for t in (c.keys, c.values)])
+    mx.eval(
+        *[t for c in cache if hasattr(c, "keys") and c.keys is not None for t in (c.keys, c.values)]
+    )
     t_prefill = (time.perf_counter() - t_pre0) * 1000
 
     # 3. Memory guard: rows are broadcast copies of the prefill cache.
@@ -356,8 +367,10 @@ def run_parallel_generation(
     auto_max_rows = max(1, budget // bytes_per_row) if bytes_per_row > 0 else len(rows)
     num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
     if num_passes > 1:
-        print(f"openjev: {len(rows)} rows over {num_passes} passes "
-              f"(memory guard, bytes_per_row={bytes_per_row})")
+        print(
+            f"openjev: {len(rows)} rows over {num_passes} passes "
+            f"(memory guard, bytes_per_row={bytes_per_row})"
+        )
 
     # 4. Batched suffix forward passes (re-broadcast per chunk, no re-prefill).
     #    Rows in a chunk are right-padded to a common length; scoring reads
@@ -367,16 +380,22 @@ def run_parallel_generation(
     #    [rows, width, vocab] output is dropped immediately (F3).
     pad_id = tokenizer.pad_token_id or 0
     t_suf0 = time.perf_counter()
-    first_token_scores: Dict[int, List[float]] = {}  # row idx -> per-choice first-token logit
-    choice_total: Dict[int, float] = {}              # row idx -> summed choice-token log-prob
+    first_token_scores: dict[int, list[float]] = {}  # row idx -> per-choice first-token logit
+    choice_total: dict[int, float] = {}  # row idx -> summed choice-token log-prob
     for chunk_start in range(0, len(rows), auto_max_rows):
-        chunk = rows[chunk_start:chunk_start + auto_max_rows]
+        chunk = rows[chunk_start : chunk_start + auto_max_rows]
         chunk_len = len(chunk)
         width = max(len(r) for r in chunk)
         padded = mx.array([r + [pad_id] * (width - len(r)) for r in chunk], dtype=mx.int32)
         b_cache = _broadcast_cache(cache, chunk_len)
-        mx.eval(*[t for c in b_cache if hasattr(c, "keys") and c.keys is not None
-                  for t in (c.keys, c.values)])
+        mx.eval(
+            *[
+                t
+                for c in b_cache
+                if hasattr(c, "keys") and c.keys is not None
+                for t in (c.keys, c.values)
+            ]
+        )
         out = model(padded, cache=b_cache)
         mx.eval(out)
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
@@ -399,10 +418,10 @@ def run_parallel_generation(
 
     # 5. One scoring rule for every field: sum of choice-token log-probs,
     #    softmax over choices, confidence = max probability. No clamps.
-    parsed_json: Dict[str, Any] = {}
-    field_telemetry: Dict[str, Any] = {}
+    parsed_json: dict[str, Any] = {}
+    field_telemetry: dict[str, Any] = {}
 
-    field_rows: Dict[str, List[int]] = {}
+    field_rows: dict[str, list[int]] = {}
     for idx, fname in enumerate(row_field):
         field_rows.setdefault(fname, []).append(idx)
 
@@ -428,7 +447,11 @@ def run_parallel_generation(
         w_prob = float(probs_list[w_idx])
 
         choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
-        val = (choices_list[w_idx].lower() == "true") if fdef.field_type == "boolean" else choices_list[w_idx]
+        val = (
+            (choices_list[w_idx].lower() == "true")
+            if fdef.field_type == "boolean"
+            else choices_list[w_idx]
+        )
 
         parsed_json[fname] = {
             "value": val,
@@ -437,7 +460,7 @@ def run_parallel_generation(
 
         scored_choices = [
             {"choice": c, "probability": round(pr, 4)}
-            for c, pr in zip(choices_list, probs_list)
+            for c, pr in zip(choices_list, probs_list, strict=False)
         ]
         scored_choices.sort(key=lambda x: x["probability"], reverse=True)
 

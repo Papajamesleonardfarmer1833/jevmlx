@@ -15,6 +15,7 @@ Structure produced:
   ]
 }
 """
+
 import json
 import os
 
@@ -63,13 +64,15 @@ def main() -> None:
     ev = data["eval"]
 
     questions = []
-    for qid, q in zip(QIDS, ev["questions"]):
-        questions.append({
-            "qid": qid,
-            "type": q["type"],
-            "instructions": q["instructions"],
-            "criteria": q["criteria"],
-        })
+    for qid, q in zip(QIDS, ev["questions"], strict=False):
+        questions.append(
+            {
+                "qid": qid,
+                "type": q["type"],
+                "instructions": q["instructions"],
+                "criteria": q["criteria"],
+            }
+        )
 
     cases = []
     docs_all = ev["documents"]
@@ -86,13 +89,25 @@ def main() -> None:
             for node in mval.get("nodes", []):
                 for qid, ans in node.get("answers", {}).items():
                     if ans["type"] == "noul":
-                        answers[qid] = {"value": bool(ans["noul"] >= 0.5), "raw": ans["noul"], "kind": "noul"}
+                        answers[qid] = {
+                            "value": bool(ans["noul"] >= 0.5),
+                            "raw": ans["noul"],
+                            "kind": "noul",
+                        }
                     elif ans["type"] == "score":
-                        answers[qid] = {"value": str(ans["score"]), "raw": ans["score"], "kind": "score",
-                                        "probs": ans.get("probabilities", {})}
+                        answers[qid] = {
+                            "value": str(ans["score"]),
+                            "raw": ans["score"],
+                            "kind": "score",
+                            "probs": ans.get("probabilities", {}),
+                        }
                     elif ans["type"] == "choice":
-                        answers[qid] = {"value": ans["choice"], "raw": ans["choice"], "kind": "choice",
-                                        "probs": ans.get("probabilities", {})}
+                        answers[qid] = {
+                            "value": ans["choice"],
+                            "raw": ans["choice"],
+                            "kind": "choice",
+                            "probs": ans.get("probabilities", {}),
+                        }
             model_answers[mkey] = answers
 
         reference: dict[str, dict] = {}
@@ -107,15 +122,17 @@ def main() -> None:
                 n += len(str(r))
             return n
 
-        cases.append({
-            "case_id": case_id,
-            "name": ex.get("name", case_id),
-            "label": ex.get("label", ""),
-            "docs": [docs],
-            "input_chars": doc_len(docs),
-            "model_answers": model_answers,
-            "reference": reference,
-        })
+        cases.append(
+            {
+                "case_id": case_id,
+                "name": ex.get("name", case_id),
+                "label": ex.get("label", ""),
+                "docs": [docs],
+                "input_chars": doc_len(docs),
+                "model_answers": model_answers,
+                "reference": reference,
+            }
+        )
 
     payload = {"workflow": "security_incidents", "questions": questions, "cases": cases}
     json.dump(payload, open(OUT, "w"), indent=1)
@@ -124,8 +141,10 @@ def main() -> None:
     print(f"questions: {len(questions)}  cases: {len(cases)}")
     for c in cases:
         covered = len(c["reference"])
-        print(f"  {c['case_id']:44} input~{c['input_chars']:6d} chars  ref_q={covered}  "
-              f"models={ {m: len(a) for m, a in c['model_answers'].items()} }")
+        print(
+            f"  {c['case_id']:44} input~{c['input_chars']:6d} chars  ref_q={covered}  "
+            f"models={ {m: len(a) for m, a in c['model_answers'].items()} }"
+        )
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ Only the questions that the reference answers cover are asked per case (3 or 14)
 Usage:
   .venv/bin/python evals/eval_local.py --model mlx-community/Qwen3-8B-4bit --tag local-qwen3-8b
 """
+
 from __future__ import annotations
 
 import argparse
@@ -32,12 +33,18 @@ def build_schema_dict(questions: list[dict]) -> dict:
             schema[q["qid"]] = {"type": "boolean", "description": desc}
         elif q["type"] == "score":
             levels = "; ".join(f"{i}={v}" for i, v in enumerate(crit))
-            schema[q["qid"]] = {"type": "enum", "choices": ["0", "1", "2", "3"],
-                                "description": f"{q['instructions']} Levels: {levels}"}
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": ["0", "1", "2", "3"],
+                "description": f"{q['instructions']} Levels: {levels}",
+            }
         else:
             opts = "; ".join(f"{k}={v}" for k, v in crit.items())
-            schema[q["qid"]] = {"type": "enum", "choices": list(crit.keys()),
-                                "description": f"{q['instructions']} Options: {opts}"}
+            schema[q["qid"]] = {
+                "type": "enum",
+                "choices": list(crit.keys()),
+                "description": f"{q['instructions']} Options: {opts}",
+            }
     return schema
 
 
@@ -57,7 +64,6 @@ def main() -> None:
     print(f"[load+warmup] {time.perf_counter() - t0:.1f}s", flush=True)
 
     mini = json.load(open(args.mini))
-    qtype = {q["qid"]: q["type"] for q in mini["questions"]}
 
     results: dict[str, dict] = {}
     timings: dict[str, dict] = {}
@@ -65,8 +71,10 @@ def main() -> None:
         relevant = [q for q in mini["questions"] if q["qid"] in case["reference"]]
         schema = StructuredSchema(build_schema_dict(relevant))
         doc = case["docs"][0]
-        context = doc.get("alert", "").strip() + "\n\n" + "\n".join(
-            str(r) for r in doc.get("context", {}).get("records", [])
+        context = (
+            doc.get("alert", "").strip()
+            + "\n\n"
+            + "\n".join(str(r) for r in doc.get("context", {}).get("records", []))
         )
 
         print(f"[{case['case_id']}] {len(relevant)} questions ...", flush=True)
@@ -78,15 +86,26 @@ def main() -> None:
             entry = out["field_telemetry"][qid]
             if q["type"] == "noul":
                 prob_true = next(
-                    (float(c["probability"]) for c in entry["top_choices"]
-                     if str(c["choice"]).lower() == "true"),
+                    (
+                        float(c["probability"])
+                        for c in entry["top_choices"]
+                        if str(c["choice"]).lower() == "true"
+                    ),
                     1.0 - float(entry["confidence"]),
                 )
                 answers[qid] = {"value": prob_true >= 0.5, "raw": prob_true, "kind": "noul"}
             elif q["type"] == "score":
-                answers[qid] = {"value": str(entry["value"]), "raw": entry["value"], "kind": "score"}
+                answers[qid] = {
+                    "value": str(entry["value"]),
+                    "raw": entry["value"],
+                    "kind": "score",
+                }
             else:
-                answers[qid] = {"value": str(entry["value"]), "raw": entry["value"], "kind": "choice"}
+                answers[qid] = {
+                    "value": str(entry["value"]),
+                    "raw": entry["value"],
+                    "kind": "choice",
+                }
         results[case["case_id"]] = answers
         timings[case["case_id"]] = {
             "elapsed_ms": out["elapsed_ms"],
@@ -94,8 +113,11 @@ def main() -> None:
             "suffix_eval_ms": out["suffix_eval_ms"],
             "fields": len(relevant),
         }
-        print(f"    {out['elapsed_ms']:.0f} ms (prefill {out['prefill_ms']:.0f} + pass {out['suffix_eval_ms']:.0f})",
-              flush=True)
+        print(
+            f"    {out['elapsed_ms']:.0f} ms (prefill {out['prefill_ms']:.0f} + pass",
+            f"{out['suffix_eval_ms']:.0f})",
+            flush=True,
+        )
 
     os.makedirs(args.outdir, exist_ok=True)
     payload = {"model": args.model, "timings": timings, "answers": results}

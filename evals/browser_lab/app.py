@@ -34,36 +34,89 @@ for candidate in (REPO, os.path.join(REPO, "..", "parallel-decisions", "src")):
 MODEL = os.environ.get("LAB_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
 
 EMAILS = [
-    {"id": 1, "from": "billing@vendor-a.com", "subject": "Invoice #4821 overdue",
-     "body": "Your invoice 4,820 EUR is 14 days overdue. Pay today to avoid late fees."},
-    {"id": 2, "from": "security@bank.example", "subject": "Unusual sign-in blocked",
-     "body": "We blocked a sign-in from a new device in another country. Not you? Reset now: http://bank-verify.example"},
-    {"id": 3, "from": "ceo@company.com", "subject": "Urgent: wire before 3pm",
-     "body": "I'm in a meeting, can't talk. Wire 24,500 EUR to the account I sent yesterday. Keep this between us."},
-    {"id": 4, "from": "newsletter@devweekly.io", "subject": "This week in Python",
-     "body": "Top links: walrus operator tricks, GIL removal update, 5 FastAPI patterns."},
-    {"id": 5, "from": "hr@company.com", "subject": "Update your bank details",
-     "body": "Payroll needs your IBAN re-confirmed by Friday. Reply with your full IBAN."},
-    {"id": 6, "from": "support@saas-tools.com", "subject": "Your ticket #9102",
-     "body": "Your requested feature (CSV export) shipped in v2.14. Nothing to do."},
-    {"id": 7, "from": "no-reply@parcel-trk.info", "subject": "Parcel held: 1.99 EUR fee",
-     "body": "Your package is held at the depot. Pay the 1.99 EUR customs fee via the link within 24h or it is returned."},
-    {"id": 8, "from": "admin@company.com", "subject": "Server maintenance window",
-     "body": "staging-db restarts Sunday 02:00-02:30 UTC. No action needed."},
-    {"id": 9, "from": "dpo@company.com", "subject": "DSAR: export my data",
-     "body": "A customer requested a copy of all personal data we hold. Legal deadline: 30 days."},
-    {"id": 10, "from": "sales@newvendor-b.net", "subject": "Quote attached - review?",
-     "body": "Quote for 12,900 EUR attached. Note our bank details changed last week, please use the new IBAN."},
+    {
+        "id": 1,
+        "from": "billing@vendor-a.com",
+        "subject": "Invoice #4821 overdue",
+        "body": "Your invoice 4,820 EUR is 14 days overdue. Pay today to avoid late fees.",
+    },
+    {
+        "id": 2,
+        "from": "security@bank.example",
+        "subject": "Unusual sign-in blocked",
+        "body": "We blocked a sign-in from a new device in another country. "
+        "Not you? Reset now: http://bank-verify.example",
+    },
+    {
+        "id": 3,
+        "from": "ceo@company.com",
+        "subject": "Urgent: wire before 3pm",
+        "body": "I'm in a meeting, can't talk. Wire 24,500 EUR to the account I sent "
+        "yesterday. Keep this between us.",
+    },
+    {
+        "id": 4,
+        "from": "newsletter@devweekly.io",
+        "subject": "This week in Python",
+        "body": "Top links: walrus operator tricks, GIL removal update, 5 FastAPI patterns.",
+    },
+    {
+        "id": 5,
+        "from": "hr@company.com",
+        "subject": "Update your bank details",
+        "body": "Payroll needs your IBAN re-confirmed by Friday. Reply with your full IBAN.",
+    },
+    {
+        "id": 6,
+        "from": "support@saas-tools.com",
+        "subject": "Your ticket #9102",
+        "body": "Your requested feature (CSV export) shipped in v2.14. Nothing to do.",
+    },
+    {
+        "id": 7,
+        "from": "no-reply@parcel-trk.info",
+        "subject": "Parcel held: 1.99 EUR fee",
+        "body": "Your package is held at the depot. Pay the 1.99 EUR customs fee via the link "
+        "within 24h or it is returned.",
+    },
+    {
+        "id": 8,
+        "from": "admin@company.com",
+        "subject": "Server maintenance window",
+        "body": "staging-db restarts Sunday 02:00-02:30 UTC. No action needed.",
+    },
+    {
+        "id": 9,
+        "from": "dpo@company.com",
+        "subject": "DSAR: export my data",
+        "body": "A customer requested a copy of all personal data we hold. "
+        "Legal deadline: 30 days.",
+    },
+    {
+        "id": 10,
+        "from": "sales@newvendor-b.net",
+        "subject": "Quote attached - review?",
+        "body": "Quote for 12,900 EUR attached. Note our bank details changed last week, "
+        "please use the new IBAN.",
+    },
 ]
 
 SCHEMA = {
-    "category": {"type": "enum",
-                 "choices": ["PHISHING", "FRAUD", "IT", "HR", "BILLING", "NEWSLETTER", "SUPPORT"],
-                 "description": "what this email is"},
-    "severity": {"type": "enum", "choices": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
-                 "description": "how urgent a human response is"},
-    "recommended_action": {"type": "enum", "choices": ["ARCHIVE", "REVIEW", "BLOCK_SENDER", "PAY", "REPLY"],
-                           "description": "the one browser action to perform next"},
+    "category": {
+        "type": "enum",
+        "choices": ["PHISHING", "FRAUD", "IT", "HR", "BILLING", "NEWSLETTER", "SUPPORT"],
+        "description": "what this email is",
+    },
+    "severity": {
+        "type": "enum",
+        "choices": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+        "description": "how urgent a human response is",
+    },
+    "recommended_action": {
+        "type": "enum",
+        "choices": ["ARCHIVE", "REVIEW", "BLOCK_SENDER", "PAY", "REPLY"],
+        "description": "the one browser action to perform next",
+    },
 }
 
 
@@ -71,7 +124,7 @@ def _worker_loop(model: str, jobs, results) -> None:
     """One model process: loads once, answers triage requests forever."""
     from parallel_decisions import Decider
 
-    decider = Decider(model_id=model)          # backend auto-resolves (torch/CUDA here)
+    decider = Decider(model_id=model)  # backend auto-resolves (torch/CUDA here)
     schema = SCHEMA
     decider.decide("warmup context", {"flag": {"type": "boolean", "description": "warmup"}})
     while True:
@@ -81,12 +134,17 @@ def _worker_loop(model: str, jobs, results) -> None:
         seq, context = item
         t0 = time.perf_counter()
         result = decider.decide(context, schema)
-        results.put((seq, {
-            "decision": result.json(),
-            "full": result.full_json(),
-            "model_ms": round(result.latency_ms, 1),
-            "wall_ms": round((time.perf_counter() - t0) * 1000, 1),
-        }))
+        results.put(
+            (
+                seq,
+                {
+                    "decision": result.json(),
+                    "full": result.full_json(),
+                    "model_ms": round(result.latency_ms, 1),
+                    "wall_ms": round((time.perf_counter() - t0) * 1000, 1),
+                },
+            )
+        )
 
 
 class ModelPool:
@@ -96,9 +154,10 @@ class ModelPool:
         self.workers = workers
         self._jobs = mp.Queue()
         self._results = mp.Queue()
-        self._procs = [mp.Process(target=_worker_loop,
-                                  args=(MODEL, self._jobs, self._results), daemon=True)
-                       for _ in range(workers)]
+        self._procs = [
+            mp.Process(target=_worker_loop, args=(MODEL, self._jobs, self._results), daemon=True)
+            for _ in range(workers)
+        ]
         for p in self._procs:
             p.start()
         self._rr = 0
@@ -212,8 +271,7 @@ def main() -> int:
     lab = Lab(pool)
     Handler.lab = lab
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"lab on http://127.0.0.1:{args.port}  workers={args.workers} model={MODEL}",
-          flush=True)
+    print(f"lab on http://127.0.0.1:{args.port}  workers={args.workers} model={MODEL}", flush=True)
     server.serve_forever()
     return 0
 
