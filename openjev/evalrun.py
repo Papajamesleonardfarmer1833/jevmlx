@@ -52,11 +52,6 @@ DecideFn = Callable[[dict, str], dict[str, Any]]
 
 logger = logging.getLogger(__name__)
 
-# Per-field result shape produced by every decide_fn: prediction (or None),
-# optional log_scores / per_option / confidence / error, plus a "_meta" entry
-# with run-level latency/rows/passes.
-DecideFn = Callable[[dict, str], dict[str, Any]]
-
 
 def make_run_id() -> str:
     """Run id: UTC timestamp + short random suffix (sortable, collision-safe)."""
@@ -247,7 +242,7 @@ def run_eval(
     run_id: str | None = None,
     extra_config: dict | None = None,
     chat_template: str | None = None,
-    plan_provider: callable | None = None,
+    plan_provider: Callable[..., dict] | None = None,
     dataset_lock_path: str | None = None,
     dataset_path: str | None = None,
 ) -> dict:
