@@ -279,10 +279,10 @@ def test_multi_only_schema_strict_prefix_pair_yields_one_compile_error():
         name_or_path = "fake-m1-prefix-pair"
 
         def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
-            # opt_a's 'true' candidate is a strict token-prefix of 'false'.
-            if ".opt_a" in text and "true" in text:
-                false_cand = self.encode(text.replace("true", "false"), add_special_tokens)
-                return false_cand[:-1]
+            # opt_a's Y candidate is a strict token-prefix of its N candidate.
+            if "/opt_a" in text and ': "Y"' in text:
+                n_cand = self.encode(text.replace(': "Y"', ': "N"'), add_special_tokens)
+                return n_cand[:-1]
             return super().encode(text, add_special_tokens)
 
     findings = _findings(

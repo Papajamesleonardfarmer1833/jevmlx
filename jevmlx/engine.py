@@ -352,21 +352,20 @@ def run_naive_generation(
     }
 
 
-def _fold_multi(probs_true: dict[str, float], threshold: float = 0.5) -> tuple[list[str], float]:
-    """Fold per-option probabilities into a multi field's decision.
+def _fold_multi(
+    probs_true: dict[str, float], threshold: float
+) -> tuple[list[str], float | None, float]:
+    """Fold per-option P(yes) into a multi field's decision.
 
-    Returns (selected options, confidence): an option is selected when its
-    p_true >= threshold. Confidence is the per-option margin of the least
-    certain option — min over ALL options of (p_true if the option is
-    selected, else 1 - p_true) — so a field is only as confident as its
-    weakest accept OR reject.
+    Returns (selected options, field probability, margin): an option is
+    selected when its p_yes >= threshold. No field-level probability is
+    claimed (an exact-set probability would need a separate calibrator);
+    the margin is min |p_yes - threshold| over ALL options — how close the
+    closest yes/no decision was.
     """
-    selected = [option for option, p_true in probs_true.items() if p_true >= threshold]
-    confidence = min(
-        (p_true if p_true >= threshold else 1.0 - p_true for p_true in probs_true.values()),
-        default=1.0,
-    )
-    return selected, confidence
+    selected = [option for option, p_yes in probs_true.items() if p_yes >= threshold]
+    margin = min((abs(p_yes - threshold) for p_yes in probs_true.values()), default=0.0)
+    return selected, None, margin
 
 
 def _rows_per_chunk(budget_bytes: int, bytes_per_row: int, max_rows: int | None) -> int:
@@ -390,6 +389,7 @@ def run_parallel_generation(
     temperature: float = 1.0,
     max_rows: int | None = None,
     scoring: str = "slots",
+    multi_threshold: float = 0.5,
 ) -> dict[str, Any]:
     """Decide every schema field in one batched forward pass.
 
@@ -409,8 +409,10 @@ def run_parallel_generation(
     node's decision position and every candidate accumulates the
     log-probability of its branch. Fields whose candidates never share a
     first token get exactly one row. Candidate probabilities sum to 1, so
-    confidence = P(candidate). Multi fields always use the labels-style
-    per-option boolean rows (their options are real values in the prompt).
+    confidence = P(candidate). Multi fields use one yes/no row per option —
+    the row text is the natural question ('"<field>/<option>": ') and the
+    scored candidates are the quoted aliases "Y"/"N"; ``multi_threshold``
+    (0.5 by default) turns per-option P(yes) into the selected set.
 
     The prefill KV cache is broadcast across rows; batches larger than the
     chunking heuristic allows run in chunks over the same prefill cache.
@@ -426,6 +428,8 @@ def run_parallel_generation(
         raise ValueError(f"scoring must be 'slots' or 'labels', got {scoring!r}")
     if not math.isfinite(temperature) or temperature <= 0:
         raise ValueError(f"temperature must be a finite number > 0, got {temperature!r}")
+    if not 0.0 < multi_threshold < 1.0:
+        raise ValueError(f"multi_threshold must be in (0, 1), got {multi_threshold!r}")
     if max_rows is not None and max_rows < 1:
         raise ValueError(f"max_rows must be >= 1, got {max_rows!r}")
 
@@ -541,8 +545,8 @@ def run_parallel_generation(
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
             p = field_plans[row_field[ridx]]
             if ridx in row_option:
-                # multi option row: true/false logits at the option row's last
-                # position (the row ends right before the true/false divergence).
+                # multi option row: Y/N logits at the option row's last
+                # position (the row ends right before the Y/N divergence).
                 lg = out[i, len(lead_in) + len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
                 option_pair[ridx] = [
                     float(lg[t[0]].astype(mx.float32)) for t in p["remainders"][row_option[ridx]]
@@ -579,34 +583,38 @@ def run_parallel_generation(
         if "options" in p:
             # multi: one-vs-rest classification — each option is an independent
             # binary decision ("does this option apply?"), scored at the
-            # option's own true/false divergence. per_option holds independent
-            # binary probabilities (NOT a subset distribution); 'confidence'
-            # is the weakest binary decision (see _fold_multi), not the
-            # probability of the selected subset. calibrate skips multi fields.
-            probs_true = {}
+            # option's own Y/N divergence. per_option holds independent P(yes)
+            # values (NOT a subset distribution); no field-level probability
+            # is claimed (calibrate skips multi fields). The margin is how
+            # close the closest option's decision sat to the threshold.
+            probs_yes = {}
             for oi, ridx in enumerate(idxs):
                 pair = option_pair[ridx]
-                (p_true, p_false) = softmax(pair, temperature=temperature)
-                probs_true[p["options"][oi]] = p_true
-            selected, confidence = _fold_multi(probs_true)
+                (p_yes, _p_no) = softmax(pair, temperature=temperature)
+                probs_yes[p["options"][oi]] = p_yes
+            selected, _prob, margin = _fold_multi(probs_yes, multi_threshold)
+            ranked = sorted(probs_yes.items(), key=lambda kv: -kv[1])
             parsed_json[fname] = {
                 "value": selected,
-                "prob": confidence,
+                "prob": None,
             }
             field_telemetry[fname] = {
                 "value": selected,
                 "type": "multi",
-                "probability": confidence,
+                "probability": None,
+                "margin": margin,
                 "cardinality": fdef.cardinality,
-                # No 'scores' key for multi: for every other type it holds log
-                # P(choice), which does not exist here. per_option carries the
-                # p_true values instead; calibrate skips multi fields.
-                "per_option": dict(probs_true),
+                # No 'scores'/'log_scores' key for multi: for every other
+                # type they hold log P(choice), which does not exist here.
+                # per_option carries the P(yes) values; calibrate skips
+                # multi fields.
+                "per_option": dict(probs_yes),
+                "alternatives": tuple(ranked),
                 "top_choices": [
-                    {"choice": o, "probability": pt}
-                    for o, pt in sorted(probs_true.items(), key=lambda kv: -kv[1])
+                    {"choice": option, "probability": p_yes} for option, p_yes in ranked
                 ],
                 "rows": len(idxs),
+                "threshold": multi_threshold,
             }
             continue
 

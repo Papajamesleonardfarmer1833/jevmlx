@@ -132,14 +132,21 @@ class StructuredSchema:
         self.fields: dict[str, FieldDefinition] = {}
         for field_name, spec in schema_dict.items():
             if "." in field_name:
-                # Multi rows are keyed 'fname.option'; a dot inside a field
-                # name could collide with another field's literal name (C3:
-                # row keys must be injective). json.dumps is applied at
-                # candidate-text build time, so the dot rule is the only
-                # additional constraint needed for uniqueness.
+                # Field names become JSON row keys (json.dumps'd at candidate
+                # build time); a dot inside a field name could collide with
+                # another field's literal name (C3: row keys must be
+                # injective).
                 raise ValueError(
                     f"Field name '{field_name}' contains '.'; dot-free field "
-                    "names keep multi row keys '<field>.<option>' injective"
+                    "names keep multi row keys injective"
+                )
+            if "/" in field_name:
+                # Multi option rows are keyed '<field>/<option>'; a slash
+                # inside a field name would collide across fields (C3: row
+                # keys must be injective).
+                raise ValueError(
+                    f"Field name '{field_name}' contains '/'; slash-free field "
+                    "names keep multi option row keys '<field>/<option>' injective"
                 )
             self.fields[field_name] = FieldDefinition(
                 name=field_name,
@@ -187,6 +194,16 @@ class StructuredSchema:
         lines.append("}")
         return "\n".join(lines)
 
+    def _multi_field_header(self, field: FieldDefinition) -> str:
+        """Schema-block text for one multi field: options as a described
+        yes/no menu ('each option is answered yes or no')."""
+        parts = []
+        for choice in field.choices:
+            gloss = field.choice_descriptions.get(choice)
+            gloss_part = f" — {gloss}" if gloss else ""
+            parts.append(f"{choice}{gloss_part}")
+        return "; ".join(parts)
+
     def to_schema_str(self, mode: str = "slots") -> str:
         """Schema block for prompt v2, rendered per scoring mode.
 
@@ -195,12 +212,24 @@ class StructuredSchema:
         ``"labels"`` lists the real choice strings (``LOW | MEDIUM``). The
         aliases are what slot-trie scoring reads back on assembly; labels
         mode shows exactly the text the scorer reads.
+
+        Multi fields render once as a described yes/no menu — the field
+        header states that each option is answered yes or no; the per-option
+        decision rows below (``"<field>/<option>"``) are answered with the
+        aliases Y/N.
         """
         if mode not in ("slots", "labels"):
             raise ValueError(f"mode must be 'slots' or 'labels', got {mode!r}")
         lines = []
         for name, field in self.fields.items():
             desc = field.description.split("\n")[0].strip()
+            if field.field_type == "multi":
+                menu = self._multi_field_header(field)
+                lines.append(
+                    f'  "{name}": {menu}  // {desc} (select all that apply; '
+                    "each option is answered yes or no)"
+                )
+                continue
             choices_list = (
                 ["true", "false"] if field.field_type == "boolean" else list(field.choices)
             )
@@ -215,8 +244,7 @@ class StructuredSchema:
                 for choice in choices_list:
                     gloss = field.choice_descriptions.get(choice)
                     parts.append(f"{choice} — {gloss}" if gloss else choice)
-            marker = " (select all that apply)" if field.field_type == "multi" else ""
-            lines.append(f'  "{name}": {"  ".join(parts)}  // {desc}{marker}')
+            lines.append(f'  "{name}": {"  ".join(parts)}  // {desc}')
         return "\n".join(lines)
 
     def to_alias_schema_str(self) -> str:
@@ -261,8 +289,9 @@ class StructuredSchema:
         QUOTED neutral aliases ``'"A"'``, `'"B"'``, ... (base-26 codes beyond
         26 choices), mapped back to the real choice strings on assembly.
 
-        Multi fields keep the labels-mode per-option boolean rows (their
-        options are real values in the prompt, not aliases). Booleans get
+        Multi fields share the same per-option yes/no rows in both modes
+        (see compile_labels_plan): the row text is the natural question and
+        the scored candidates are the quoted "Y"/"N" aliases. Booleans get
         aliases too (A -> true, B -> false).
 
         Returns the same shape as the labels plan
@@ -332,7 +361,6 @@ class StructuredSchema:
             for fname, fdef in self.fields.items():
                 if fdef.field_type == "multi":
                     fields_plan[fname] = labels_plan["fields"][fname]
-
         row_prefixes = [p["shared_ids"] for p in fields_plan.values() if "shared_ids" in p]
         lead_in = _common_token_prefix(row_prefixes) if row_prefixes else []
         if lead_in:
@@ -367,9 +395,9 @@ class StructuredSchema:
         token-ID prefix across the candidates of ALL fields — typically the
         ``{\n  "`` lead-in) and per-choice ``remainders``.
         Per multi field it carries one ``suffix_ids_list`` entry per option —
-        that option's shared token prefix (everything before its true/false
+        that option's shared token prefix (everything before its yes/no
         divergence, i.e. the row the engine runs) — and ``remainders`` with
-        the option's two true/false continuations. The returned mapping is
+        the option's two Y/N continuations. The returned mapping is
         ``{"lead_in_ids": [...], "fields": {field_name: plan}}`` — metadata
         sits beside the field plans, never inside them (D1: a field could
         legally be named "_lead_in_ids"). Plans are cached per tokenizer
@@ -404,39 +432,45 @@ class StructuredSchema:
             """The complete assistant tail for one row: '{\n' + row + ',\n'.
 
             The row key is always json.dumps(name) (C3: no raw interpolation;
-            field names are dot-free, so '<field>.<option>' keys are
-            injective across (field, option) pairs and field names).
+            field names are dot- and slash-free, so '<field>.<option>' scalar
+            keys and '<field>/<option>' option keys are injective across
+            (field, option) pairs and field names).
             """
             return "{\n" + f"  {json.dumps(name)}: {value_text}" + ",\n"
 
         for fname, fdef in self.fields.items():
             if fdef.field_type == "multi":
-                # One boolean row per option, scored where true/false diverge.
+                # One yes/no row per option. The row is the natural question
+                # ('"<field>/<option>": '), and the scored candidates are the
+                # QUOTED aliases "Y"/"N" — the same slot machinery enums use
+                # (V4: the model never sees a synthetic 'field.option' JSON
+                # key; the schema block describes each option and states that
+                # every option is answered yes or no).
                 # The plan is built PER OPTION from that option's own candidate
-                # pair: shared = everything up to the true/false divergence
-                # (the option's full row lead-in plus any common token start of
-                # 'true'/'false'), remainders = the two continuations. A single
+                # pair: shared = everything up to the Y/N divergence (the
+                # option's full row lead-in plus any common token start of
+                # 'Y'/'N'), remainders = the two continuations. A single
                 # cross-option prefix would put branch nodes at the option-name
-                # position and read the true/false logits at the wrong spot.
+                # position and read the Y/N logits at the wrong spot.
                 suffix_ids_list = []
                 remainders_per_option = []
                 for option in fdef.choices:
                     pair = [
                         tokenizer.encode(
-                            candidate_text(f"{fname}.{option}", literal),
+                            candidate_text(f"{fname}/{option}", f'"{alias}"'),
                             add_special_tokens=False,
                         )
-                        for literal in ("true", "false")
+                        for alias in ("Y", "N")
                     ]
                     option_shared = _common_token_prefix(pair)
                     option_remainders = [full[len(option_shared) :] for full in pair]
                     if not option_shared:
-                        # Zero-length row: the true/false decision would sit
+                        # Zero-length row: the Y/N decision would sit
                         # directly at the generation boundary (C2, same rule
                         # as the scalar guard).
                         raise SchemaCompileError(
                             fname,
-                            f"field '{fname}': option '{option}' true/false "
+                            f"field '{fname}': option '{option}' Y/N "
                             f"candidates share no token prefix (tokenizer "
                             f"{type(tokenizer).__name__}); cannot place the "
                             "decision row",
@@ -445,17 +479,17 @@ class StructuredSchema:
                         raise SchemaCompileError(
                             fname,
                             f"field '{fname}': option '{option}' tokenizes to "
-                            "identical true/false candidates; the engine cannot "
+                            "identical Y/N candidates; the engine cannot "
                             "distinguish them",
                         )
                     # Same rule as enums (R5): a strict-prefix continuation can
                     # never be distinguished by branch scoring.
                     if len(option_remainders[0]) < len(option_remainders[1]):
                         shorter, longer = option_remainders
-                        short_name, long_name = "true", "false"
+                        short_name, long_name = "Y", "N"
                     else:
                         shorter, longer = option_remainders[1], option_remainders[0]
-                        short_name, long_name = "false", "true"
+                        short_name, long_name = "N", "Y"
                     if longer[: len(shorter)] == shorter:
                         raise SchemaCompileError(
                             fname,

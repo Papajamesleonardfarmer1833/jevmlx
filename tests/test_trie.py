@@ -386,12 +386,11 @@ def test_multi_option_strict_prefix_pair_rejected():
 
         def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
             base = super().encode(text, add_special_tokens)
-            # Make option_a's 'true' candidate a strict token-prefix of its
-            # 'false' candidate: encode 'true' as the 'false' candidate minus
-            # its last token.
-            if ".opt_a" in text and "true" in text:
-                false_cand = self.encode(text.replace("true", "false"), add_special_tokens)
-                return false_cand[:-1]
+            # Make option_a's Y candidate a strict token-prefix of its N
+            # candidate: encode the Y row as the N row minus its last token.
+            if "/opt_a" in text and ': "Y"' in text:
+                n_cand = self.encode(text.replace(': "Y"', ': "N"'), add_special_tokens)
+                return n_cand[:-1]
             return base
 
     schema = _SS(
@@ -522,10 +521,10 @@ def test_multi_option_no_common_prefix_rejected():
         name_or_path = "fake-no-common-pair"
 
         def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
-            if "true" in text:
-                return [84]  # single token, unique to the true candidate
-            if "false" in text:
-                return [70]  # different single token for false
+            if ': "Y"' in text:
+                return [84]  # single token, unique to the Y candidate
+            if ': "N"' in text:
+                return [70]  # different single token for the N candidate
             return super().encode(text, add_special_tokens)
 
     schema = StructuredSchema(

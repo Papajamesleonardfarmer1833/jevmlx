@@ -168,8 +168,10 @@ def _decide_scalar_field(
 def _yes_no_probabilities(entries: list[dict]) -> tuple[dict[str, float], bool]:
     """Renormalised P(yes)/P(no) from a top_logprobs list.
 
-    Token text varies: "yes"/yes/" Yes/true and their negatives. Missing
-    sides floor at exp(min found logprob) (0.01 when nothing is found).
+    The aliases are the quoted Y/N the multi rows score (same as the native
+    engine's candidates); lowercase yes/no spellings stay tolerated for
+    endpoints that normalize the answer. Missing sides floor at exp(min
+    found logprob) (0.01 when nothing is found).
     """
     by_text = {e.get("token", ""): float(e.get("logprob", -math.inf)) for e in entries}
 
@@ -179,8 +181,8 @@ def _yes_no_probabilities(entries: list[dict]) -> tuple[dict[str, float], bool]:
                 return by_text[v]
         return None
 
-    yes_lp = lp_of(['"yes"', "yes", " Yes", '"Yes"', "true", "True"])
-    no_lp = lp_of(['"no"', "no", " No", '"No"', "false"])
+    yes_lp = lp_of(['"Y"', "Y", '"yes"', "yes", " Yes", '"Yes"'])
+    no_lp = lp_of(['"N"', "N", '"no"', "no", " No", '"No"'])
     truncated = yes_lp is None or no_lp is None
     if truncated:
         floor = (
@@ -204,16 +206,18 @@ def _decide_multi_field(
     name: str,
     field,
     timeout: float,
+    threshold: float,
 ) -> tuple[dict, dict, int]:
-    """One yes/no request per option. Returns (parsed, telemetry, n_requests)."""
+    """One Y/N request per option. Returns (parsed, telemetry, n_requests)."""
     per_option: dict[str, float] = {}
     truncated_any = False
     n_requests = 0
     for option in field.choices:
-        # The option row as assistant prefill: the value is a one-element
-        # array — the model answers the same yes/no question the native
-        # multi rows pose ("does this option apply?").
-        row = "{\n" + f"  {json.dumps(name)}: {json.dumps([option])}"
+        # The option row as assistant prefill: the same natural yes/no
+        # question the native multi rows pose ('"<field>/<option>": ' with
+        # the quoted Y/N aliases), so both backends answer the same question.
+        row_key = json.dumps(f"{name}/{option}")
+        row = "{\n" + f'  {row_key}: "'
         messages = [
             {"role": "system", "content": PROMPT_V2_SYSTEM},
             {"role": "user", "content": _user_content(schema, context)},
@@ -235,19 +239,20 @@ def _decide_multi_field(
         probs, truncated = _yes_no_probabilities(top_entries or [])
         per_option[option] = probs["yes"]
         truncated_any = truncated_any or truncated
-    selected = [option for option, p in per_option.items() if p >= 0.5]
-    weakest = min(per_option.values()) if per_option else 0.0
-    parsed = {"value": selected, "prob": weakest}
+    selected = [option for option, p in per_option.items() if p >= threshold]
+    margin = min((abs(p - threshold) for p in per_option.values()), default=0.0)
+    ranked = sorted(per_option.items(), key=lambda kv: -kv[1])
+    parsed = {"value": selected, "prob": None}
     telemetry = {
         "value": selected,
         "type": "multi",
-        "probability": weakest,
+        "probability": None,
+        "margin": margin,
         "per_option": per_option,
-        "alternatives": tuple(
-            (o, p) for o, p in sorted(per_option.items(), key=lambda kv: -kv[1])[:3]
-        ),
+        "alternatives": tuple(ranked),
         "rows": len(field.choices),
         "truncated": truncated_any,
+        "threshold": threshold,
     }
     return parsed, telemetry, n_requests
 
@@ -260,6 +265,7 @@ def decide_openai(
     context: str,
     *,
     timeout: float = 120.0,
+    multi_threshold: float = 0.5,
 ) -> dict[str, Any]:
     """Decide every schema field through an OpenAI-compatible endpoint.
 
@@ -267,7 +273,7 @@ def decide_openai(
     ``parsed_json``, ``field_telemetry`` (``probability``, ``log_scores``,
     ``alternatives``, ``rows``, ``passes``), ``confidence_model:
     "openai_slots"``, ``prompt_version``, ``prompt_sha256``, ``elapsed_ms``.
-    One ``max_tokens=1`` request per scalar field; one yes/no request per
+    One ``max_tokens=1`` request per scalar field; one Y/N request per
     multi option. Raises ChatCompletionsError on non-2xx responses.
     """
     t0 = time.perf_counter()
@@ -277,7 +283,15 @@ def decide_openai(
     for name, field in schema.fields.items():
         if field.field_type == "multi":
             parsed, telemetry, n = _decide_multi_field(
-                base_url, model, api_key, schema, context, name, field, timeout
+                base_url,
+                model,
+                api_key,
+                schema,
+                context,
+                name,
+                field,
+                timeout,
+                multi_threshold,
             )
             n_requests += n
         else:

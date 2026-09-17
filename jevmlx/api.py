@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import dataclasses
 import enum
-import math
 import typing
 from collections.abc import Sequence
 
@@ -82,13 +81,14 @@ class FieldResult:
             (neutral aliases through the token trie; the default) or
             "labels" (real choice text through the token trie).
         alternatives: Top 3 (choice, probability) pairs, most probable
-            first. Empty for multi fields (no single distribution).
+            first. For multi fields: all per-option (option, P(yes)) pairs
+            sorted by P(yes) descending.
     """
 
     value: object
     score: float
     margin: float
-    probability: float
+    probability: float | None
     calibrated: bool
     model: str
     alternatives: tuple[tuple[str, float], ...]
@@ -242,8 +242,10 @@ def _build_field_results(result: dict, confidence_model: str) -> dict[str, Field
 
     Telemetry contract per field: ``log_scores`` ({choice: log P}, enum and
     boolean fields only), ``probability`` (P of the winner), ``top_choices``
-    (top 5 {choice, probability}). Multi fields carry ``per_option`` instead
-    of log_scores; their margin is 0.0 and alternatives come from per_option.
+    (top 5 {choice, probability}). Multi fields carry ``per_option`` (P(yes)
+    per option), ``margin`` (min |P(yes) - threshold|) and no field-level
+    probability (None — an exact-set probability is not claimed); their
+    alternatives are the per-option pairs sorted by P(yes).
     """
     fields: dict[str, FieldResult] = {}
     for name, telemetry in result["field_telemetry"].items():
@@ -261,11 +263,13 @@ def _build_field_results(result: dict, confidence_model: str) -> dict[str, Field
             )
         else:
             per_option = telemetry.get("per_option") or {}
-            score = math.log(probability) if probability > 0 else float("-inf")
-            margin = 0.0
+            # Multi: no field-level probability is claimed; score stays 0.0
+            # (log-space has no value for an unclaimed probability) and the
+            # margin comes straight from the telemetry.
+            score = 0.0
+            margin = telemetry.get("margin", 0.0)
             alternatives = tuple(
-                (choice, prob)
-                for choice, prob in sorted(per_option.items(), key=lambda kv: -kv[1])[:3]
+                (choice, prob) for choice, prob in sorted(per_option.items(), key=lambda kv: -kv[1])
             )
         fields[name] = FieldResult(
             value=telemetry["value"],
@@ -288,10 +292,17 @@ def _decide_once[T: BaseModel](
     temperature: float,
     scoring: str = "slots",
     allow_unknown: bool = False,
+    multi_threshold: float = 0.5,
 ) -> Decision[T]:
     """Decide one context with a loaded engine and a compiled schema."""
     result = run_parallel_generation(
-        engine_model, tokenizer, context, schema, temperature=temperature, scoring=scoring
+        engine_model,
+        tokenizer,
+        context,
+        schema,
+        temperature=temperature,
+        scoring=scoring,
+        multi_threshold=multi_threshold,
     )
 
     kwargs = {}
@@ -356,6 +367,7 @@ def decide[T: BaseModel](
     temperature: float = 1.0,
     scoring: str = "slots",
     allow_unknown: bool = False,
+    multi_threshold: float = 0.5,
 ) -> Decision[T]:
     """Run parallel constrained decisions and return a validated model instance.
 
@@ -383,6 +395,7 @@ def decide[T: BaseModel](
         temperature,
         scoring=scoring,
         allow_unknown=allow_unknown,
+        multi_threshold=multi_threshold,
     )
 
 
@@ -394,6 +407,7 @@ def decide_many[T: BaseModel](
     temperature: float = 1.0,
     scoring: str = "slots",
     allow_unknown: bool = False,
+    multi_threshold: float = 0.5,
 ) -> list[Decision[T]]:
     """Decide many contexts against one schema and return one Decision per context.
 
@@ -432,6 +446,7 @@ def decide_many[T: BaseModel](
             temperature,
             scoring=scoring,
             allow_unknown=allow_unknown,
+            multi_threshold=multi_threshold,
         )
         for context in contexts
     ]
