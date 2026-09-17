@@ -14,6 +14,7 @@ def engine():
     return load_engine(MODEL_ID)
 
 
+@pytest.mark.slow
 def test_collision_field_scores_honestly(engine):
     model, tokenizer = engine
     schema_dict = {
@@ -52,6 +53,7 @@ def test_collision_field_scores_honestly(engine):
         assert len(result["field_telemetry"]["action"]["scores"]) == 3
 
 
+@pytest.mark.slow
 def test_chunking_matches_full_batch_and_counts_passes(engine):
     model, tokenizer = engine
     preset = load_preset("fintech_fraud")

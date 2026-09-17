@@ -332,8 +332,6 @@ def run_parallel_generation(
             row_field.append(fname)
             row_choice.append(None)
 
-    suffix_arrs = rows  # token id lists; padded per chunk below
-
     # 2. Prefill once (compact schema catalog + context).
     schema_str = schema.to_parallel_schema_str()
     base_ids = _chat_ids(

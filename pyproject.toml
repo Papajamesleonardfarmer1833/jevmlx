@@ -18,5 +18,10 @@ openjev = "openjev.cli:main"
 [project.optional-dependencies]
 dev = ["pytest"]
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: loads a real model via mlx-lm (deselect with -m 'not slow')",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["openjev"]

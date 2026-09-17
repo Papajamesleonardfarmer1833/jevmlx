@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from openjev.cli import load_preset
 from openjev.engine import load_engine, run_parallel_generation
 from openjev.schema import StructuredSchema
@@ -7,6 +9,7 @@ from openjev.schema import StructuredSchema
 MODEL_ID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 
 
+@pytest.mark.slow
 def test_fintech_fraud_decisions():
     model, tokenizer = load_engine(MODEL_ID)
     preset = load_preset("fintech_fraud")

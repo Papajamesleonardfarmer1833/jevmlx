@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-14  # Apple Silicon runner (MLX requires arm64 macOS)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: uv pip install -e '.[dev]' --python "$(which python3)"
+
+      - name: Fast tests (no model downloads)
+        run: python3 -m pytest -m "not slow" -q
