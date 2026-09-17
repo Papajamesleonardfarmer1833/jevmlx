@@ -2,24 +2,34 @@
 
 ## Done
 
-| Phase | Deliverable | Done |
-|---|---|---|
-| P0 | Repo hygiene: openjev name, README, LICENSE+NOTICE, drop x-posts/hf-space/vendor | 956f11d |
-| P1 | Package: `openjev/` module, pyproject, `uv pip install -e .`, CLI `openjev decide`, chat template from tokenizer, smoke test | 67a2f80 |
-| P2 | Engine: multi-token collision scoring in one pass, honest confidence, memory auto-chunk | bcf7519 |
-| P3 | API: Pydantic model in, typed object out | 1e1cf6d |
-| P4 | Calibration: `openjev calibrate` fits temperature on labeled JSONL | 75afe53 |
-| P5 | Public: model compatibility table, CI, PyPI | 07be0ed |
+- P0: repo hygiene — openjev name, README, LICENSE+NOTICE, research-only artifacts dropped.
+- P1: installable package — `openjev` module, CLI `openjev decide`, tokenizer chat templates, smoke test.
+- P2: engine quality — consistent scoring for colliding choices, memory auto-chunking.
+- P3: typed Python API — `openjev.decide(PydanticModel, context)`.
+- P4: calibration — `openjev calibrate` fits one temperature on labeled JSONL.
+- P5: release readiness — model compatibility table, CI, wheel, bundled presets.
+- I1: `openjev serve` — stdlib HTTP endpoint with health check.
+- I2: ruff across the repo (line length 100, E/F/I/UP/B) with CI enforcement.
+- I3: ROADMAP.md (this file).
+- I4: single-source `__version__`, argument validation hardening.
+- I5: GitHub hygiene — build workflow, issue/PR templates, badges.
+- C: cleanup pass — only relevant files stay.
+- R: professional README restructure.
+- W2: documentation and CLI presentation fixes.
 
 ## Next
 
-| Phase | Deliverable |
-|---|---|
-| N3 | Latency: 860 ms here vs 410 ms upstream for 1.5B/fintech_fraud, unexplained. Profile prefill on a quiet machine. |
-| N1 | Accuracy: eval loop over the labeled cases (benchmarks/cases.json), then prompt/description work. |
-| N4 | `openjev serve` HTTP endpoint (shipped in I1). |
-| N2 | More field types: int range, date, short text. Only on request. |
-| N5 | Publish: PyPI, GitHub release. |
+- W3: correctness gate — token-aligned candidate plans, one scoring objective (token trie), full-precision engine output, strict temperature/memory validation, correct multi-field confidence.
+- N1: order-invariance evaluation on the labeled cases, then more labeled data.
+- N3: phase-level latency profile (plan compilation, tokenization, prefill, KV replication, suffix pass, scoring).
+- N5: PyPI 0.1.0.
+- G10: routing thresholds on held-out data (after N1).
+- G1: schema-prefix KV reuse in `decide_many` (only if N3 shows it matters).
+
+## Cut
+
+- Short free-text field type: does not fit the finite-choice guarantee.
+- Torch backend: Apple Silicon is the supported platform.
 
 ## Rules
 

@@ -17,25 +17,34 @@ import re
 import time
 from typing import Any
 
-import mlx.core as mx
-from mlx.utils import tree_flatten
-from mlx_lm import load
-from mlx_lm.models.cache import make_prompt_cache
-
 from openjev.schema import StructuredSchema
 
 logger = logging.getLogger(__name__)
 
+# Run before any mlx import: on a non-Apple-Silicon machine the mlx import
+# itself fails with a low-level error, and the platform message is the useful one.
 if platform.system() != "Darwin" or platform.machine() != "arm64":
     raise RuntimeError(
         "openjev requires Apple Silicon (macOS + arm64) with mlx-lm installed. "
         "The PyTorch/CUDA backend was removed."
     )
 
+import mlx.core as mx  # noqa: E402  (must follow the platform check, see above)
+from mlx.utils import tree_flatten  # noqa: E402
+from mlx_lm import load  # noqa: E402
+from mlx_lm.models.cache import make_prompt_cache  # noqa: E402
 
-@functools.lru_cache(maxsize=4)
+
+@functools.lru_cache(maxsize=1)
 def load_engine(model_id: str):
-    """Load a model + tokenizer once per model id, with Metal shader warmup."""
+    """Load a model + tokenizer once per model id, with Metal shader warmup.
+
+    The cache holds at most one model: models live in Apple Silicon's unified
+    memory, which is shared with the OS and the GPU, so keeping several loaded
+    at once is the fastest way to OOM. Loading a different model id evicts the
+    previous one. Call :func:`clear_engine_cache` to release memory without
+    loading anything else.
+    """
     logger.info("Loading %s into Apple Silicon unified memory...", model_id)
     t0 = time.perf_counter()
     model, tokenizer = load(model_id)
@@ -54,6 +63,14 @@ def load_engine(model_id: str):
     mx.eval(w_suf)
     logger.info("Metal shaders compiled & warmed up.")
     return model, tokenizer
+
+
+def clear_engine_cache() -> None:
+    """Drop every cached engine, releasing the model's unified memory.
+
+    Safe to call when nothing is loaded.
+    """
+    load_engine.cache_clear()
 
 
 def _broadcast_cache(cache, batch: int):
@@ -218,16 +235,30 @@ def _fold_multi(probs_true: dict[str, float], threshold: float = 0.5) -> tuple[l
     """Fold per-option probabilities into a multi field's decision.
 
     Returns (selected options, confidence): an option is selected when its
-    p_true >= threshold; confidence is the min p_true over the selected
-    options, or the min p_false (= 1 - p_true) over the rejected options
-    when nothing is selected.
+    p_true >= threshold. Confidence is the per-option margin of the least
+    certain option — min over ALL options of (p_true if the option is
+    selected, else 1 - p_true) — so a field is only as confident as its
+    weakest accept OR reject.
     """
     selected = [option for option, p_true in probs_true.items() if p_true >= threshold]
-    if selected:
-        confidence = min(probs_true[option] for option in selected)
-    else:
-        confidence = min(1.0 - p_true for p_true in probs_true.values())
+    confidence = min(
+        (p_true if p_true >= threshold else 1.0 - p_true for p_true in probs_true.values()),
+        default=1.0,
+    )
     return selected, confidence
+
+
+def _rows_per_chunk(budget_bytes: int, bytes_per_row: int, max_rows: int | None) -> int:
+    """Rows per suffix chunk: budget-limited cap, optionally tightened by max_rows.
+
+    max_rows is a caller cap on the automatic heuristic, never an override of it.
+    """
+    if max_rows is not None and max_rows < 1:
+        raise ValueError(f"max_rows must be >= 1, got {max_rows!r}")
+    auto_cap = max(1, budget_bytes // bytes_per_row) if bytes_per_row > 0 else (max_rows or 1)
+    if max_rows is not None:
+        return min(auto_cap, max_rows)
+    return auto_cap
 
 
 def run_parallel_generation(
@@ -245,7 +276,16 @@ def run_parallel_generation(
     broadcast across rows; colliding choices get one row per choice, everything
     else one row. Batches larger than the memory guard allow run in chunks over
     the same prefill cache.
+
+    ``temperature`` is a post-hoc temperature applied to the per-choice score
+    logits (softmax(scores / temperature)) — it is not a token-level sampling
+    temperature; generation itself is deterministic.
     """
+    if not math.isfinite(temperature) or temperature <= 0:
+        raise ValueError(f"temperature must be a finite number > 0, got {temperature!r}")
+    if max_rows is not None and max_rows < 1:
+        raise ValueError(f"max_rows must be >= 1, got {max_rows!r}")
+
     t0 = time.perf_counter()
 
     # 1. Batch plan: per field, suffix ids and per-choice token lists.
@@ -300,16 +340,27 @@ def run_parallel_generation(
     )
     t_prefill = (time.perf_counter() - t_pre0) * 1000
 
-    # 3. Memory guard: rows are broadcast copies of the prefill cache.
+    # 3. Memory guard: rows are broadcast copies of the prefill cache. The
+    #    estimate includes the [rows, width, vocab] output logits for one chunk
+    #    (float32 logits are the dominant activation). This is a chunking
+    #    heuristic, not a hard bound on peak Metal memory.
     bytes_per_row = _cache_bytes_per_row(cache)
-    budget = max(1, _max_recommended_working_set() // 2 - _model_weight_bytes(model))
+    width_max = max(len(r) for r in rows) if rows else 0
+    vocab_size = (
+        model.args.vocab_size
+        if hasattr(model, "args") and hasattr(model.args, "vocab_size")
+        else model.model.embed_tokens.weight.shape[0]
+    )  # simplest correct static source; falls back to the embedding row count (= vocab)
+    bytes_per_row += width_max * vocab_size * 4
+    weight_bytes = _model_weight_bytes(model)
+    budget = max(1, _max_recommended_working_set() // 2 - weight_bytes)
     if max_rows is not None:
         budget = bytes_per_row * max_rows
-    auto_max_rows = max(1, budget // bytes_per_row) if bytes_per_row > 0 else len(rows)
+    auto_max_rows = _rows_per_chunk(budget, bytes_per_row, max_rows)
     num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
     if num_passes > 1:
         logger.warning(
-            "Memory guard: %d rows over %d passes (bytes_per_row=%d)",
+            "Chunking heuristic: %d rows over %d passes (bytes_per_row=%d)",
             len(rows),
             num_passes,
             bytes_per_row,

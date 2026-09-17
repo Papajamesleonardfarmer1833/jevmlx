@@ -102,6 +102,104 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
     assert all(c[4] == 0.7 for c in run_calls)
 
 
+def test_decide_many_input_validation(monkeypatch):
+    """Y7: str/bytes contexts and non-str items raise TypeError before any load."""
+
+    class TwoField(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(description="Risk tier")
+
+    load_calls: list[str] = []
+    monkeypatch.setattr("openjev.api.load_engine", lambda model_id: load_calls.append(model_id))
+
+    with pytest.raises(TypeError, match="sequence of str"):
+        openjev.decide_many(TwoField, "one lone context")
+    with pytest.raises(TypeError, match="sequence of str"):
+        openjev.decide_many(TwoField, b"bytes contexts")
+    with pytest.raises(TypeError, match=r"contexts\[1\] must be str"):
+        openjev.decide_many(TwoField, ["fine", 123])
+    assert load_calls == []  # validation happens before the engine loads
+
+
+def test_decide_many_empty_contexts_returns_empty_without_loading(monkeypatch):
+    """Y7: an empty contexts list short-circuits to [] with no engine load."""
+
+    class TwoField(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(description="Risk tier")
+
+    def fail_load(model_id):
+        raise AssertionError("engine must not be loaded for empty contexts")
+
+    monkeypatch.setattr("openjev.api.load_engine", fail_load)
+    assert openjev.decide_many(TwoField, []) == []
+
+
+def test_schema_from_model_rejects_non_string_literal_values():
+    """Y8: Literal[1, 2] must raise, not be silently str()-coerced."""
+
+    class Bad(BaseModel):
+        level: Literal[1, 2] = Field(description="level")
+
+    with pytest.raises(TypeError, match="'level'"):
+        schema_from_model(Bad)
+
+
+def test_schema_from_model_rejects_non_string_enum_values():
+    """Y8: IntEnum members are not str; must raise naming the field."""
+
+    class Priority(enum.IntEnum):
+        LOW = 1
+        HIGH = 2
+
+    class Bad(BaseModel):
+        priority: Priority = Field(description="priority")
+
+    with pytest.raises(TypeError, match="'priority'"):
+        schema_from_model(Bad)
+
+
+def test_schema_from_model_accepts_strenum():
+    """Y8: enum.StrEnum members are str and must work as enum choices."""
+
+    class Color(enum.StrEnum):
+        RED = "red"
+        GREEN = "green"
+
+    class Ok(BaseModel):
+        color: Color = Field(description="color")
+
+    assert schema_from_model(Ok) == {
+        "color": {"type": "enum", "choices": ["red", "green"], "description": "color"}
+    }
+
+
+def test_choice_values_rejects_duplicate_values_directly():
+    """Y8: the strictness helper rejects duplicates it is handed.
+
+    Tested directly because duplicates cannot reach it through Pydantic:
+    Literal deduplicates at annotation level and Python enums alias members
+    with equal values, so both collapse before _choice_values runs.
+    """
+    from openjev.api import _choice_values
+
+    assert _choice_values("x", ["a", "b"]) == ["a", "b"]
+    with pytest.raises(TypeError, match="duplicate"):
+        _choice_values("x", ["a", "b", "a"])
+    with pytest.raises(TypeError, match="non-string"):
+        _choice_values("x", ["a", 1])
+
+
+def test_clear_engine_cache_is_public_and_idempotent():
+    """Y9: clear_engine_cache exists on the package and is safe to call twice."""
+    assert callable(openjev.clear_engine_cache)
+    openjev.clear_engine_cache()
+    openjev.clear_engine_cache()  # must not raise with nothing cached
+
+
+def test_load_engine_cache_is_single_slot():
+    """Y9: one model in unified memory at a time — maxsize=1."""
+    assert openjev.load_engine.cache_info().maxsize == 1
+
+
 def test_decide_end_to_end():
     class TwoField(BaseModel):
         is_fraudulent: bool = Field(description="Whether the transaction is fraudulent")
