@@ -320,7 +320,19 @@ def run_eval(
         "dataset_path": dataset_path,
         "permutations": permutations if track == "parallel" else "none",
         "split": split,
+        # Provenance (X2): engine metadata + prompt version. Populated for the
+        # parallel track; other tracks leave them None.
+        "model_revision": None,
+        "quantization": None,
+        "prompt_version": None,
     }
+    if track == "parallel" and selected:
+        from jevmlx.engine import PROMPT_VERSION, engine_metadata
+
+        metadata = engine_metadata(config["model"])
+        config["model_revision"] = metadata["revision"]
+        config["quantization"] = metadata["quantization"]
+        config["prompt_version"] = PROMPT_VERSION
     if extra_config:
         config.update(extra_config)
     if chat_template is not None:
