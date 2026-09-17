@@ -19,10 +19,19 @@
 - E1-E2, E-baseline, E-metrics, E-report: eval harness (`jevmlx eval` / `jevmlx report`), TypeSafe fetcher, API naive-JSON baseline.
 - W3: correctness gate merged — token-aligned candidate plans, one scoring objective (token trie), full-precision engine output, strict temperature/memory validation, correct multi-field confidence.
 - X: repo rename (openjev -> jevmlx) and README claims cleanup.
+- V1: prompt v2 + slot-trie default scoring (neutral aliases in the prompt, quoted-alias candidates; labels mode remains opt-in via `--scoring labels`).
+- V2: prior correction — for `null` contexts the engine falls back to the prior distribution instead of forcing a decision.
+- V3: provenance API — per-field `Decision.fields` (probability, score, margin, alternatives, calibration status, scoring mode), per-choice glosses, and `allow_unknown` mapping an UNKNOWN choice to None for Optional fields.
+- V4: multi fields as natural yes/no rows — described options, Y/N aliases, exposed threshold.
+- V5: synthetic labeled cases for the named failure modes, feeding the eval harness.
+- A1: OpenAI-compatible backend — the same slots decision semantics through any logprobs-capable chat endpoint (`jevmlx decide --backend openai`, `openai_slots` eval track), one request per field, top-k renormalisation with explicit truncation flags.
+- D1: `jevmlx doctor` — environment checks before an issue report or a benchmark run.
+- B1: `jevmlx bench` — one command to a complete PR-ready results folder.
+- E-metrics: TypeSafe-comparable metrics — agreement, TVD vs consensus, report table.
+- Docs: BENCHMARKING.md contributing guide, README user guide + table of contents, ARCHITECTURE.md + CONTRIBUTING refresh.
 
 ## Next
 
-- X1-X4 (in progress): docs/claims alignment — README numbers section, ROADMAP restructure, changelog.
 - N1: order-invariance evaluation on the labeled cases, then more labeled data.
 - N3: phase-level latency profile (plan compilation, tokenization, prefill, KV replication, suffix pass, scoring).
 - M2: bigger models on Apple Silicon — Qwen 3.8 27B, Qwen Next Flash, Gemma 4 on an M5 Max; GLM via API as baseline.
