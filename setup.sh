@@ -14,10 +14,7 @@ command -v uv >/dev/null 2>&1 || { echo "uv not found. Install it first: brew in
 echo "==> Creating Python 3.12 environment (.venv)"
 uv venv --python 3.12 .venv
 
-echo "==> Installing mlx-lm (this brings mlx + Metal support)"
-uv pip install --python .venv/bin/python mlx-lm
-
-echo "==> Installing openjev (editable)"
+echo "==> Installing openjev (editable; pulls mlx-lm)"
 uv pip install --python .venv/bin/python -e .
 
 echo
