@@ -179,8 +179,8 @@ json.dump(schema, open("support.json", "w"), indent=1)
 
 Rules: field names must not contain dots (they are used as JSON keys in the
 decision rows); choices within a field must be unique; enums with more than
-16 choices are scored with two-letter alias codes rather than one-letter
-slots; 255 choices is the hard cap per field. `choice_descriptions` are
+26 choices are scored with two-letter alias codes (AA, AB, ...) rather than
+single letters; 255 choices is the hard cap per field. `choice_descriptions` are
 optional per-choice glosses that appear in the prompt — use them when two
 choices are close.
 
@@ -206,11 +206,25 @@ class Support(BaseModel):
 ```
 
 - `bool` → boolean, `Literal[...]` or a str-valued `Enum` → enum,
-  `list[Literal[...]]` → multi. Enum classes can carry per-choice glosses as
-  a `choice_descriptions` dict.
-- `Optional[...]` marks a field as answerable with UNKNOWN ("insufficient
-evidence or none of the options") when the model has no good choice;
-  UNKNOWN maps to Python `None`.
+  `list[Literal[...]]` → multi. Enum classes carry per-choice glosses as a
+  `descriptions` dict class attribute mapping member values to gloss strings:
+
+  ```python
+  class Category(Enum):
+      BILLING = "BILLING"
+      TECHNICAL = "TECHNICAL"
+      ACCOUNT = "ACCOUNT"
+      descriptions = {
+          "BILLING": "invoices, refunds, charges",
+          "TECHNICAL": "outages, bugs, performance",
+          "ACCOUNT": "login, access, profile",
+      }
+  ```
+
+- `Optional[...]` only *permits* the field to be `None`; it does not by
+  itself add an UNKNOWN option. To let a field answer UNKNOWN, declare it
+  Optional **and** call `decide(..., allow_unknown=True)` — UNKNOWN maps to
+  Python `None`.
 - `decide(..., allow_unknown=True)` appends UNKNOWN to *every* enum field;
   when you use it, every enum field must be Optional or decide raises a
   TypeError naming the first offender.
@@ -266,23 +280,25 @@ separate step — `probability` is overconfident by default, and
 
 ### 5. Scoring modes
 
-`--scoring slots` (default) lists each field's choices as neutral lettered
-aliases — `A) <choice> — <gloss>` — in the prompt and scores the alias slot
-tokens through the choice trie. Because the candidates are single letter
-tokens, no two choices can ever share a first token: slot scoring is immune
-to tokenization collisions by construction, at the cost of one extra
-paragraph of prompt.
+`--scoring slots` (default) lists each field's choices as neutral aliases —
+`A) <choice> — <gloss>` — in the prompt and scores the quoted alias
+candidates (`"A"`, `"B"`, ...) through the same token trie as labels mode,
+mapping winners back to the real choice values on assembly. Aliases are
+short, non-colliding tokens, so no two choices can ever share a first
+token: slot scoring is immune to tokenization collisions by construction,
+at the cost of one extra paragraph of prompt.
 
-`--scoring labels` scores the choice text itself as trie branches. Keep it
-when choice *spelling* is informative (distinct keywords the model should
-match on); the failure mode it avoids by costing no prompt space is
-letter-slot position bias — models can prefer early letters (A/B) somewhat
-regardless of content. The failure mode *slots* avoids is spelling bias:
-when choices share long first tokens (`BLOCK_TRANSACTION` vs
+`--scoring labels` scores the real choice text as trie branches, costing no
+extra prompt. Keep it when choice *spelling* is informative (distinct
+keywords the model should match on). The failure mode *slots* avoids is
+spelling bias: when choices share long first tokens (`BLOCK_TRANSACTION` vs
 `BLOCK_USER`), the branch probabilities can be dominated by the shared
-prefix rather than the distinguishing part. `jevmlx validate` reports such
-collisions; as a rule of thumb, run slots when the lint is noisy and labels
-when the choices are few, short, and distinct.
+prefix rather than the distinguishing part. The failure mode *labels*
+avoids nothing extra but its own weakness is alias position bias — models
+can prefer early aliases (A/B) somewhat regardless of content.
+`jevmlx validate` reports such collisions; as a rule of thumb, run slots
+when the lint is noisy and labels when the choices are few, short, and
+distinct.
 
 ### 6. Calibration
 
