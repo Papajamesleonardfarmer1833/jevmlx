@@ -1,0 +1,287 @@
+#!/usr/bin/env python3
+"""Validate a bench results folder: contract, size, report reproducibility.
+
+Usage::
+
+    python -m benchmarks.check_results <results_dir> [<results_dir> ...]
+
+Each ``results_dir`` is a combo folder (predictions.jsonl + run.json +
+report.json + dataset.lock.json) or a parent containing combo folders (the
+``<machine>-<model>/<track>-<scorer>-<dataset>`` layout produced by
+``jevmlx bench``). The checker:
+
+1. Finds every combo folder under the given roots.
+2. For each combo: every predictions.jsonl line has the frozen contract keys
+   (:data:`jevmlx.evalrun.PREDICTION_LINE_KEYS`) with the right types;
+   run.json has the required top-level keys; dataset.lock.json is present;
+   the folder is under 5 MB (predictions may be gzipped).
+3. Recomputes report.json's metrics from predictions.jsonl via
+   :func:`jevmlx.evalmetrics.compute_metrics` and diffs against the
+   committed report.json (numeric tolerance 1e-9).
+4. Prints a SUMMARY table (one row per combo) and exits 1 on any failure
+   with a clear, per-folder list.
+
+No MLX dependency: imports jevmlx.evalmetrics/evalreport only (mlx lives
+inside jevmlx.engine, never imported here), so this runs on ubuntu-latest.
+"""
+
+from __future__ import annotations
+
+import gzip
+import io
+import json
+import math
+import sys
+from pathlib import Path
+
+from jevmlx.bench import MAX_FOLDER_BYTES
+from jevmlx.evalmetrics import compute_metrics
+from jevmlx.evalrun import PREDICTION_LINE_KEYS, RUN_REQUIRED_KEYS
+
+__all__ = ["check_folder", "check_root", "main"]
+
+_NUMERIC_TOLERANCE = 1e-9
+
+
+def _read_predictions_lines(path: Path) -> list[dict]:
+    """Load predictions.jsonl, transparently handling a gzipped file."""
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as f:
+            return [json.loads(line) for line in f if line.strip()]
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def _is_number(value) -> bool:
+    return isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _metrics_match(recomputed: dict, committed: dict, path: str, problems: list[str]) -> bool:
+    """Deep-compare two metrics dicts over numbers (tolerance 1e-9) and exact
+    non-numbers. Returns True when they agree."""
+
+    def walk(r, c, trail: str) -> bool:
+        ok = True
+        if set(r) != set(c):
+            problems.append(f"{trail}: key set mismatch {sorted(r)} != {sorted(c)}")
+            return False
+        for key in r:
+            sub = f"{trail}.{key}" if trail else key
+            rv, cv = r[key], c[key]
+            if isinstance(rv, dict) and isinstance(cv, dict):
+                ok = walk(rv, cv, sub) and ok
+            elif _is_number(rv) and _is_number(cv):
+                if abs(rv - cv) > _NUMERIC_TOLERANCE:
+                    problems.append(f"{sub}: {rv} != {cv} (tol {_NUMERIC_TOLERANCE})")
+                    ok = False
+            elif _is_number(rv) or _is_number(cv):
+                problems.append(f"{sub}: number vs non-number {rv!r} != {cv!r}")
+                ok = False
+            elif rv != cv:
+                problems.append(f"{sub}: {rv!r} != {cv!r}")
+                ok = False
+        return ok
+
+    return walk(recomputed, committed, path)
+
+
+def check_folder(folder: Path) -> tuple[bool, list[str]]:
+    """Validate one combo folder. Returns (ok, problems)."""
+    problems: list[str] = []
+    name = str(folder)
+
+    # Required files.
+    pred_path = folder / "predictions.jsonl"
+    run_path = folder / "run.json"
+    lock_path = folder / "dataset.lock.json"
+    report_path = folder / "report.json"
+    for required, label in (
+        (pred_path, "predictions.jsonl"),
+        (run_path, "run.json"),
+        (lock_path, "dataset.lock.json"),
+        (report_path, "report.json"),
+    ):
+        # predictions.jsonl may be gzipped.
+        if not required.exists() and not Path(str(required) + ".gz").exists():
+            problems.append(f"{name}: missing {label}")
+    if problems:
+        return False, problems
+
+    # Folder size (predictions may be gzipped; the on-disk folder must fit).
+    folder_bytes = sum(p.stat().st_size for p in folder.rglob("*") if p.is_file())
+    if folder_bytes > MAX_FOLDER_BYTES:
+        problems.append(
+            f"{name}: folder is {folder_bytes} bytes (> {MAX_FOLDER_BYTES}); gzip the predictions"
+        )
+
+    # predictions.jsonl contract: every line has the frozen keys with types.
+    actual_pred_path = pred_path if pred_path.exists() else Path(str(pred_path) + ".gz")
+    try:
+        records = _read_predictions_lines(actual_pred_path)
+    except (OSError, json.JSONDecodeError) as e:
+        problems.append(f"{name}: predictions.jsonl unreadable: {e}")
+        return False, problems
+    if not records:
+        problems.append(f"{name}: predictions.jsonl is empty")
+    for index, record in enumerate(records):
+        missing = sorted(set(PREDICTION_LINE_KEYS) - set(record))
+        extra = sorted(set(record) - set(PREDICTION_LINE_KEYS))
+        # perturbation / consensus are optional add-ons, not contract violations.
+        extra = [k for k in extra if k not in ("perturbation", "consensus")]
+        if missing:
+            problems.append(f"{name}: line {index} missing keys {missing}")
+        if extra:
+            problems.append(f"{name}: line {index} unexpected keys {extra}")
+        for key in PREDICTION_LINE_KEYS:
+            if key not in record:
+                continue
+            if not _type_ok(key, record[key]):
+                problems.append(
+                    f"{name}: line {index} key {key!r} wrong type "
+                    f"{type(record[key]).__name__} (value {record[key]!r})"
+                )
+
+    # run.json required keys.
+    try:
+        run = json.loads(run_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        problems.append(f"{name}: run.json unreadable: {e}")
+        run = {}
+    for key in RUN_REQUIRED_KEYS:
+        if key not in run:
+            problems.append(f"{name}: run.json missing top-level key {key!r}")
+
+    # Report reproducibility: recompute metrics and diff against committed.
+    try:
+        committed_report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        problems.append(f"{name}: report.json unreadable: {e}")
+        committed_report = {}
+    if records:
+        recomputed = compute_metrics(records)
+        committed_metrics = committed_report.get("metrics", {})
+        if not _metrics_match(recomputed, committed_metrics, name, problems):
+            pass  # problems already appended by _metrics_match
+
+    return len(problems) == 0, problems
+
+
+def _type_ok(key: str, value) -> bool:
+    """Contract type check for one prediction-line value. None is allowed for
+    every nullable field (latency_ms, log_scores, etc.); the engine writes
+    None when a metric is not computable for that track."""
+    nullable = {
+        "label",
+        "prediction",
+        "log_scores",
+        "per_option",
+        "latency_ms",
+        "rows",
+        "passes",
+        "error",
+        "salvage_prediction",
+        "confidence",
+        "probability",
+        "group_id",
+        "source",
+        "workflow",
+        "type",
+    }
+    if value is None:
+        return key in nullable or key in ("perturbation", "consensus")
+    string_keys = {
+        "run_id",
+        "case_id",
+        "group_id",
+        "source",
+        "workflow",
+        "field",
+        "track",
+        "model",
+        "permutation",
+        "type",
+    }
+    if key in string_keys:
+        return isinstance(value, str)
+    if key in ("valid",):
+        return isinstance(value, bool)
+    if key in ("correct",):
+        return value is None or isinstance(value, bool)
+    if key in ("latency_ms", "rows", "passes", "probability"):
+        return isinstance(value, int | float)
+    if key in ("log_scores", "per_option"):
+        return isinstance(value, dict)
+    if key in ("prediction",):
+        return isinstance(value, str | bool | list)
+    if key in ("error", "salvage_prediction", "label"):
+        return isinstance(value, str | bool | list | int | float)
+    return True  # unknown-but-present optional keys are not type-checked
+
+
+def _find_combo_folders(root: Path) -> list[Path]:
+    """Combo folders under a root: either root itself (has predictions.jsonl)
+    or root/<machine-model>/<combo>/, or root/<combo>/."""
+    if (root / "predictions.jsonl").exists() or (root / "predictions.jsonl.gz").exists():
+        return [root]
+    combos: list[Path] = []
+    for child in sorted(root.iterdir() if root.exists() else []):
+        if not child.is_dir():
+            continue
+        if (child / "predictions.jsonl").exists() or (child / "predictions.jsonl.gz").exists():
+            combos.append(child)
+        else:
+            for grandchild in sorted(child.iterdir()):
+                if grandchild.is_dir() and (
+                    (grandchild / "predictions.jsonl").exists()
+                    or (grandchild / "predictions.jsonl.gz").exists()
+                ):
+                    combos.append(grandchild)
+    return combos
+
+
+def check_root(root: Path) -> list[tuple[Path, bool, list[str]]]:
+    """Validate every combo folder under root. Returns per-folder results."""
+    folders = _find_combo_folders(root)
+    if not folders:
+        return [(root, False, ["no combo folders found under this root"])]
+    results = []
+    for folder in folders:
+        ok, problems = check_folder(folder)
+        results.append((folder, ok, problems))
+    return results
+
+
+def _summary(results: list[tuple[Path, bool, list[str]]]) -> str:
+    """One-line-per-folder summary table."""
+    out = io.StringIO()
+    out.write("| folder | status | checks |\n")
+    out.write("|---|---|---|\n")
+    for folder, ok, problems in results:
+        status = "OK" if ok else "FAIL"
+        n = len(problems) if problems else 0
+        out.write(f"| {folder.name or folder} | {status} | {n} |\n")
+    return out.getvalue()
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = list(argv if argv is not None else sys.argv[1:])
+    if not argv:
+        print("usage: python -m benchmarks.check_results <results_dir> [...]", file=sys.stderr)
+        return 2
+    all_results: list[tuple[Path, bool, list[str]]] = []
+    for arg in argv:
+        all_results.extend(check_root(Path(arg)))
+    print(_summary(all_results))
+    any_fail = False
+    for folder, ok, problems in all_results:
+        if ok:
+            continue
+        any_fail = True
+        print(f"\n{folder}:", file=sys.stderr)
+        for problem in problems:
+            print(f"  - {problem}", file=sys.stderr)
+    return 1 if any_fail else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

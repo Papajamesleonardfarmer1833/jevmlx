@@ -53,6 +53,38 @@ DecideFn = Callable[[dict, str], dict[str, Any]]
 
 logger = logging.getLogger(__name__)
 
+# Frozen prediction-line contract: every line in predictions.jsonl carries
+# exactly these keys (sorted). check_results.py imports this list instead of
+# retyping the contract. (Optional keys perturbation/consensus are added by
+# run_eval only when the case carries them; they are not in the frozen set.)
+PREDICTION_LINE_KEYS: tuple[str, ...] = (
+    "case_id",
+    "correct",
+    "error",
+    "field",
+    "group_id",
+    "label",
+    "latency_ms",
+    "log_scores",
+    "model",
+    "per_option",
+    "passes",
+    "permutation",
+    "prediction",
+    "probability",
+    "rows",
+    "run_id",
+    "salvage_prediction",
+    "source",
+    "track",
+    "type",
+    "valid",
+    "workflow",
+)
+
+# run.json required top-level keys (config and counts are dicts).
+RUN_REQUIRED_KEYS: tuple[str, ...] = ("run_id", "environment", "config", "counts")
+
 
 def make_run_id() -> str:
     """Run id: UTC timestamp + short random suffix (sortable, collision-safe)."""

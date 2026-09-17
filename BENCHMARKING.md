@@ -71,3 +71,7 @@ than 5 MB total are gzipped automatically (the folder README says so).
 - [ ] `SUMMARY.md` pasted into the PR description
 - [ ] Machine specs (chip, RAM, macOS) mentioned in the PR body
 - [ ] No hand-edited numbers — recompute instead of fixing up
+- [ ] `results-check` CI workflow is green (runs `python -m
+      benchmarks.check_results` on the changed folders: contract keys, folder
+      size, dataset lock, and report reproducibility — all must pass before
+      merge)

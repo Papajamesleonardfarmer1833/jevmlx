@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from jevmlx.engine import clear_engine_cache, load_engine
 from jevmlx.evalmetrics import compute_metrics, load_predictions
 from jevmlx.evalreport import environment, write_report
 from jevmlx.evalrun import parallel_decide_fn, run_eval
@@ -283,6 +282,8 @@ def run_bench(
 
         # One model load per track group is enough; drop it between tracks so
         # memory returns to baseline before the next track's runs.
+        from jevmlx.engine import clear_engine_cache
+
         clear_engine_cache()
 
     summarize(folder)
@@ -390,6 +391,8 @@ def parse_models_file(path: Path) -> list[str]:
 def _run_one(model: str, track: str, scorer: str, jsonl: Path, combo_dir: Path) -> dict:
     """One eval run (in-process) + metrics + report, into combo_dir."""
     cases = _load_cases(jsonl)
+    from jevmlx.engine import load_engine
+
     model_obj, tokenizer = load_engine(model)
     chat_template = getattr(tokenizer, "chat_template", None)
 
