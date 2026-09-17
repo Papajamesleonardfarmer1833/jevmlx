@@ -22,7 +22,8 @@ def make_handler(decide_fn: Callable[[dict, str, Optional[float]], dict], model_
     """
 
     class Handler(BaseHTTPRequestHandler):
-        # ponytail: serial server, one Metal GPU; queue/batching if concurrency matters
+        # Serial by design: one Metal GPU, so requests are processed one at a
+        # time. Revisit with a queue/batching layer only if concurrency matters.
 
         def _send(self, code: int, payload: dict) -> None:
             body = json.dumps(payload, default=str).encode("utf-8")
