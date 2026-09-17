@@ -51,7 +51,7 @@ def schema_from_model(model_cls: type[BaseModel]) -> dict:
     for name, info in model_cls.model_fields.items():
         ann = info.annotation
         origin = typing.get_origin(ann)
-        if ann is bool or origin is bool:
+        if ann is bool:
             schema[name] = {"type": "boolean", "description": _description(name, info)}
         elif origin is typing.Literal:
             schema[name] = {

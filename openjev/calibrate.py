@@ -108,9 +108,8 @@ def load_cases(path: str) -> list:
     return cases
 
 
-def accuracy(samples: Sequence[Sample], t: float = 1.0) -> float:
-    """Argmax-over-raw-scores accuracy at temperature t (argmax is T-invariant
-    for a single field, but kept for explicit reporting)."""
+def accuracy(samples: Sequence[Sample]) -> float:
+    """Fraction of samples whose argmax choice matches the label."""
     if not samples:
         return 0.0
     hits = sum(1 for s, y in samples if max(range(len(s)), key=lambda i: s[i]) == y)
