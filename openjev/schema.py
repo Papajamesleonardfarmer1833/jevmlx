@@ -191,10 +191,27 @@ class StructuredSchema:
                             "identical true/false candidates; the engine cannot "
                             "distinguish them"
                         )
+                    # Same rule as enums (R5): a strict-prefix continuation can
+                    # never be distinguished by branch scoring.
+                    if len(option_remainders[0]) < len(option_remainders[1]):
+                        shorter, longer = option_remainders
+                        short_name, long_name = "true", "false"
+                    else:
+                        shorter, longer = option_remainders[1], option_remainders[0]
+                        short_name, long_name = "false", "true"
+                    if longer[: len(shorter)] == shorter:
+                        raise ValueError(
+                            f"field '{fname}': option '{option}' has a strict "
+                            f"token-prefix continuation ({short_name} is a prefix of "
+                            f"{long_name} in token space); the engine would never "
+                            "distinguish them"
+                        )
                     suffix_ids_list.append(option_shared)
                     remainders_per_option.append(option_remainders)
                 plan[fname] = {
                     "options": list(fdef.choices),
+                    # Stored WITHOUT the schema-wide lead-in; the engine
+                    # prepends it to every row (one rule for all row types).
                     "suffix_ids_list": suffix_ids_list,
                     "remainders": remainders_per_option,
                 }
@@ -249,6 +266,14 @@ class StructuredSchema:
         # where '{\n' fuses with the field name): the engine then runs one row
         # per field with no broadcast prefix — each row still carries that
         # field's full shared_ids.
+        # Apply the same strip to multi option prefixes so the engine can
+        # prepend lead_in uniformly to every row (R1: one rule for all rows).
+        for p in plan.values():
+            if "suffix_ids_list" in p and lead_in:
+                p["suffix_ids_list"] = [
+                    ids[len(lead_in) :] if ids[: len(lead_in)] == lead_in else ids
+                    for ids in p["suffix_ids_list"]
+                ]
         for p in plan.values():
             if "shared_ids" in p:
                 p["shared_ids"] = p["shared_ids"][len(lead_in) :]

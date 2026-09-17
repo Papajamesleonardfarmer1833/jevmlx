@@ -320,3 +320,74 @@ def test_single_choice_enum_scores_one_point_oh():
     scores = score_trie(nodes, 1, lambda node: [])
     assert scores == [0.0]
     assert softmax(scores)[0] == pytest.approx(1.0)
+
+
+def test_mixed_schema_rows_carry_lead_in_exactly_once():
+    """R1: every row (enum, boolean, multi) starts with the lead-in exactly once."""
+    from openjev.trie import build_trie as _bt
+
+    tok = NonCompositionalTokenizer()
+    schema = StructuredSchema(
+        {
+            "flag": {"type": "boolean", "description": "d"},
+            "action": {"type": "enum", "description": "d", "choices": ["LOW", "LOWER"]},
+            "flags": {
+                "type": "multi",
+                "description": "d",
+                "choices": ["opt_a", "opt_b"],
+            },
+        }
+    )
+    plan = schema.compile_batch_plan(tok)
+    lead_in = plan["_lead_in_ids"]
+    assert lead_in, "fake tokenizer must produce a shared lead-in"
+
+    # Assemble the rows exactly like the engine does.
+    rows: list[list[int]] = []
+    for p in plan.values():
+        if not isinstance(p, dict):
+            continue
+        if "options" in p:
+            rows.extend(lead_in + list(s) for s in p["suffix_ids_list"])
+        elif "remainders" in p:
+            trie_nodes = _bt(p["remainders"])
+            rows.extend(lead_in + list(p["shared_ids"]) + list(n["path"]) for n in trie_nodes)
+
+    assert rows, "mixed schema must produce rows"
+    for row in rows:
+        assert row[: len(lead_in)] == lead_in
+        assert row[len(lead_in) : len(lead_in) * 2] != lead_in  # not duplicated
+    # And the enum candidate must still round-trip to its full text.
+    p = plan["action"]
+    full = lead_in + p["shared_ids"] + p["remainders"][0]
+    assert full == tok.encode('{\n  "action": "LOW",\n')
+
+
+def test_multi_option_strict_prefix_pair_rejected():
+    """R5: an option whose true/false continuations are prefix-related raises."""
+    from openjev.schema import StructuredSchema as _SS
+
+    class PrefixPair(NonCompositionalTokenizer):
+        name_or_path = "fake-prefix-pair"
+
+        def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+            base = super().encode(text, add_special_tokens)
+            # Make option_a's 'true' candidate a strict token-prefix of its
+            # 'false' candidate: encode 'true' as the 'false' candidate minus
+            # its last token.
+            if ".opt_a" in text and "true" in text:
+                false_cand = self.encode(text.replace("true", "false"), add_special_tokens)
+                return false_cand[:-1]
+            return base
+
+    schema = _SS(
+        {
+            "flags": {
+                "type": "multi",
+                "description": "d",
+                "choices": ["opt_a", "opt_b"],
+            }
+        }
+    )
+    with pytest.raises(ValueError, match="strict"):
+        schema.compile_batch_plan(PrefixPair())

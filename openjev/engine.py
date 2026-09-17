@@ -174,8 +174,10 @@ def run_naive_generation(
         "Analyze the following context and generate the required formatted JSON object "
         "(only valid JSON, 2-space indentation, no markdown):\n\n"
         f"{context}",
-        assistant_prefix="{\n  ",
     )
+    # Naive generation writes the JSON itself, so its assistant prefix stays
+    # part of the prompt (it does not use candidate-aligned rows).
+    prompt_ids = prompt_ids + tokenizer.encode("{\n  ", add_special_tokens=False)
     input_ids = mx.array(prompt_ids)[None]
 
     t0 = time.perf_counter()
@@ -306,8 +308,9 @@ def run_parallel_generation(
     for fname in schema.fields:
         p = plan[fname]
         if "options" in p:
-            # multi: one boolean row per option (its per-option shared prefix,
-            # which ends right before the option's true/false divergence).
+            # multi: one boolean row per option. suffix_ids_list entries are
+            # stored WITHOUT the schema-wide lead-in (one rule for every row
+            # type), so the lead-in is prepended exactly once here.
             for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
                 rows.append(lead_in + list(suffix_ids))
                 row_field.append(fname)
@@ -349,8 +352,6 @@ def run_parallel_generation(
     bytes_per_row += width_max * vocab_size * 4
     weight_bytes = _model_weight_bytes(model)
     budget = max(1, _max_recommended_working_set() // 2 - weight_bytes)
-    if max_rows is not None:
-        budget = bytes_per_row * max_rows
     auto_max_rows = _rows_per_chunk(budget, bytes_per_row, max_rows)
     num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
     if num_passes > 1:
@@ -419,7 +420,7 @@ def run_parallel_generation(
 
     for fname, fdef in schema.fields.items():
         p = plan[fname]
-        idxs = field_rows[fname]
+        idxs = field_rows.get(fname, [])
 
         if "options" in p:
             # multi: one-vs-rest classification — each option is an independent
@@ -455,6 +456,24 @@ def run_parallel_generation(
             }
             continue
 
+        choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
+
+        if not idxs:
+            # Cardinality-1 enum: no branch points, no rows — the value is
+            # fully determined by the schema (R2/R7: P = 1.0, log_score = 0).
+            val = choices_list[0]
+            parsed_json[fname] = {"value": val, "prob": 1.0}
+            field_telemetry[fname] = {
+                "value": val,
+                "type": fdef.field_type,
+                "confidence": 1.0,
+                "cardinality": fdef.cardinality,
+                "log_scores": {choices_list[0]: 0.0},
+                "top_choices": [{"choice": choices_list[0], "probability": 1.0}],
+                "rows": 0,
+            }
+            continue
+
         field_trie = tries[fname]
         n_choices = fdef.cardinality
 
@@ -479,7 +498,6 @@ def run_parallel_generation(
         w_idx = max(range(n_choices), key=probs_list.__getitem__)
         w_prob = probs_list[w_idx]
 
-        choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
         val = (
             (choices_list[w_idx].lower() == "true")
             if fdef.field_type == "boolean"

@@ -3,7 +3,7 @@ import math
 import pytest
 
 from openjev.cli import load_preset
-from openjev.engine import load_engine, run_parallel_generation
+from openjev.engine import load_engine, run_naive_generation, run_parallel_generation
 from openjev.schema import StructuredSchema
 from openjev.trie import build_trie
 
@@ -137,3 +137,48 @@ def test_multi_field_returns_subset(engine):
     selected = value
     if selected:
         assert telemetry["confidence"] == min(telemetry["per_option"][o] for o in selected)
+
+
+@pytest.mark.slow
+def test_mixed_schema_multi_not_collapsed(engine):
+    """R1 slow: boolean + enum + multi on the support-triage context.
+
+    The multi per_option values must not all sit near 0.5 (the duplicated
+    lead-in would put the branch at the wrong position) and the multi value
+    must be a sensible subset for a clearly-technical request.
+    """
+    model, tokenizer = engine
+    preset = load_preset("support_triage")
+    schema_dict = dict(preset["schema"])
+    schema_dict["extra_flags"] = {
+        "type": "multi",
+        "description": "every statement that applies to this ticket",
+        "choices": ["technical_issue", "billing_issue", "account_issue"],
+    }
+    schema = StructuredSchema(schema_dict)
+    result = run_parallel_generation(model, tokenizer, preset["context"], schema)
+
+    telemetry = result["field_telemetry"]["extra_flags"]
+    per_option = telemetry["per_option"]
+    assert per_option["technical_issue"] > 0.5  # the context is clearly technical
+    assert any(abs(p - 0.5) > 0.05 for p in per_option.values())
+    assert "technical_issue" in result["parsed_json"]["extra_flags"]["value"]
+
+
+@pytest.mark.slow
+def test_naive_generation_returns_parseable_text(engine):
+    """R3: run_naive_generation must stay callable after the boundary change."""
+    import json as _json
+
+    model, tokenizer = engine
+    preset = load_preset("fintech_fraud")
+    schema = StructuredSchema(preset["schema"])
+    result = run_naive_generation(model, tokenizer, preset["context"], schema, max_tokens=200)
+
+    assert result["mode"] == "naive_autoregressive"
+    assert isinstance(result["raw_text"], str) and result["raw_text"].startswith("{")
+    # Whatever the model produced, the harness must not crash; parsed_json may
+    # be None if the model rambles past 200 tokens, but no exception escapes.
+    assert result["is_valid_json"] in (True, False)
+    if result["is_valid_json"]:
+        _json.loads(result["raw_text"])

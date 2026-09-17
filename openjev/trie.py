@@ -65,25 +65,41 @@ def build_trie(remainders: list[list[int]]) -> list[dict]:
     return branch_nodes
 
 
+def _validate_finite(values: list[float]) -> None:
+    """Raise ValueError if any value is NaN or infinite."""
+    for value in values:
+        if not math.isfinite(value):
+            raise ValueError(f"non-finite value in logits: {values!r}")
+
+
 def logsumexp(values: list[float]) -> float:
-    """Numerically stable log-sum-exp."""
+    """Numerically stable log-sum-exp over finite values."""
+    _validate_finite(values)
     largest = max(values)
     return largest + math.log(sum(math.exp(v - largest) for v in values))
 
 
 def log_softmax(values: list[float]) -> list[float]:
-    """Numerically stable log-softmax (never takes log(0))."""
+    """Numerically stable log-softmax over finite values (never log(0))."""
     lse = logsumexp(values)
     return [v - lse for v in values]
 
 
 def softmax(values: list[float], temperature: float = 1.0) -> list[float]:
-    """Numerically stable softmax; temperature must be finite and > 0."""
+    """Numerically stable softmax over finite values.
+
+    Scales BEFORE the max shift ((v / T) - max(v / T)), so the exponent
+    argument never exceeds 0: no overflow for any finite logits and any
+    finite positive temperature. Temperature must be finite and > 0.
+    """
     if not math.isfinite(temperature) or temperature <= 0:
         raise ValueError(f"temperature must be a finite number > 0, got {temperature!r}")
+    _validate_finite(values)
     scaled = [v / temperature for v in values]
-    lse = logsumexp(scaled)
-    return [math.exp(v - lse) for v in scaled]
+    largest = max(scaled)
+    exps = [math.exp(v - largest) for v in scaled]
+    total = sum(exps)
+    return [e / total for e in exps]
 
 
 def score_trie(
