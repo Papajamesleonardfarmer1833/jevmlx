@@ -86,16 +86,16 @@ def _broadcast_cache(cache, batch: int):
     return b_cache
 
 
-def _chat_ids(tokenizer, user_content: str, assistant_prefix: str = "{\n") -> list:
-    """Apply the model's own chat template to a single user message, then append
-    the assistant JSON prefix as tokens (specials like BOS are added exactly once,
-    by the template)."""
-    prompt_ids = tokenizer.apply_chat_template(
+def _chat_ids(tokenizer, user_content: str) -> list:
+    """Apply the model's own chat template to a single user message (specials
+    like BOS are added exactly once, by the template). The prompt ends exactly
+    at the generation marker; the assistant JSON tail belongs to the candidate
+    tokenization, not the prompt."""
+    return tokenizer.apply_chat_template(
         [{"role": "user", "content": user_content}],
         add_generation_prompt=True,
         tokenize=True,
     )
-    return prompt_ids + tokenizer.encode(assistant_prefix, add_special_tokens=False)
 
 
 def _stop_token_ids(tokenizer) -> set:
@@ -302,30 +302,29 @@ def run_parallel_generation(
     row_branch: dict[int, int] = {}  # row idx -> branch-node index within its field
     row_option: dict[int, int] = {}  # row idx -> option index (multi fields only)
     tries: dict[str, list[dict]] = {}
+    lead_in = plan["_lead_in_ids"]
     for fname in schema.fields:
         p = plan[fname]
         if "options" in p:
-            # multi: one boolean row per option (true/false remainders from the
-            # token-aligned plan, scored at the option suffix's last position).
+            # multi: one boolean row per option (its per-option shared prefix,
+            # which ends right before the option's true/false divergence).
             for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
-                rows.append(list(suffix_ids))
+                rows.append(lead_in + list(suffix_ids))
                 row_field.append(fname)
                 row_option[len(rows) - 1] = oi
             continue
         field_trie = build_trie(p["remainders"])
         tries[fname] = field_trie
         for bi, node in enumerate(field_trie):
-            rows.append(list(p["shared_ids"]) + list(node["path"]))
+            rows.append(lead_in + list(p["shared_ids"]) + list(node["path"]))
             row_field.append(fname)
             row_branch[len(rows) - 1] = bi
 
-    # 2. Prefill once (compact schema catalog + context).
+    # 2. Prefill once (compact schema catalog + context). The prompt ends at
+    #    the chat template's generation marker; '{\n' and everything after is
+    #    part of the candidate rows (T3 boundary alignment).
     schema_str = schema.to_parallel_schema_str()
-    base_ids = _chat_ids(
-        tokenizer,
-        f"Classify JSON attributes:\n{schema_str}\n\n{context}",
-        assistant_prefix="{\n",
-    )
+    base_ids = _chat_ids(tokenizer, f"Classify JSON attributes:\n{schema_str}\n\n{context}")
     base_arr = mx.array(base_ids)[None]
 
     t_pre0 = time.perf_counter()
@@ -394,14 +393,15 @@ def run_parallel_generation(
             p = plan[row_field[ridx]]
             if ridx in row_option:
                 # multi option row: true/false logits at the option row's last
-                # position (the shared prefix ends right before the divergence).
-                lg = out[i, len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
+                # position (the row ends right before the true/false divergence).
+                lg = out[i, len(lead_in) + len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
                 option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][row_option[ridx]]]
             else:
                 # Branch-node row: child logits at the node's last position,
                 # in node["children"] order.
                 node = tries[row_field[ridx]][row_branch[ridx]]
-                lg = out[i, len(p["shared_ids"]) + len(node["path"]) - 1, :]
+                position = len(lead_in) + len(p["shared_ids"]) + len(node["path"]) - 1
+                lg = out[i, position, :]
                 node_logits[ridx] = {row_branch[ridx]: [float(lg[tok]) for tok in node["children"]]}
         del out
 
@@ -422,9 +422,12 @@ def run_parallel_generation(
         idxs = field_rows[fname]
 
         if "options" in p:
-            # multi: one boolean decision per option. Each option's two
-            # remainders form a 2-leaf trie; its logit pair is the root's
-            # children, softmaxed at the option suffix's decision position.
+            # multi: one-vs-rest classification — each option is an independent
+            # binary decision ("does this option apply?"), scored at the
+            # option's own true/false divergence. per_option holds independent
+            # binary probabilities (NOT a subset distribution); 'confidence'
+            # is the weakest binary decision (see _fold_multi), not the
+            # probability of the selected subset. calibrate skips multi fields.
             probs_true = {}
             for oi, ridx in enumerate(idxs):
                 pair = option_pair[ridx]
@@ -469,13 +472,10 @@ def run_parallel_generation(
         ) -> list[float]:
             return _lookup[_index[id(node)]]
 
-        scores = score_trie(
-            field_trie,
-            n_choices,
-            logits_at_node,
-            temperature=temperature,
-        )
-        probs_list = [math.exp(lp) for lp in scores]
+        scores = score_trie(field_trie, n_choices, logits_at_node)
+        # Confidence temperature applied once to the final per-choice scores
+        # (softmax(scores / T)): ranking is invariant, calibrate.py fits this T.
+        probs_list = softmax(scores, temperature=temperature)
         w_idx = max(range(n_choices), key=probs_list.__getitem__)
         w_prob = probs_list[w_idx]
 
@@ -528,6 +528,10 @@ def run_parallel_generation(
         "total_tokens_generated": 0,
         "sequential_forward_passes": num_passes,
         "schema_match": True,  # keys/enums guaranteed by construction; bench_model comparison
+        # The per-choice probabilities are the constrained path probability
+        # (product of masked branch softmaxes), not a normalized full-sequence
+        # likelihood and not automatically calibrated.
+        "confidence_model": "constrained_path",
         "parsed_json": parsed_json,
         "field_telemetry": field_telemetry,
         "num_fields": len(schema),

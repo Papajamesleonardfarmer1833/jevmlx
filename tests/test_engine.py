@@ -67,11 +67,14 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
     for fname in full["parsed_json"]:
         assert full["parsed_json"][fname]["value"] == chunked["parsed_json"][fname]["value"], fname
 
-    # Rows: 1 per field, one extra per trie branch point for fields whose
-    # choice continuations share tokens. Pass count must match
-    # ceil(rows / max_rows).
+    # Rows: one per trie branch point for enum/boolean fields, one per option
+    # for multi fields. Pass count must match ceil(rows / max_rows).
     plan = schema.compile_batch_plan(tokenizer)
-    expected_rows = sum(len(build_trie(p["remainders"])) for p in plan.values())
+    expected_rows = sum(
+        len(build_trie(p["remainders"])) if "options" not in p else len(p["options"])
+        for p in plan.values()
+        if isinstance(p, dict) and "remainders" in p
+    )
     assert chunked["sequential_forward_passes"] == math.ceil(expected_rows / 5)
     assert full["sequential_forward_passes"] == 1
 

@@ -28,6 +28,9 @@ class NonCompositionalTokenizer:
     _SPECIAL = (("LOWER", [999]), ("LOW", [7]), ("ER", [8]))
 
     def encode(self, text: str, add_special_tokens: bool = False) -> list[int]:
+        # Structural text ({, newline, quotes, spaces, , : , \n) tokenizes
+        # char-wise; only the value words map to special (non-compositional)
+        # token sequences.
         out: list[int] = []
         i = 0
         while i < len(text):
@@ -58,16 +61,21 @@ def test_plan_uses_full_sequence_tokenization():
     schema = StructuredSchema(
         {"action": {"type": "enum", "description": "d", "choices": ["LOW", "LOWER"]}}
     )
-    plan = schema.compile_batch_plan(NonCompositionalTokenizer())
+    tok = NonCompositionalTokenizer()
+    plan = schema.compile_batch_plan(tok)
     remainders = plan["action"]["remainders"]
-    # '  "action": "LOW"'  -> ... [7, _QUOTE]      (LOW then the closing quote)
-    # '  "action": "LOWER"' -> ... [999, _QUOTE]   (single LOWER token, quote)
-    # The old character-prefix plan would have produced token 8 (ER) somewhere.
-    assert remainders == [[7, _QUOTE], [999, _QUOTE]]
+    # '  "action": "LOW"'+',\n' -> [7, _QUOTE, comma, newline]
+    # '  "action": "LOWER"'+',\n' -> [999, _QUOTE, comma, newline]
+    # (LOWER is ONE token; the old character-prefix plan would have produced
+    # token 8 (ER) somewhere and missed the terminator.)
+    assert remainders == [[7, _QUOTE, 44, 10], [999, _QUOTE, 44, 10]]
     flat = [t for remainder in remainders for t in remainder]
     assert 8 not in flat
-    assert plan["action"]["shared_ids"][-1] == _QUOTE - 1 or True  # shared is the JSON lead-in
-    assert 999 not in plan["action"]["shared_ids"]
+    # The shared lead-in is the '{\n  "action": "' structure, kept out of
+    # shared_ids as the schema-wide prefix (the engine's prefill tail).
+    assert plan["_lead_in_ids"] == tok.encode('{\n  "action": "')
+    assert plan["action"]["shared_ids"] == []
+    assert 999 not in plan["_lead_in_ids"]
 
 
 def test_plan_cache_is_per_tokenizer():
@@ -75,14 +83,17 @@ def test_plan_cache_is_per_tokenizer():
     schema = StructuredSchema(
         {"action": {"type": "enum", "description": "d", "choices": ["LOW", "LOWER"]}}
     )
-    plan_a = schema.compile_batch_plan(NonCompositionalTokenizer())
-    plan_b = schema.compile_batch_plan(OtherTokenizer())
-    assert plan_a["action"]["remainders"] == [[7, _QUOTE], [999, _QUOTE]]
-    assert plan_b["action"]["remainders"] == [[3, _QUOTE], [555, _QUOTE]]
-    # Both plans stay cached on the schema, keyed by tokenizer identity.
+    # Keep the tokenizer instances alive: the cache is weakref-keyed, so a
+    # dead tokenizer's entry disappears with it.
+    tok_a = NonCompositionalTokenizer()
+    tok_b = OtherTokenizer()
+    plan_a = schema.compile_batch_plan(tok_a)
+    plan_b = schema.compile_batch_plan(tok_b)
+    assert plan_a["action"]["remainders"] == [[7, _QUOTE, 44, 10], [999, _QUOTE, 44, 10]]
+    assert plan_b["action"]["remainders"] == [[3, _QUOTE, 44, 10], [555, _QUOTE, 44, 10]]
     assert len(schema._plans) == 2
-    assert schema.compile_batch_plan(NonCompositionalTokenizer()) is plan_a
-    assert schema.compile_batch_plan(OtherTokenizer()) is plan_b
+    assert schema.compile_batch_plan(tok_a) is plan_a
+    assert schema.compile_batch_plan(tok_b) is plan_b
 
 
 def test_trie_rows_branch_vs_distinct():
@@ -139,16 +150,13 @@ def test_trie_probabilities_match_manual_computation():
     probs = [math.exp(lp) for lp in scores]
     assert sum(probs) == pytest.approx(1.0, abs=1e-12)
 
-    # Temperature rescales every branch softmax.
-    hot = score_trie(nodes, 3, lambda node: by_path[tuple(node["path"])], temperature=2.0)
-    lse_root_hot = math.log(math.exp(0.5) + math.exp(1.0))
-    lse_split_hot = math.log(math.exp(0.25) + math.exp(-0.25))
-    expected_hot = [
-        0.5 - lse_root_hot,
-        1.0 - lse_root_hot + 0.25 - lse_split_hot,
-        1.0 - lse_root_hot - 0.25 - lse_split_hot,
-    ]
-    assert hot == pytest.approx(expected_hot, abs=1e-12)
+    # Temperature applies ONCE to the final scores (softmax(scores / T));
+    # per-branch softmax stays at T=1, so ranking is invariant to T.
+    probs_hot = softmax(scores, temperature=2.0)
+    raw = [math.exp(e / 2.0) for e in expected]
+    z = sum(raw)
+    assert probs_hot == pytest.approx([p / z for p in raw], abs=1e-12)
+    assert max(range(3), key=probs.__getitem__) == max(range(3), key=probs_hot.__getitem__)
 
 
 def test_softmax_temperature():
@@ -194,13 +202,32 @@ def test_choice_with_double_quote_is_json_escaped():
         }
     )
     plan = schema.compile_batch_plan(tok)
+    lead_in = plan["_lead_in_ids"]
     shared = plan["quote"]["shared_ids"]
     remainders = plan["quote"]["remainders"]
 
-    expected_escaped = tok.encode('  "quote": "say \\"hi\\""')
-    assert shared + remainders[0] == expected_escaped
+    bs_quote = chr(92) + chr(34)  # backslash + double quote, the JSON escape
+    candidate_text = (
+        chr(123)
+        + chr(10)
+        + "  "
+        + chr(34)
+        + "quote"
+        + chr(34)
+        + ": "
+        + chr(34)
+        + "say "
+        + bs_quote
+        + "hi"
+        + bs_quote
+        + chr(34)
+        + ","
+        + chr(10)
+    )
+    expected_escaped = tok.encode(candidate_text)
+    assert lead_in + shared + remainders[0] == expected_escaped
     # A naive f-string candidate (invalid JSON) would tokenize differently.
-    assert tok.encode('  "quote": "say ""hi"""') != expected_escaped
+    assert tok.encode('{\n  "quote": "say ""hi"""\n') != expected_escaped
 
 
 def test_strict_token_prefix_remainder_rejected():
@@ -256,3 +283,40 @@ def test_choice_that_is_token_prefix_of_another_is_rejected():
     )
     with pytest.raises(ValueError, match="strict token-prefix"):
         schema.compile_batch_plan(Nested())
+
+
+def test_score_trie_rejects_non_finite_logits():
+    """T6: NaN/inf logits raise ValueError naming the branch node."""
+    nodes = build_trie([[1], [2]])
+    with pytest.raises(ValueError, match="non-finite"):
+        score_trie(nodes, 2, lambda node: [float("nan"), 1.0])
+
+
+def test_score_trie_tiny_temperature_ranking_invariant():
+    """T5/T6: temperature applied once to final scores; T=1e-3 keeps ranking."""
+    remainders = [[1], [2, 3], [2, 4]]
+    nodes = build_trie(remainders)
+    tables = [[1.0, 2.0], [0.5, -0.5]]
+    by_path = {tuple(n["path"]): v for n, v in zip(nodes, tables, strict=True)}
+    scores = score_trie(nodes, 3, lambda node: by_path[tuple(node["path"])])
+
+    probs_t1 = softmax(scores)
+    probs_tiny = softmax(scores, temperature=1e-3)
+    assert all(math.isfinite(p) for p in probs_t1)
+    assert all(math.isfinite(p) for p in probs_tiny)
+    winner = max(range(3), key=probs_t1.__getitem__)
+    assert winner == max(range(3), key=probs_tiny.__getitem__)
+
+
+def test_single_choice_enum_scores_one_point_oh():
+    """T7: cardinality-1 enum -> P=1.0, no branch rows, no crash."""
+    schema = StructuredSchema({"only": {"type": "enum", "description": "d", "choices": ["ONLY"]}})
+    tok = NonCompositionalTokenizer()
+    plan = schema.compile_batch_plan(tok)
+    remainders = plan["only"]["remainders"]
+    assert len(remainders) == 1
+    nodes = build_trie(remainders)
+    assert nodes == []  # single leaf: no branch points
+    scores = score_trie(nodes, 1, lambda node: [])
+    assert scores == [0.0]
+    assert softmax(scores)[0] == pytest.approx(1.0)

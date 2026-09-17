@@ -5,6 +5,7 @@ Supports booleans, categorical enums (cardinality up to 255), and multi fields
 """
 
 import json
+import weakref
 from typing import Any
 
 
@@ -80,9 +81,12 @@ class StructuredSchema:
                 description=spec.get("description", ""),
                 choices=spec.get("choices", None),
             )
-        # Compiled plans, keyed by tokenizer identity: one schema object can be
-        # reused with several models, and token IDs are tokenizer-specific.
-        self._plans: dict[str, dict[str, Any]] = {}
+        # Compiled plans, keyed by tokenizer object identity (weakref so the
+        # cache never keeps a tokenizer alive; dict-by-id fallback for objects
+        # that cannot be weakly referenced). One schema object can be reused
+        # with several models, and token IDs are tokenizer-specific.
+        self._plans: weakref.WeakKeyDictionary[Any, dict[str, Any]] = weakref.WeakKeyDictionary()
+        self._plans_by_id: dict[int, dict[str, Any]] = {}
 
     def get_field_names(self) -> list[str]:
         return list(self.fields.keys())
@@ -123,46 +127,49 @@ class StructuredSchema:
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
-    def _tokenizer_key(self, tokenizer) -> str:
-        """Stable cache key for one tokenizer identity."""
-        name = getattr(tokenizer, "name_or_path", None) or repr(type(tokenizer))
-        try:
-            size = str(len(tokenizer))
-        except TypeError:
-            size = ""
-        return f"{name}:{size}"
-
     def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
         """Pre-index everything the engine needs for the batched suffix pass.
 
-        Token-aligned: every choice is encoded as its complete, JSON-escaped
-        row candidate (``  "name": "choice"`` including the closing quote;
-        the bare literal for booleans) in one tokenization pass, then the
-        field's shared token prefix and per-choice remainders are computed on
-        token IDs. Encoding the prefix and the remainder separately would be
+        Token-aligned at both boundaries: every choice is encoded as ONE
+        tokenization of its complete assistant-tail candidate — ``{\n`` + the
+        JSON row text + ``,\n`` (the row text being ``  "name": "choice"``
+        or the bare literal, built with json.dumps so quotes and backslashes
+        survive). Tokenizing a prefix and its remainder separately would be
         wrong: BPE merges are not compositional, so the concatenated ids would
-        not be the tokenization of the full candidate.
+        not be the tokenization of the full candidate. The prefill prompt ends
+        exactly at the chat template's generation marker; ``{\n`` belongs to
+        the candidate tail, not the prompt.
 
         Per enum/boolean field the plan carries ``shared_ids`` (the common
-        token-ID prefix of all candidates) and per-choice ``remainders``.
+        token-ID prefix across the candidates of ALL fields — typically the
+        ``{\n  "`` lead-in) and per-choice ``remainders``.
         Per multi field it carries one ``suffix_ids_list`` entry per option —
         that option's shared token prefix (everything before its true/false
         divergence, i.e. the row the engine runs) — and ``remainders`` with
         the option's two true/false continuations. Plans are cached per
         tokenizer identity (name_or_path + vocab size).
         """
-        key = self._tokenizer_key(tokenizer)
-        cached = self._plans.get(key)
+        try:
+            cached = self._plans.get(tokenizer)  # weakref: keyed by object identity
+        except TypeError:
+            # Tokenizer is not weak-referenceable: fall back to id(), relying
+            # on the caller keeping the tokenizer alive for the session.
+            cached = self._plans_by_id.get(id(tokenizer))
         if cached is not None:
             return cached
 
         plan: dict[str, dict[str, Any]] = {}
+
+        def candidate_text(name: str, value_text: str) -> str:
+            """The complete assistant tail for one row: '{\n' + row + ',\n'."""
+            return "{\n" + f"  {json.dumps(name)}: {value_text}" + ",\n"
+
         for fname, fdef in self.fields.items():
             if fdef.field_type == "multi":
                 # One boolean row per option, scored where true/false diverge.
                 # The plan is built PER OPTION from that option's own candidate
                 # pair: shared = everything up to the true/false divergence
-                # (the option's suffix plus any common token start of
+                # (the option's full row lead-in plus any common token start of
                 # 'true'/'false'), remainders = the two continuations. A single
                 # cross-option prefix would put branch nodes at the option-name
                 # position and read the true/false logits at the wrong spot.
@@ -171,7 +178,7 @@ class StructuredSchema:
                 for option in fdef.choices:
                     pair = [
                         tokenizer.encode(
-                            f"  {json.dumps(f'{fname}.{option}')}: {literal}",
+                            candidate_text(f"{fname}.{option}", literal),
                             add_special_tokens=False,
                         )
                         for literal in ("true", "false")
@@ -194,17 +201,13 @@ class StructuredSchema:
                 continue
 
             if fdef.field_type == "boolean":
-                candidates = [
-                    tokenizer.encode(f"  {json.dumps(fname)}: {literal}", add_special_tokens=False)
-                    for literal in ("true", "false")
-                ]
+                value_texts = ["true", "false"]
             else:
-                candidates = [
-                    tokenizer.encode(
-                        f"  {json.dumps(fname)}: {json.dumps(choice)}", add_special_tokens=False
-                    )
-                    for choice in fdef.choices
-                ]
+                value_texts = [json.dumps(choice) for choice in fdef.choices]
+            candidates = [
+                tokenizer.encode(candidate_text(fname, value_text), add_special_tokens=False)
+                for value_text in value_texts
+            ]
 
             shared = _common_token_prefix(candidates)
             remainders = [full[len(shared) :] for full in candidates]
@@ -228,5 +231,31 @@ class StructuredSchema:
                 "remainders": remainders,
             }
 
-        self._plans[key] = plan
+        # Schema-wide lead-in (typically '{\n  "') shared by every field's
+        # candidates: lifted out of shared_ids so the engine can keep it in
+        # the prefill broadcast cache. Remainders stay relative to the full
+        # per-field shared prefix; rows are lead_in + shared_ids + path.
+        field_shared_prefixes = [p["shared_ids"] for p in plan.values() if "shared_ids" in p]
+        if not field_shared_prefixes:
+            # Multi-only schema: option rows are self-contained, nothing to lift.
+            plan["_lead_in_ids"] = []
+            try:
+                self._plans[tokenizer] = plan
+            except TypeError:
+                self._plans_by_id[id(tokenizer)] = plan
+            return plan
+        lead_in = _common_token_prefix(field_shared_prefixes)
+        # An empty schema-wide lead-in is legal (e.g. char-level tokenizers
+        # where '{\n' fuses with the field name): the engine then runs one row
+        # per field with no broadcast prefix — each row still carries that
+        # field's full shared_ids.
+        for p in plan.values():
+            if "shared_ids" in p:
+                p["shared_ids"] = p["shared_ids"][len(lead_in) :]
+        plan["_lead_in_ids"] = list(lead_in)
+
+        try:
+            self._plans[tokenizer] = plan
+        except TypeError:
+            self._plans_by_id[id(tokenizer)] = plan
         return plan
