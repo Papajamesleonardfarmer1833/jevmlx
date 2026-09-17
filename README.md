@@ -1,5 +1,7 @@
 # openjev
 
+[![CI](https://github.com/bnsd55/openjev/actions/workflows/ci.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/ci.yml) [![Build](https://github.com/bnsd55/openjev/actions/workflows/build.yml/badge.svg)](https://github.com/bnsd55/openjev/actions/workflows/build.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+
 Jev-style parallel constrained decisions for any MLX model on Apple Silicon. Typed, schema-valid JSON in one forward pass.
 
 openjev makes any local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in a single batched forward pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in ~0.4 s on a MacBook Air.
