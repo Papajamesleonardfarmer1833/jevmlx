@@ -35,6 +35,25 @@ recommended_action     FREEZE_ACCOUNT      0.982
 ...
 ```
 
+## Python API
+
+Pydantic models define the schema; `openjev.decide` returns a typed, validated decision with per-field confidences. Fields may be `bool`, `Literal[...]`, or `enum.Enum` with string values. Pydantic validates the result, so a bad value raises instead of leaking through.
+
+```python
+from typing import Literal
+from pydantic import BaseModel, Field
+import openjev
+
+class Fraud(BaseModel):
+    is_fraudulent: bool = Field(description="Whether the transaction is fraudulent")
+    risk_tier: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = Field(description="Risk tier")
+
+d = openjev.decide(Fraud, context, model="mlx-community/Qwen2.5-1.5B-Instruct-4bit")
+d.value            # Fraud(is_fraudulent=True, risk_tier="CRITICAL")
+d.confidence       # {"is_fraudulent": 0.99, "risk_tier": 0.97}
+d.latency_ms
+```
+
 ## Measured results (M5 MacBook Air, 16 GB)
 
 28-field fraud preset. "Naive" = the same model writing the whole JSON object token-by-token.

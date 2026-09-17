@@ -12,10 +12,9 @@ import json
 import os
 import sys
 
+from openjev.api import DEFAULT_MODEL
 from openjev.engine import load_engine, run_parallel_generation
 from openjev.schema import StructuredSchema
-
-DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 
 # Presets resolve relative to the repo root (the presets/ dir sits next to openjev/).
 _PRESETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
