@@ -17,12 +17,15 @@
 - R: professional README restructure.
 - W2: documentation and CLI presentation fixes.
 - E1-E2, E-baseline, E-metrics, E-report: eval harness (`jevmlx eval` / `jevmlx report`), TypeSafe fetcher, API naive-JSON baseline.
+- W3: correctness gate merged — token-aligned candidate plans, one scoring objective (token trie), full-precision engine output, strict temperature/memory validation, correct multi-field confidence.
+- X: repo rename (openjev -> jevmlx) and README claims cleanup.
 
 ## Next
 
-- W3: correctness gate — token-aligned candidate plans, one scoring objective (token trie), full-precision engine output, strict temperature/memory validation, correct multi-field confidence.
+- X1-X4 (in progress): docs/claims alignment — README numbers section, ROADMAP restructure, changelog.
 - N1: order-invariance evaluation on the labeled cases, then more labeled data.
 - N3: phase-level latency profile (plan compilation, tokenization, prefill, KV replication, suffix pass, scoring).
+- M2: bigger models on Apple Silicon — Qwen 3.8 27B, Qwen Next Flash, Gemma 4 on an M5 Max; GLM via API as baseline.
 - N5: PyPI 0.1.0.
 - G10: routing thresholds on held-out data (after N1).
 - G1: schema-prefix KV reuse in `decide_many` (only if N3 shows it matters).

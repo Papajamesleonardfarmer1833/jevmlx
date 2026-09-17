@@ -6,7 +6,7 @@ Jev-style parallel constrained decisions for MLX models on Apple Silicon. Typed,
 
 **Inspired by and built on [rorshopping/jev-on-a-laptop](https://github.com/rorshopping/jev-on-a-laptop)**, the research repo that reproduced the technique on a laptop. jevmlx turns that study into an installable library. Unofficial, not affiliated with TypeSafe AI or Jev.
 
-jevmlx makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in one batched decision pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. A 1.5B model decides 28 fields in under a second on an Apple Silicon laptop (see [Model compatibility](#model-compatibility)).
+jevmlx makes a local instruct model (Qwen, Llama, Mistral, Gemma via mlx-lm) answer a typed schema in one batched decision pass: prefill the context once, broadcast the KV cache across one row per field, pick each value from its allowed choices. JSON is assembled, never generated, so it is always valid. Measured load-to-decision latencies per model are in [Model compatibility](#model-compatibility).
 
 ```
 [context + schema] ──► prefill (once) ──► KV cache
@@ -39,8 +39,12 @@ Sample output:
 ```
 Preset : FinTech Fraud & Autonomous AML Compliance (28 Fields)
 Model  : mlx-community/Qwen2.5-1.5B-Instruct-4bit
-Latency: 970.9 ms (prefill 416.6 + batched pass 530.4)
+Latency: 970.9 ms (prefill 416.6 + batched pass 530.4)   # illustrative; see Model compatibility
+```
 
+(The table below shows only the decision head of the output; confidences are rounded for display.)
+
+```
 field                           value                   conf   type
 ------------------------------  ----------------------  -----  -----
 is_fraudulent                   True                    0.825  boolean
@@ -111,6 +115,8 @@ accuracy       : 0.5972
 
 ## Model compatibility
 
+Numbers below were produced by `jevmlx eval` / `jevmlx report`; raw predictions and run manifests live in `benchmarks/results/` (to be populated by the N1 run).
+
 Every preset field is decided in one batched pass — measured on a MacBook Pro M2 Pro, 34 GB, macOS (warm runs, `benchmarks/compat.py`). "Warm latency" is the average of the second run on both presets; peak memory is Metal's process high-water mark after both presets.
 
 | Model | loads | presets valid | warm latency (ms, avg of 2 presets) | prompt tokens | peak GPU mem (GB) |
@@ -129,6 +135,21 @@ Three scripts in [benchmarks/](benchmarks/), each run against a local mlx-lm mod
 - `compat.py` — the cross-model compatibility table above.
 - `naive_vs_parallel.py` — autoregressive JSON baseline vs the parallel engine, per preset.
 - `cases.json` — 24 labeled cases (72 field decisions) behind the calibration numbers; `to_jsonl.py` converts them for `jevmlx calibrate`.
+
+## Evaluate
+
+Run the labeled cases through a track, then summarize offline:
+
+```
+jevmlx eval --data benchmarks/cases.jsonl --track parallel --permutations rotations --out DIR
+jevmlx report --predictions DIR/predictions.jsonl --out DIR/report.json
+```
+
+- **parallel** — the constrained engine: prefill once, broadcast KV, one token-trie scoring pass per batch.
+- **naive_local** — the same local model writing the whole JSON object itself, parsed strictly (no `response_format`).
+- **api_baseline** — an OpenAI-compatible chat model (e.g. GLM) doing the same, via `--api-base` / `--api-model`.
+
+Raw predictions, run manifests, and reports land in `benchmarks/results/`.
 
 ## Roadmap
 
