@@ -423,3 +423,37 @@ def test_prior_cache_entry_dies_with_tokenizer():
     gc.collect()
     assert not entry_keys(), "stale entry survived its tokenizer"
     assert prior  # and the computed prior itself is untouched
+
+
+def test_prior_cache_registers_one_finalizer_per_tokenizer():
+    """C1 review: the eviction finalizer is registered once at store time,
+    not on every cache lookup — N corrected calls with the same tokenizer
+    leave the engine's weakref count flat.
+
+    schema.plan_hash is pinned to a constant so schema.py's own per-call
+    plan-cache weakrefs (pre-existing, outside C1's scope) don't pollute the
+    count — this isolates what the PRIOR cache adds.
+    """
+    import weakref
+
+    from jevmlx.engine import _PRIOR_CACHE, _get_or_compute_prior
+
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["ALPHA", "BETA"]}}
+    )
+    _PRIOR_CACHE.clear()
+    orig_plan_hash = schema.plan_hash
+    schema.plan_hash = lambda tok, mode: "fixed-hash"
+    try:
+        _get_or_compute_prior(model, tokenizer, schema, "slots", 1.0, None, "neutral")
+        after_store = weakref.getweakrefcount(tokenizer)
+        assert after_store >= 1  # the eviction finalizer's weakref
+        # Hit path: the count must stay flat (no per-lookup finalizers).
+        for _ in range(10):
+            _get_or_compute_prior(model, tokenizer, schema, "slots", 1.0, None, "neutral")
+        assert weakref.getweakrefcount(tokenizer) == after_store
+    finally:
+        schema.plan_hash = orig_plan_hash
+        _PRIOR_CACHE.clear()

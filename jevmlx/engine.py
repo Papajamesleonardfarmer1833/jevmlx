@@ -412,11 +412,15 @@ def _model_identity(model, tokenizer) -> tuple:
 
 
 def _prior_cache_key(model, tokenizer, prompt_version: str, scoring: str, plan_hash) -> tuple:
-    """Cache key carrying the tokenizer as a weakref; evicted on its death.
+    """Cache key carrying the tokenizer as a weakref.
 
     Non-weak-referenceable tokenizers are not cached at all (same rule as
     schema.py's plan cache): an id()-keyed entry without a liveness check
     could be returned for a different object after id reuse.
+
+    NOTE: registers NO finalizer — eviction is wired once at store time in
+    :func:`_get_or_compute_prior` (registering here would add a finalizer
+    object on every cache lookup).
     """
     try:
         ref = weakref.ref(tokenizer)
@@ -427,9 +431,7 @@ def _prior_cache_key(model, tokenizer, prompt_version: str, scoring: str, plan_h
             type(tokenizer).__name__,
         )
         return ()
-    key = (_model_identity(model, tokenizer), ref, prompt_version, scoring, plan_hash)
-    weakref.finalize(tokenizer, _PRIOR_CACHE.pop, key, None)
-    return key
+    return (_model_identity(model, tokenizer), ref, prompt_version, scoring, plan_hash)
 
 
 def _get_or_compute_prior(
@@ -499,6 +501,8 @@ def _get_or_compute_prior(
     if len(_PRIOR_CACHE) >= _PRIOR_CACHE_MAX:
         _PRIOR_CACHE.pop(next(iter(_PRIOR_CACHE)))
     if key:
+        # Eviction is wired once, at store time — not on every lookup.
+        weakref.finalize(tokenizer, _PRIOR_CACHE.pop, key, None)
         _PRIOR_CACHE[key] = prior
     return prior
 
