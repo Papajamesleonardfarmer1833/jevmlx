@@ -27,7 +27,15 @@ HERE = Path(__file__).resolve().parent.parent / "benchmarks"
 RESULTS_DIR = HERE / "results"
 MAX_FOLDER_BYTES = 5 * 1024 * 1024
 
-DATASETS = ("bundled", "typesafe", "perturbed")
+DATASETS = (
+    "bundled",
+    "typesafe",
+    "perturbed",
+    "synthetic-labels",
+    "synthetic-cardinality",
+    "synthetic-injection",
+    "synthetic-dependent",
+)
 SCORERS = ("trie", "letters")
 TRACKS = ("parallel", "naive_local")
 
@@ -151,6 +159,19 @@ def build_datasets(datasets: list[str], offline_ok: bool = True) -> dict[str, Pa
         _rebuild_if_needed(jsonl, lock, lambda: _build_perturbed(paths["bundled"]))
         paths["perturbed"] = jsonl
 
+    for name in (
+        "synthetic-labels",
+        "synthetic-cardinality",
+        "synthetic-injection",
+        "synthetic-dependent",
+    ):
+        if name in datasets:
+            set_name = name.removeprefix("synthetic-")
+            jsonl = BENCH_CACHE / f"{set_name}.jsonl"
+            lock = BENCH_CACHE / f"{set_name}.dataset.lock.json"
+            _rebuild_if_needed(jsonl, lock, lambda n=set_name: _build_synthetic(n))
+            paths[name] = jsonl
+
     return paths
 
 
@@ -195,6 +216,14 @@ def _build_perturbed(bundled: Path) -> None:
             "0",
         ]
     )
+
+
+def _build_synthetic(set_name: str) -> None:
+    """Generate one synthetic set straight into the bench cache."""
+    from benchmarks.synthetic import build_set
+
+    print(f"building synthetic dataset '{set_name}'...")
+    build_set(set_name, BENCH_CACHE)
 
 
 def _track_scorer_grid(tracks: list[str], scorers: list[str]) -> list[tuple[str, str]]:
@@ -354,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--datasets",
         default="bundled,typesafe,perturbed",
-        help="comma list: bundled,typesafe,perturbed",
+        help="comma list: bundled,typesafe,perturbed,synthetic-*",
     )
     parser.add_argument("--scorers", default="trie,letters", help="comma list: trie,letters")
     parser.add_argument(
