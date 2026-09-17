@@ -10,6 +10,7 @@ prefix KV-caching.
 import copy
 import functools
 import json
+import logging
 import math
 import platform
 import re
@@ -23,6 +24,8 @@ from mlx_lm.models.cache import make_prompt_cache
 
 from openjev.schema import StructuredSchema
 
+logger = logging.getLogger(__name__)
+
 if platform.system() != "Darwin" or platform.machine() != "arm64":
     raise RuntimeError(
         "openjev requires Apple Silicon (macOS + arm64) with mlx-lm installed. "
@@ -33,13 +36,13 @@ if platform.system() != "Darwin" or platform.machine() != "arm64":
 @functools.lru_cache(maxsize=4)
 def load_engine(model_id: str):
     """Load a model + tokenizer once per model id, with Metal shader warmup."""
-    print(f"Loading {model_id} into Apple Silicon unified memory...")
+    logger.info("Loading %s into Apple Silicon unified memory...", model_id)
     t0 = time.perf_counter()
     model, tokenizer = load(model_id)
-    print(f"Engine loaded in {time.perf_counter() - t0:.2f}s.")
+    logger.info("Engine loaded in %.2fs.", time.perf_counter() - t0)
 
     # Warmup: compile prefill and broadcast decode shaders ahead of time.
-    print("Warming up Metal shaders on Apple Silicon GPU...")
+    logger.info("Warming up Metal shaders on Apple Silicon GPU...")
     w_toks = tokenizer.encode("Warmup context for Apple Silicon GPU")
     w_cache = make_prompt_cache(model)
     w_logits = model(mx.array(w_toks)[None], cache=w_cache)
@@ -49,7 +52,7 @@ def load_engine(model_id: str):
     s_dummy = mx.zeros((28, 6), dtype=mx.int32)
     w_suf = model(s_dummy, cache=b_cache)
     mx.eval(w_suf)
-    print("Metal shaders compiled & warmed up.")
+    logger.info("Metal shaders compiled & warmed up.")
     return model, tokenizer
 
 
@@ -277,9 +280,11 @@ def run_parallel_generation(
     auto_max_rows = max(1, budget // bytes_per_row) if bytes_per_row > 0 else len(rows)
     num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
     if num_passes > 1:
-        print(
-            f"openjev: {len(rows)} rows over {num_passes} passes "
-            f"(memory guard, bytes_per_row={bytes_per_row})"
+        logger.warning(
+            "Memory guard: %d rows over %d passes (bytes_per_row=%d)",
+            len(rows),
+            num_passes,
+            bytes_per_row,
         )
 
     # 4. Batched suffix forward passes (re-broadcast per chunk, no re-prefill).
@@ -384,6 +389,19 @@ def run_parallel_generation(
         }
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000
+
+    logger.info(
+        "Decided %d fields in %.1f ms",
+        len(schema),
+        total_elapsed_ms,
+        extra={
+            "prefill_ms": round(t_prefill, 2),
+            "suffix_eval_ms": round(t_suffix_eval, 2),
+            "rows": len(rows),
+            "passes": num_passes,
+            "num_fields": len(schema),
+        },
+    )
 
     return {
         "elapsed_ms": round(total_elapsed_ms, 2),
