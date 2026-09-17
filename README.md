@@ -99,6 +99,8 @@ accuracy       : 0.5972
 
 **07. Works with any mlx-lm instruct model.** Prompts are built with the tokenizer's own chat template — no hand-rolled role tags, no system-role assumptions. Cross-model measurements: [Model compatibility](#model-compatibility).
 
+**08. Schema linting before you ship.** `openjev validate SCHEMA.json` loads the tokenizer only (no model download) and reports enum choices that collide on their first token, duplicate choices, and choices that add nothing beyond the shared prefix — with a rename suggestion for collisions.
+
 ## How it works
 
 1. **Prefill once.** The context plus a compact schema catalog goes through the model a single time ([engine.py](openjev/engine.py)).
