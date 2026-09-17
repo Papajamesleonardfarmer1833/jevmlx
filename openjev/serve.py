@@ -58,7 +58,8 @@ def make_handler(decide_fn: Callable[[dict, str, Optional[float]], dict], model_
                 return
             except Exception as e:
                 traceback.print_exc()  # full traceback to stderr
-                self._send(500, {"error": str(e).splitlines()[0]})
+                first_line = str(e).splitlines() or [type(e).__name__]
+                self._send(500, {"error": first_line[0]})
                 return
             self._send(200, result)
 

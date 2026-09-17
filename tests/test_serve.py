@@ -90,3 +90,17 @@ def test_decide_internal_error_is_500():
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_decide_internal_error_with_empty_message_is_500():
+    def silent_boom(schema_dict, context, temperature=1.0):
+        raise RuntimeError()  # str(e) is "" -> error must be the exception type name
+
+    httpd, port = _start_server(silent_boom)
+    try:
+        status, body = _post(port, {"schema": {}, "context": "x"})
+        assert status == 500
+        assert body["error"] == "RuntimeError"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
