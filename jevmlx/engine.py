@@ -414,6 +414,9 @@ def run_parallel_generation(
 
     The prefill KV cache is broadcast across rows; batches larger than the
     chunking heuristic allows run in chunks over the same prefill cache.
+    Logits from batched Metal matmuls vary slightly with batch shape; equal-
+    scoring choices (top1-top2 < 1e-6 in log-score space) are resolved by
+    schema order and flagged with ``tie: true`` in field telemetry.
 
     ``temperature`` is a post-hoc temperature applied to the per-choice
     logits (softmax(logits / temperature)) — it is not a token-level sampling
@@ -541,14 +544,20 @@ def run_parallel_generation(
                 # multi option row: true/false logits at the option row's last
                 # position (the row ends right before the true/false divergence).
                 lg = out[i, len(lead_in) + len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
-                option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][row_option[ridx]]]
+                option_pair[ridx] = [
+                    float(lg[t[0]].astype(mx.float32)) for t in p["remainders"][row_option[ridx]]
+                ]
             else:
                 # Branch-node row: child logits at the node's last position,
                 # in node["children"] order.
                 node = tries[row_field[ridx]][row_branch[ridx]]
                 position = len(lead_in) + len(p["shared_ids"]) + len(node["path"]) - 1
                 lg = out[i, position, :]
-                node_logits[ridx] = {row_branch[ridx]: [float(lg[tok]) for tok in node["children"]]}
+                node_logits[ridx] = {
+                    row_branch[ridx]: [
+                        float(lg[tok].astype(mx.float32)) for tok in node["children"]
+                    ]
+                }
         del out
 
     t_suffix_eval = (time.perf_counter() - t_suf0) * 1000
@@ -649,7 +658,14 @@ def run_parallel_generation(
         # Confidence temperature applied once to the final per-choice scores
         # (softmax(scores / T)): ranking is invariant, calibrate.py fits this T.
         probs_list = softmax(scores, temperature=temperature)
-        w_idx = max(range(n_choices), key=probs_list.__getitem__)
+        order = sorted(range(n_choices), key=probs_list.__getitem__, reverse=True)
+        w_idx = order[0]
+        # Deterministic tie policy: logits from batched Metal matmuls vary
+        # slightly with batch shape; equal-scoring choices are resolved by
+        # schema order and flagged.
+        is_tie = len(scores) > 1 and (scores[order[0]] - scores[order[1]]) < 1e-6
+        if is_tie:
+            w_idx = next(i for i in range(n_choices) if i in order[:2])
         w_prob = probs_list[w_idx]
 
         raw = choices_list[w_idx]
@@ -693,6 +709,9 @@ def run_parallel_generation(
             "log_scores": {choice: lp for choice, lp in zip(display_choices, scores, strict=True)},
             "top_choices": scored_choices[:5],
             "rows": len(field_trie),
+            # Set when top1-top2 < 1e-6 in log-score space: the winner was
+            # resolved by schema order, not by the model.
+            "tie": is_tie,
         }
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000

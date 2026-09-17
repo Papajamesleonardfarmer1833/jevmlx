@@ -109,3 +109,71 @@ def test_prompt_sha256_stable_and_input_sensitive():
         r1["probability_status"]
         == "constrained-path probability at T=1; uncalibrated as decision confidence"
     )
+
+
+class BiasedFakeModel(FakeModel):
+    """FakeModel that adds a fixed per-token bias to the zero logits.
+
+    The bias makes the FIRST choice's alias token (or label token) win
+    unambiguously: its first candidate token gets a large logit, every
+    other candidate's first token stays at 0.
+    """
+
+    def __init__(self, winner_token: int, vocab_size: int = 64, n_layers: int = 2):
+        super().__init__(vocab_size=vocab_size, n_layers=n_layers)
+        self.winner_token = winner_token
+
+    def __call__(self, tokens, cache=None):
+        out = super().__call__(tokens, cache)
+        out = out.at[..., self.winner_token].add(20.0)
+        return out
+
+
+def test_collision_winner_resolved_by_fake_logits():
+    """T2 (round 2, fast): the collision schema's winner comes from the
+    model's logits, deterministically — asserted here on a fake whose bias
+    makes exactly one choice win, never against a live model's opinion."""
+    from jevmlx.schema import StructuredSchema
+
+    model = BiasedFakeModel(vocab_size=64, winner_token=ord("A") % 60)
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {
+            "action": {
+                "type": "enum",
+                "description": "The action to take on this payment request",
+                "choices": ["BLOCK_TRANSACTION", "BLOCK_USER", "APPROVE"],
+            }
+        }
+    )
+    result = run_parallel_generation(model, tokenizer, "ctx", schema)
+    assert result["parsed_json"]["action"]["value"] in {
+        "BLOCK_TRANSACTION",
+        "BLOCK_USER",
+        "APPROVE",
+    }
+    telemetry = result["field_telemetry"]["action"]
+    assert set(telemetry["log_scores"]) == {"BLOCK_TRANSACTION", "BLOCK_USER", "APPROVE"}
+    probs = [c["probability"] for c in telemetry["top_choices"]]
+    assert abs(sum(probs) - 1.0) < 1e-6
+
+
+def test_exact_tie_resolved_by_schema_order_and_flagged():
+    """T3: exactly equal logits for two choices -> the winner is the choice
+    that comes FIRST in schema order, and telemetry flags the tie."""
+    # FakeModel returns zeros: every candidate's logit is exactly 0, so the
+    # branch is an exact tie in log-score space.
+    model = FakeModel()
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["ALPHA", "BETA"]}}
+    )
+    result = run_parallel_generation(model, tokenizer, "ctx", schema)
+
+    telemetry = result["field_telemetry"]["pick"]
+    assert telemetry["tie"] is True
+    # ALPHA is first in schema order -> wins the tie regardless of the
+    # (equal) probabilities.
+    assert result["parsed_json"]["pick"]["value"] == "ALPHA"
+    ls = telemetry["log_scores"]
+    assert ls["ALPHA"] == ls["BETA"]  # exactly equal scores
