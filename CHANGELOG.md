@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- PyPI packaging dry run: complete PyPI classifiers/keywords/Documentation URL,
+  `twine` added to the dev extra, a `release-check` GitHub workflow (build +
+  twine check + clean-venv wheel smoke test; no publish step), and
+  RELEASING.md with the manual release steps.
 - Renamed openjev -> jevmlx (package, CLI command, env var `JEVMLX_LOG`, cache dir `~/.cache/jevmlx`, repo URL).
 - Trie scoring merged (W3): each field is a token trie over its choices; at each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities — so the field's probabilities sum to 1 with no extra softmax.
 - Eval harness merged: `jevmlx eval` runs labeled cases through the parallel, naive-local, or API-baseline tracks and writes per-field predictions plus a run manifest (`predictions.jsonl` / `run.json`); `jevmlx report` summarizes runs offline.

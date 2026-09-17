@@ -10,17 +10,29 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Ben Shaharizad", email = "bnsd55@gmail.com" }]
-keywords = ["mlx", "apple-silicon", "constrained-decoding", "structured-output", "local-llm"]
+keywords = [
+    "mlx",
+    "apple-silicon",
+    "constrained-decoding",
+    "structured-output",
+    "local-llm",
+    "classification",
+    "schema",
+]
 classifiers = [
-    "Programming Language :: Python :: 3.12",
-    "Operating System :: MacOS",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Typing :: Typed",
 ]
 dependencies = ["mlx-lm>=0.31.3", "pydantic>=2.5"]
 
 [project.urls]
 Homepage = "https://github.com/bnsd55/jevmlx"
+Documentation = "https://github.com/bnsd55/jevmlx#readme"
 Repository = "https://github.com/bnsd55/jevmlx"
 Issues = "https://github.com/bnsd55/jevmlx/issues"
 Changelog = "https://github.com/bnsd55/jevmlx/blob/main/CHANGELOG.md"
@@ -29,7 +41,7 @@ Changelog = "https://github.com/bnsd55/jevmlx/blob/main/CHANGELOG.md"
 jevmlx = "jevmlx.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "twine"]
 
 [tool.ruff]
 line-length = 100
