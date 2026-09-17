@@ -501,7 +501,10 @@ def run_parallel_generation(
             "type": fdef.field_type,
             "confidence": w_prob,
             "cardinality": fdef.cardinality,
-            "scores": scores,  # natural-log P(choice), full precision
+            # Constrained-path log-probabilities at T=1, dict keyed by choice
+            # string (the contract calibrate.collect reads). Temperature is
+            # applied once downstream, to the final distribution.
+            "log_scores": {choice: lp for choice, lp in zip(choices_list, scores, strict=True)},
             "top_choices": scored_choices[:5],
             "rows": len(field_trie),
         }

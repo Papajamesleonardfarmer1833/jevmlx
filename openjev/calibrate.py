@@ -44,7 +44,8 @@ def collect(model, tokenizer, cases: Sequence[dict]) -> list[Sample]:
             )
             if label_str not in choices:
                 raise ValueError(f"case label {fname}={label!r} not in choices {choices}")
-            samples.append((list(telemetry["scores"]), choices.index(label_str)))
+            log_scores = telemetry["log_scores"]
+            samples.append(([log_scores[choice] for choice in choices], choices.index(label_str)))
     return samples
 
 

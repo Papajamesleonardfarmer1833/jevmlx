@@ -50,8 +50,10 @@ def test_collision_field_scores_honestly(engine):
         # Honest distribution: distinct per-choice probabilities, not the old
         # clamp+uniform-rest pattern.
         assert len(set(probs)) > 1
-        # Full raw per-choice score list exposed for calibration (F2).
-        assert len(result["field_telemetry"]["action"]["scores"]) == 3
+        # Constrained-path log-probabilities exposed per choice for calibration.
+        log_scores = result["field_telemetry"]["action"]["log_scores"]
+        assert set(log_scores) == {"BLOCK_TRANSACTION", "BLOCK_USER", "APPROVE"}
+        assert all(isinstance(v, float) for v in log_scores.values())
 
 
 @pytest.mark.slow
@@ -130,7 +132,7 @@ def test_multi_field_returns_subset(engine):
     p_tech = telemetry["per_option"]["technical_issue"]
     p_billing = telemetry["per_option"]["billing_issue"]
     assert p_tech > 0.5 and abs(p_billing - 0.5) > 0.05
-    assert "scores" not in telemetry  # one key, one meaning: multi has no raw scores
+    assert "log_scores" not in telemetry  # multi: per_option instead, calibrate skips it
     assert len(telemetry["per_option"]) == 3
     selected = value
     if selected:
