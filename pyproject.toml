@@ -10,7 +10,17 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 authors = [{ name = "Ben Shaharizad", email = "bnsd55@gmail.com" }]
+keywords = ["mlx", "apple-silicon", "constrained-decoding", "structured-output", "local-llm"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: MacOS",
+    "License :: OSI Approved :: MIT License",
+]
 dependencies = ["mlx-lm", "pydantic>=2"]
+
+[project.urls]
+Homepage = "https://github.com/bnsd55/openjev"
+Repository = "https://github.com/bnsd55/openjev"
 
 [project.scripts]
 openjev = "openjev.cli:main"

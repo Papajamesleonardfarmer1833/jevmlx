@@ -11,24 +11,21 @@ import argparse
 import json
 import os
 import sys
+from importlib import resources
 
 from openjev.api import DEFAULT_MODEL
 from openjev.engine import load_engine, run_parallel_generation
 from openjev.schema import StructuredSchema
 
-# Presets resolve relative to the repo root (the presets/ dir sits next to openjev/).
-_PRESETS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "presets")
-
 
 def load_preset(name: str) -> dict:
-    """Load a preset by name ('fintech_fraud'), filename ('fintech_fraud.json'), or path."""
+    """Load a preset: a filesystem path if it exists, else a bundled preset
+    by name ('fintech_fraud' or 'fintech_fraud.json')."""
     if os.path.isfile(name):
-        path = name
-    else:
-        filename = name if name.endswith(".json") else f"{name}.json"
-        path = os.path.join(_PRESETS_DIR, filename)
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        with open(name, encoding="utf-8") as f:
+            return json.load(f)
+    filename = name if name.endswith(".json") else f"{name}.json"
+    return json.loads(resources.files("openjev.presets").joinpath(filename).read_text(encoding="utf-8"))
 
 
 def print_result(preset_title: str, model_id: str, result: dict) -> None:
@@ -62,7 +59,7 @@ def main(argv=None) -> None:
 
     decide = sub.add_parser("decide", help="Run parallel constrained decisions on a preset or schema/context")
     decide.add_argument("--model", default=DEFAULT_MODEL, help="Hugging Face model id for mlx-lm")
-    decide.add_argument("--preset", help="preset name (presets/NAME.json) or path to a .json file")
+    decide.add_argument("--preset", help="preset name (bundled: fintech_fraud, support_triage, ...) or path to a .json file")
     decide.add_argument("--schema", help="path to a schema .json file")
     decide.add_argument("--context", help="path to a context .txt file, or - for stdin")
     decide.add_argument("--json", action="store_true", dest="as_json",
