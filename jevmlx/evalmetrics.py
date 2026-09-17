@@ -13,7 +13,13 @@ import random
 from collections import Counter, defaultdict
 from pathlib import Path
 
-__all__ = ["load_predictions", "compute_metrics"]
+__all__ = [
+    "balanced_accuracy",
+    "load_predictions",
+    "macro_f1",
+    "perturbation_flip_rate",
+    "compute_metrics",
+]
 
 
 def load_predictions(path: str | Path) -> list[dict]:
@@ -234,6 +240,143 @@ def multi_jaccard(records: list[dict]) -> float | None:
     return _mean(scores)
 
 
+# ------------------------------------------------- balanced accuracy / macro-F1
+
+
+def _prediction_label_pair(record: dict) -> tuple[str, str] | None:
+    """(label, prediction) as comparable strings, or None when not scoreable.
+
+    Lists (multi fields) are compared as sorted JSON — order-insensitive, so
+    ``["a", "b"]`` and ``["b", "a"]`` are the same value. Non-str labels are
+    stringified to a stable JSON form.
+    """
+    label = record.get("label")
+    prediction = record.get("prediction")
+    if label is None:
+        return None
+    if not record.get("valid", prediction is not None) or prediction is None:
+        prediction = "<invalid>"
+    if isinstance(label, list | dict):
+        label = json.dumps(label, sort_keys=True)
+    if isinstance(prediction, list | dict):
+        prediction = json.dumps(prediction, sort_keys=True)
+    return str(label), str(prediction)
+
+
+def balanced_accuracy(records: list[dict]) -> dict[str, float | None]:
+    """Per field: mean recall over classes (balanced accuracy).
+
+    Recall is computed per class among that class's labelled records; classes
+    with no labelled records are skipped, and a field whose every class lacks
+    support yields None. Predictions are counted for the predicted class
+    (invalid predictions never contribute to any class's recall).
+    """
+    by_field: dict[str, Counter] = defaultdict(Counter)
+    support: dict[str, Counter] = defaultdict(Counter)
+    for record in records:
+        pair = _prediction_label_pair(record)
+        if pair is None:
+            continue
+        label, prediction = pair
+        by_field[record["field"]][label] += 0  # register the class
+        support[record["field"]][label] += 1
+        if prediction == label:
+            by_field[record["field"]][label] += 1
+    result: dict[str, float | None] = {}
+    for field in sorted(by_field):
+        recalls = [
+            by_field[field][cls] / support[field][cls]
+            for cls in by_field[field]
+            if support[field][cls] > 0
+        ]
+        result[field] = _mean(recalls)
+    return result
+
+
+def macro_f1(records: list[dict]) -> dict[str, float | None]:
+    """Per field: macro-averaged F1 across the label classes present.
+
+    For each class: precision = TP / predicted, recall = TP / labelled, F1 =
+    2PR/(P+R) (0 when both are 0). The class mean ignores classes with no
+    labelled records; a field with none yields None.
+    """
+    tp: dict[str, Counter] = defaultdict(Counter)
+    predicted: dict[str, Counter] = defaultdict(Counter)
+    labelled_n: dict[str, Counter] = defaultdict(Counter)
+    for record in records:
+        pair = _prediction_label_pair(record)
+        if pair is None:
+            continue
+        label, prediction = pair
+        field = record["field"]
+        labelled_n[field][label] += 1
+        if prediction == label:
+            tp[field][label] += 1
+        elif record.get("valid", True) and prediction is not None:
+            predicted[field][prediction] += 1
+    result: dict[str, float | None] = {}
+    for field in sorted(labelled_n):
+        f1s = []
+        for cls in labelled_n[field]:
+            recall = tp[field][cls] / labelled_n[field][cls]
+            precision_den = tp[field][cls] + predicted[field][cls]
+            precision = tp[field][cls] / precision_den if precision_den else 0.0
+            f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+            f1s.append(f1)
+        result[field] = _mean(f1s)
+    return result
+
+
+# ------------------------------------------------------- perturbation flips
+
+
+def _canonical_form(value) -> str:
+    """Comparison form of a prediction: lists order-insensitive, dicts stable.
+
+    Multi predictions are lists; ["a", "b"] and ["b", "a"] are the same
+    value, so list elements are sorted before serialising.
+    """
+    if isinstance(value, list):
+        return json.dumps(sorted(value), sort_keys=True)
+    return json.dumps(value, sort_keys=True)
+
+
+def perturbation_flip_rate(records: list[dict]) -> float | None:
+    """Share of (original, perturbed) pairs whose prediction differs.
+
+    A pair is (group_id, field, case_id) where one line carries a
+    ``perturbation`` (the variant) and the other does not (the original).
+    Only canonical lines count: ``permutation`` must be ``"canonical"`` or
+    missing, so choice-rotation rows never pollute the pairs. Requires
+    meta.perturbation to have flowed through to the line (see evalrun).
+    Returns None when no such pair exists.
+    """
+    originals: dict[tuple[str, str], object] = {}
+    variants: dict[tuple[str, str], list[tuple[str, object]]] = defaultdict(list)
+    for record in records:
+        if record.get("permutation") not in (None, "canonical"):
+            continue  # rotation/fieldperm rows are order probes, not perturbations
+        kind = record.get("perturbation") or (record.get("meta") or {}).get("perturbation")
+        key = (record.get("group_id") or record["case_id"], record["field"])
+        if kind is None:
+            originals.setdefault(key, record.get("prediction"))
+        else:
+            variants[key].append((record["case_id"], record.get("prediction")))
+    pairs = 0
+    flipped = 0
+    for key, variant_list in variants.items():
+        if key not in originals:
+            continue
+        base = _canonical_form(originals[key])
+        for _case_id, prediction in variant_list:
+            pairs += 1
+            if _canonical_form(prediction) != base:
+                flipped += 1
+    if not pairs:
+        return None
+    return flipped / pairs
+
+
 # -------------------------------------------------------- position-bias (permutation)
 
 
@@ -428,4 +571,13 @@ def compute_metrics(records: list[dict]) -> dict:
     bootstrap = accuracy_cluster_bootstrap(records)
     if bootstrap:
         metrics["accuracy_cluster_bootstrap"] = bootstrap
+    balanced = balanced_accuracy(records)
+    if any(value is not None for value in balanced.values()):
+        metrics["balanced_accuracy"] = balanced
+    f1 = macro_f1(records)
+    if any(value is not None for value in f1.values()):
+        metrics["macro_f1"] = f1
+    flips = perturbation_flip_rate(records)
+    if flips is not None:
+        metrics["perturbation_flip_rate"] = flips
     return metrics

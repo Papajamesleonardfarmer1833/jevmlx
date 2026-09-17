@@ -248,6 +248,7 @@ def run_eval(
     plan_provider: Callable[..., dict] | None = None,
     dataset_lock_path: str | None = None,
     dataset_path: str | None = None,
+    carry_perturbation: bool = False,
 ) -> dict:
     """Run the batch and write ``predictions.jsonl`` + ``run.json`` into out_dir.
 
@@ -255,6 +256,12 @@ def run_eval(
     per-field result carries ``prediction``, optionally ``valid``/``error``/
     ``log_scores``/``confidence``/``per_option``; a ``"_meta"`` entry carries
     run-level ``latency_ms``/``rows``/``passes``. Returns the run manifest.
+
+    With ``carry_perturbation=True`` each prediction line also carries
+    ``"perturbation"``: the case's ``meta.perturbation`` (a string such as
+    ``"ws"`` or ``"shuffle3"``) or null for original cases. Pairs of lines
+    sharing a ``group_id`` (original vs variant) feed
+    :func:`jevmlx.evalmetrics.perturbation_flip_rate`.
     """
     run_id = run_id or make_run_id()
     os.makedirs(out_dir, exist_ok=True)
@@ -286,34 +293,35 @@ def run_eval(
                     if isinstance(prediction, str) and prediction not in field_def.choices:
                         prediction = None
                 label = case.get("labels", {}).get(fname)
-                lines.append(
-                    {
-                        "run_id": run_id,
-                        "case_id": case.get("id"),
-                        "group_id": case.get("group_id"),
-                        "source": case.get("source"),
-                        "workflow": case.get("workflow"),
-                        "field": fname,
-                        "type": res.get("type") or (field_def.field_type if field_def else None),
-                        "track": track,
-                        "model": model,
-                        "permutation": tag or "canonical",
-                        "label": label,
-                        "prediction": prediction,
-                        "valid": bool(res.get("valid", prediction is not None)),
-                        "correct": None
-                        if label is None
-                        else (prediction is not None and prediction == label),
-                        "log_scores": res.get("log_scores"),
-                        "confidence": res.get("confidence"),
-                        "per_option": res.get("per_option"),
-                        "latency_ms": meta.get("latency_ms"),
-                        "rows": meta.get("rows"),
-                        "passes": meta.get("passes"),
-                        "error": res.get("error"),
-                        "salvage_prediction": res.get("salvage_prediction"),
-                    }
-                )
+                line = {
+                    "run_id": run_id,
+                    "case_id": case.get("id"),
+                    "group_id": case.get("group_id"),
+                    "source": case.get("source"),
+                    "workflow": case.get("workflow"),
+                    "field": fname,
+                    "type": res.get("type") or (field_def.field_type if field_def else None),
+                    "track": track,
+                    "model": model,
+                    "permutation": tag or "canonical",
+                    "label": label,
+                    "prediction": prediction,
+                    "valid": bool(res.get("valid", prediction is not None)),
+                    "correct": None
+                    if label is None
+                    else (prediction is not None and prediction == label),
+                    "log_scores": res.get("log_scores"),
+                    "confidence": res.get("confidence"),
+                    "per_option": res.get("per_option"),
+                    "latency_ms": meta.get("latency_ms"),
+                    "rows": meta.get("rows"),
+                    "passes": meta.get("passes"),
+                    "error": res.get("error"),
+                    "salvage_prediction": res.get("salvage_prediction"),
+                }
+                if carry_perturbation:
+                    line["perturbation"] = (case.get("meta") or {}).get("perturbation")
+                lines.append(line)
 
     config: dict[str, Any] = {
         "model": model,

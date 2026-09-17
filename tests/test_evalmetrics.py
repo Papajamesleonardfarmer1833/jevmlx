@@ -2,9 +2,12 @@
 
 import math
 
+import pytest
+
 from jevmlx.evalmetrics import (
     accuracy_cluster_bootstrap,
     any_flip_rate,
+    balanced_accuracy,
     brier_score,
     case_exact_match,
     compute_metrics,
@@ -14,9 +17,11 @@ from jevmlx.evalmetrics import (
     load_predictions,
     log_loss,
     macro_by,
+    macro_f1,
     majority_class_baseline,
     mean_tvd_across_permutations,
     multi_jaccard,
+    perturbation_flip_rate,
     risk_coverage_curve,
     tie_rate,
 )
@@ -385,3 +390,152 @@ class TestReportWiring:
         assert run["metrics"]["accuracy"] == 0.5
         md = out.with_suffix(".md").read_text()
         assert "## Metrics" in md and "| accuracy |" in md
+
+
+class TestBalancedAccuracyAndMacroF1:
+    """Hand-computed balanced accuracy, macro-F1, and perturbation flips."""
+
+    def _rec(self, field, label, prediction, valid=True, **extra):
+        record = {
+            "run_id": "r",
+            "case_id": "c",
+            "group_id": "g",
+            "source": "s",
+            "workflow": "w",
+            "field": field,
+            "type": "enum",
+            "track": "parallel",
+            "model": "m",
+            "permutation": "canonical",
+            "label": label,
+            "prediction": prediction,
+            "valid": valid,
+            "correct": None if label is None else (valid and prediction == label),
+            "log_scores": None,
+            "confidence": None,
+            "per_option": None,
+            "latency_ms": None,
+            "rows": None,
+            "passes": None,
+            "error": None,
+            "salvage_prediction": None,
+        }
+        record.update(extra)
+        return record
+
+    def test_balanced_accuracy_mean_recall_over_classes(self):
+        # field "risk": label POS rows: 1 of 2 recalled; label NEG rows: 2 of 2.
+        # Balanced accuracy = (0.5 + 1.0) / 2 = 0.75 (plain accuracy would be 0.75 too,
+        # but it is insensitive to the class split — recall mean is the definition).
+        records = [
+            self._rec("risk", "POS", "POS"),
+            self._rec("risk", "POS", "NEG"),
+            self._rec("risk", "NEG", "NEG"),
+            self._rec("risk", "NEG", "NEG"),
+            # field "ok": single class, both recalled -> 1.0.
+            self._rec("ok", True, True),
+            self._rec("ok", True, True),
+        ]
+        assert balanced_accuracy(records) == {"ok": 1.0, "risk": 0.75}
+
+    def test_balanced_accuracy_invalid_prediction_never_recalls(self):
+        records = [
+            self._rec("x", "A", "A"),
+            self._rec("x", "A", None, valid=False),
+        ]
+        # Class A recall = 1/2; no other classes -> balanced accuracy 0.5.
+        assert balanced_accuracy(records) == {"x": 0.5}
+
+    def test_macro_f1_two_classes_hand_computed(self):
+        # Class POS: TP=1, predicted POS=1 -> precision 1.0; labelled=2 -> recall 0.5;
+        #   F1_POS = 2*1*0.5/(1.5) = 2/3.
+        # Class NEG: TP=2, but the wrong POS row predicted NEG is a false positive:
+        #   predicted NEG=3 -> precision 2/3; labelled=2 -> recall 1.0;
+        #   F1_NEG = 2*(2/3)*1/(5/3) = 0.8.
+        # Macro F1 = (2/3 + 0.8) / 2 = 11/15.
+        records = [
+            self._rec("risk", "POS", "POS"),
+            self._rec("risk", "POS", "NEG"),
+            self._rec("risk", "NEG", "NEG"),
+            self._rec("risk", "NEG", "NEG"),
+        ]
+        assert macro_f1(records) == {"risk": pytest.approx(11 / 15)}
+
+    def test_macro_f1_false_positive_lowers_precision(self):
+        # Class A: TP=2, labelled=2 -> recall 1.0; the wrong B row predicted A, so
+        # predicted A=3 -> precision 2/3 -> F1_A = 2*(2/3)*1/(5/3) = 0.8.
+        # Class B: TP=0, labelled=1 -> recall 0.0; nothing predicted B -> F1_B = 0.
+        records = [
+            self._rec("f", "A", "A"),
+            self._rec("f", "A", "A"),
+            self._rec("f", "B", "A"),
+        ]
+        assert macro_f1(records) == {"f": pytest.approx(0.4)}
+
+    def test_perturbation_flip_rate_by_group(self):
+        # Group g1: original predicts APPROVE; ws variant flips to BLOCK;
+        # numfmt variant repeats APPROVE -> 1 flip / 2 pairs = 0.5.
+        # Group g2 has an original but no variants (excluded from the denominator).
+        original_1 = self._rec("action", "APPROVE", "APPROVE", case_id="c1", group_id="g1")
+        variant_ws = self._rec(
+            "action", "APPROVE", "BLOCK", case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        variant_num = self._rec(
+            "action", "APPROVE", "APPROVE", case_id="c1#p2", group_id="g1", perturbation="numfmt"
+        )
+        lone_original = self._rec("action", "A", "A", case_id="c2", group_id="g2")
+        assert perturbation_flip_rate([original_1, variant_ws, variant_num, lone_original]) == 0.5
+
+    def test_perturbation_flip_rate_no_pairs_is_none(self):
+        assert perturbation_flip_rate([self._rec("f", "A", "A")]) is None
+
+    def test_perturbation_flip_rate_all_flips_and_multi_field(self):
+        original_a = self._rec("flag", True, True, case_id="c1", group_id="g1")
+        original_b = self._rec("tier", "LOW", "LOW", case_id="c1", group_id="g1")
+        variant_a = self._rec(
+            "flag", True, False, case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        variant_b = self._rec(
+            "tier", "LOW", "HIGH", case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        assert perturbation_flip_rate([original_a, original_b, variant_a, variant_b]) == 1.0
+
+    def test_perturbation_flip_rate_ignores_rotation_rows(self):
+        """Rotation/fieldperm rows (permutation != canonical) never join pairs."""
+        original = self._rec("action", "APPROVE", "APPROVE", case_id="c1", group_id="g1")
+        variant = self._rec(
+            "action", "APPROVE", "APPROVE", case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        rotation = self._rec(
+            "action",
+            "APPROVE",
+            "BLOCK",
+            case_id="c1#p1",
+            group_id="g1",
+            perturbation="ws",
+            permutation="rot1",
+        )
+        # Without the rotation row: 1 pair, 0 flips. With it: still 0 flips —
+        # the rotated BLOCK row must not count as a perturbation flip.
+        assert perturbation_flip_rate([original, variant]) == 0.0
+        assert perturbation_flip_rate([original, variant, rotation]) == 0.0
+
+        # And a flipped canonical variant is still detected next to rotation rows.
+        flipped_variant = self._rec(
+            "action", "APPROVE", "BLOCK", case_id="c1#p2", group_id="g1", perturbation="numfmt"
+        )
+        assert perturbation_flip_rate([original, variant, rotation, flipped_variant]) == 0.5
+
+    def test_perturbation_flip_rate_multi_order_is_not_a_flip(self):
+        """Multi predictions compare as sets: order alone is not a flip."""
+        original = self._rec("tags", ["a", "b"], ["a", "b"], case_id="c1", group_id="g1")
+        reordered = self._rec(
+            "tags", ["a", "b"], ["b", "a"], case_id="c1#p1", group_id="g1", perturbation="ws"
+        )
+        assert perturbation_flip_rate([original, reordered]) == 0.0
+
+        # A genuinely different set still flips.
+        changed = self._rec(
+            "tags", ["a", "b"], ["a", "c"], case_id="c1#p2", group_id="g1", perturbation="ws"
+        )
+        assert perturbation_flip_rate([original, reordered, changed]) == 0.5
