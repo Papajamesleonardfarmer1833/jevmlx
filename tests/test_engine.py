@@ -186,12 +186,12 @@ def test_naive_generation_returns_parseable_text(engine):
 
 @pytest.mark.slow
 def test_slots_scoring_fintech_fraud(engine):
-    """Letters mode on the 0.5B model: one pass, all values valid.
+    """Slots mode on the 0.5B model: one pass, all values valid.
 
-    Every enum/boolean field gets exactly one letter-slot row; the winning
-    letter maps back to a valid choice string; multi fields keep their
-    per-option rows. The slots run completes in a single suffix pass (one
-    row per field) and the confidence model is 'slots'.
+    Every enum/boolean field gets exactly one alias row; the winning alias
+    maps back to a valid choice string; multi fields keep their per-option
+    rows. The slots run completes in a single suffix pass (one row per
+    field) and the confidence model is 'slots'.
     """
     model, tokenizer = engine
     preset = load_preset("fintech_fraud")
@@ -213,9 +213,9 @@ def test_slots_scoring_fintech_fraud(engine):
         else:
             assert parsed["value"] in fdef.choices
             assert telemetry["rows"] == 1
-        # Aliases are valid and the log_scores are keyed by real choice string.
+        # The alias winners map back and the log_scores are keyed by real
+        # choice string.
         if fdef.field_type != "multi":
-            assert telemetry["slot_letter"] in "ABCDEFGHIJKLMNO"[: fdef.cardinality]
             assert set(telemetry["log_scores"]) == set(
                 ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
             )
