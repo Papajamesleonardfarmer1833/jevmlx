@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   test:
@@ -11,12 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.12"
+          version: "0.12.15"
+          enable-cache: true
 
-      - name: Install (setup-uv already created .venv)
-        run: uv pip install --python .venv/bin/python -e '.[dev]'
+      - name: Install Python toolchain and project
+        run: |
+          uv python install 3.12
+          uv venv --python 3.12 .venv
+          uv pip install --python .venv/bin/python -e '.[dev]'
 
       - name: Lint (ruff)
         run: |
