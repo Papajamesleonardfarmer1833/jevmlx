@@ -101,6 +101,13 @@ def main(argv=None) -> None:
         default=1.0,
         help="softmax temperature for choice probabilities (1.0 = raw)",
     )
+    decide.add_argument(
+        "--scoring",
+        choices=["trie", "letters"],
+        default="trie",
+        help="scoring mode: trie (choice-text branch scoring) or letters "
+        "(lettered options in the prompt, one slot token per choice)",
+    )
 
     calib = sub.add_parser(
         "calibrate", help="Fit a temperature on labeled JSONL cases and report ECE"
@@ -148,6 +155,13 @@ def main(argv=None) -> None:
         "--api-key-env",
         default="OPENAI_API_KEY",
         help="env var holding the API key (api_baseline track)",
+    )
+    eval_p.add_argument(
+        "--scoring",
+        choices=["trie", "letters"],
+        default="trie",
+        help="parallel-track scoring mode (trie = choice-text branches, "
+        "letters = lettered options, one slot token per choice)",
     )
     eval_p.add_argument(
         "--permutations",
@@ -214,7 +228,7 @@ def main(argv=None) -> None:
 
         schema = StructuredSchema(schema_dict)
         result = run_parallel_generation(
-            model, tokenizer, context, schema, temperature=args.temperature
+            model, tokenizer, context, schema, temperature=args.temperature, scoring=args.scoring
         )
 
         if args.as_json:
@@ -295,13 +309,16 @@ def _run_eval_command(args) -> None:
     if args.limit is not None:
         cases = cases[: args.limit]
 
-    extra: dict = {"dataset_path": os.path.abspath(args.data)}
+    extra: dict = {
+        "dataset_path": os.path.abspath(args.data),
+        "scoring": args.scoring if args.track == "parallel" else "trie",
+    }
     lock = os.path.join(os.path.dirname(os.path.abspath(args.data)), "dataset.lock.json")
 
     if args.track == "parallel":
         print(f"Loading {args.model} ...", flush=True)
         model, tokenizer = load_engine(args.model)
-        decide_fn = evalrun.parallel_decide_fn(model, tokenizer)
+        decide_fn = evalrun.parallel_decide_fn(model, tokenizer, scoring=args.scoring)
         chat_template = getattr(tokenizer, "chat_template", None)
         plan_provider = lambda schema: schema.compile_batch_plan(tokenizer)  # noqa: E731
     elif args.track == "naive_local":

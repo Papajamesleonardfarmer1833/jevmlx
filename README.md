@@ -111,6 +111,10 @@ accuracy       : 0.5972
 4. **Batched pass.** All rows are evaluated in one batched forward pass when they fit; otherwise the pass is chunked.
 5. **Scoring.** Each field is a token trie over its choices: at each branch point the model's next-token distribution is restricted to the allowed tokens, and P(choice) is the product of those branch probabilities, so the field's probabilities sum to 1 with no extra softmax. The JSON object is assembled from the winners.
 
+### Letter-slot scoring (`--scoring letters`)
+
+As an alternative to choice-text trie scoring, `decide` and `eval --track parallel` accept `--scoring letters`. The prompt lists each field's choices as lettered options (`"risk_tier": A) LOW  B) MEDIUM  C) HIGH`), each field gets a single row ending right after `"  \"<field>\":"`, and P(choice) is the next-token distribution at that position restricted to the letter slot tokens (` A`, ` B`, ...). One token per choice means no tokenization collisions by construction, and the letter-to-choice mapping follows the schema's choice order, so order-rotation evals permute the letters. Slot tokens are validated at plan time (each must be exactly one round-trip token and `encode(row + " " + letter)` must equal `encode(row) + [slot]`); fields with more than 16 choices, or tokenizers that fail the boundary check, fall back to being rejected with a `SchemaCompileError`. Multi fields keep their per-option boolean rows in both modes. Confidence in letters mode is the slot softmax probability (`confidence_model: "letter_slots"`).
+
 ## Model compatibility
 
 Latency and memory numbers below come from `benchmarks/compat.py`. Accuracy and calibration numbers will come from `jevmlx eval` / `jevmlx report` and live in `benchmarks/results/` (populated by the N1 run).

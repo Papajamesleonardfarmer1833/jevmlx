@@ -677,10 +677,10 @@ def test_cache_evicts_entry_when_tokenizer_dies():
     )
     tok = NonCompositionalTokenizer()
     schema.compile_batch_plan(tok)
-    key = id(tok)
-    assert key in schema._plans
+    cache_key = (id(tok), "trie")
+    assert cache_key in schema._plans
     ref = _weakref.ref(tok)
     del tok
     gc.collect()
     assert ref() is None
-    assert key not in schema._plans
+    assert cache_key not in schema._plans

@@ -182,3 +182,40 @@ def test_naive_generation_returns_parseable_text(engine):
     assert result["is_valid_json"] in (True, False)
     if result["is_valid_json"]:
         _json.loads(result["raw_text"])
+
+
+@pytest.mark.slow
+def test_letters_scoring_fintech_fraud(engine):
+    """Letters mode on the 0.5B model: one pass, all values valid.
+
+    Every enum/boolean field gets exactly one letter-slot row; the winning
+    letter maps back to a valid choice string; multi fields keep their
+    per-option rows. The letters run completes in a single suffix pass (one
+    row per field) and the confidence model is 'letter_slots'.
+    """
+    model, tokenizer = engine
+    preset = load_preset("fintech_fraud")
+    schema = StructuredSchema(preset["schema"])
+    result = run_parallel_generation(model, tokenizer, preset["context"], schema, scoring="letters")
+
+    assert result["confidence_model"] == "letter_slots"
+    assert result["sequential_forward_passes"] == 1
+
+    for fname, fdef in schema.fields.items():
+        parsed = result["parsed_json"][fname]
+        telemetry = result["field_telemetry"][fname]
+        if fdef.field_type == "multi":
+            assert isinstance(parsed["value"], list)
+            assert set(parsed["value"]) <= set(fdef.choices)
+        elif fdef.field_type == "boolean":
+            assert isinstance(parsed["value"], bool)
+            assert telemetry["rows"] == 1
+        else:
+            assert parsed["value"] in fdef.choices
+            assert telemetry["rows"] == 1
+        # Slot letters are valid and the log_scores are keyed by choice string.
+        if fdef.field_type != "multi":
+            assert telemetry["slot_letter"] in "ABCDEFGHIJKLMNO"[: fdef.cardinality]
+            assert set(telemetry["log_scores"]) == set(
+                ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
+            )

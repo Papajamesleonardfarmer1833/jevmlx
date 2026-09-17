@@ -11,6 +11,10 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+# Letter slots for the letters scoring mode (X1): one decision token per
+# choice, A first. At most 16 choices get letter slots.
+_LETTERS = "ABCDEFGHIJKLMNOP"
+
 
 def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
     """Longest common token-ID prefix of every sequence (at least one required)."""
@@ -165,7 +169,25 @@ class StructuredSchema:
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
-    def _cache_plan(self, tokenizer, plan: dict[str, Any]) -> None:
+    def to_letters_schema_str(self) -> str:
+        """Compact schema catalog for the letters mode: per field, its
+        lettered choices in schema order ("risk_tier: A) LOW  B) MEDIUM ...").
+        Multi fields are listed with their options (their rows stay boolean
+        per option); booleans are listed as A) true  B) false.
+        """
+        lines = []
+        for name, field in self.fields.items():
+            desc = field.description.split("\n")[0].strip()
+            if field.field_type == "boolean":
+                choices_list = ["true", "false"]
+            else:
+                choices_list = list(field.choices)
+            lettered = "  ".join(f"{_LETTERS[i]}) {c}" for i, c in enumerate(choices_list))
+            suffix = " (select all that apply)" if field.field_type == "multi" else ""
+            lines.append(f'  "{name}": {lettered}  // {desc}{suffix}')
+        return "\n".join(lines)
+
+    def _cache_plan(self, tokenizer, plan: dict[str, Any], mode: str = "trie") -> None:
         """Store a plan keyed by tokenizer identity, evicted on tokenizer death.
 
         Non-weak-referenceable tokenizers are not cached at all (N3): an
@@ -184,10 +206,11 @@ class StructuredSchema:
                 self._logged_non_weakref = True
             return
         key = id(tokenizer)
-        self._plans[key] = (ref, plan)
-        weakref.finalize(tokenizer, self._plans.pop, key, None)
+        cache_key = (key, mode)
+        self._plans[cache_key] = (ref, plan)
+        weakref.finalize(tokenizer, self._plans.pop, cache_key, None)
 
-    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
+    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:  # noqa: D401
         """Pre-index everything the engine needs for the batched suffix pass.
 
         Token-aligned at both boundaries: every choice is encoded as ONE
@@ -213,7 +236,7 @@ class StructuredSchema:
         identity (name_or_path + vocab size).
         """
         try:
-            entry = self._plans.get(id(tokenizer))
+            entry = self._plans.get((id(tokenizer), "trie"))
             # Identity check: ref() must resolve to THIS tokenizer, not just
             # an equal one (P2).
             if entry is not None and entry[0]() is tokenizer:
@@ -390,4 +413,126 @@ class StructuredSchema:
         # a field could legally be named "_lead_in_ids").
         result = {"lead_in_ids": list(lead_in), "fields": plan}
         self._cache_plan(tokenizer, result)
+        return result
+
+    def compile_letters_plan(self, tokenizer) -> dict[str, Any]:
+        """Plan for the letter-slot scoring mode (engine ``scoring="letters"``).
+
+        Each enum/boolean field gets one decision row: the row text is
+        ``'{\n  "<field>": '`` and the choice is read from the NEXT-token
+        distribution restricted to letter tokens (A, B, C, ... by choice
+        order). The lettered choice list is rendered into the prompt by
+        :meth:`to_letters_schema_str`.
+
+        Per enum/boolean field the plan carries:
+        - ``letters``: the letter strings in choice order,
+        - ``slot_ids``: the single token id per letter (validated:
+          encode(letter) is exactly one token and round-trips),
+        - ``row_text``: the JSON row prefix without the letter,
+        - ``row_ids``: the tokenization of ``'{\n' + row_text + letter``
+          verified as ``encode('{\n' + row_text) + [slot]`` for EVERY letter
+          (boundary check; else SchemaCompileError naming field and letter),
+        - ``choices``: the choice strings, in the order given by the schema
+          (position-bias hook: eval rotations permute choice order, which
+          permutes the letter assignment),
+        - ``choices_map``: letter -> choice string for assembly,
+        - ``lead_in_ids``: the shared token prefix of this field's rows.
+
+        Multi fields keep the trie mode's per-option boolean rows (the plan
+        entry is the trie plan, scored identically); only enum/boolean fields
+        use letter slots. Cardinality is capped at 16 (A..P).
+
+        Returns ``{"lead_in_ids": [...], "fields": {...}, "mode": "letters"}``,
+        cached per tokenizer identity under its own cache key.
+        """
+        if len(self.fields) and max(len(f.choices) for f in self.fields.values()) > 16:
+            raise SchemaCompileError(
+                "letters",
+                "letters mode supports at most 16 choices per field (A..P)",
+            )
+        fields_plan: dict[str, dict[str, Any]] = {}
+        for fname, fdef in self.fields.items():
+            if fdef.field_type == "multi":
+                # Multi fields reuse the trie plan (per-option boolean rows).
+                continue
+            if fdef.field_type == "boolean":
+                choices_list = ["true", "false"]
+            else:
+                choices_list = list(fdef.choices)
+            letters = list(_LETTERS[: len(choices_list)])
+
+            # The slot token is the SPACE-PREFIXED letter (' A', ' B', ...)
+            # and the row text ends at the colon: real BPE tokenizers fuse a
+            # standalone trailing space with the following letter, so
+            # encode('...": ' + 'A') would NOT be encode('...": ') + ['A'].
+            # The space-prefixed form satisfies the boundary check on real
+            # tokenizers; single-char tokenizers need the space to be its own
+            # token or part of the letter token (verified below).
+            row_text = f"  {json.dumps(fname)}:"
+            row_prefix_ids = tokenizer.encode("{\n" + row_text, add_special_tokens=False)
+            slot_ids: list[int] = []
+            for letter in letters:
+                slot_candidates = tokenizer.encode(" " + letter, add_special_tokens=False)
+                if len(slot_candidates) != 1 or tokenizer.decode(slot_candidates) != " " + letter:
+                    # Fall back to the bare letter (single-char tokenizers).
+                    slot_candidates = tokenizer.encode(letter, add_special_tokens=False)
+                    if len(slot_candidates) != 1 or tokenizer.decode(slot_candidates) != letter:
+                        raise SchemaCompileError(
+                            fname,
+                            f"field '{fname}': letter '{letter}' must be exactly one "
+                            f"round-trip token (as ' {letter}' or '{letter}'; tokenizer "
+                            f"{type(tokenizer).__name__})",
+                        )
+                slot_ids.append(slot_candidates[0])
+            if len(set(slot_ids)) != len(slot_ids):
+                # Two letters sharing one token id: assembly could not tell
+                # them apart. (Reachable only for non-injective decoders; the
+                # round-trip check above catches injective collisions.)
+                raise SchemaCompileError(
+                    fname,
+                    f"field '{fname}': letter slot tokens are not distinct "
+                    f"(tokenizer {type(tokenizer).__name__})",
+                )
+            for letter, slot in zip(letters, slot_ids, strict=True):
+                joined = tokenizer.encode("{\n" + row_text + " " + letter, add_special_tokens=False)
+                if joined != row_prefix_ids + [slot]:
+                    raise SchemaCompileError(
+                        fname,
+                        f"field '{fname}': tokenization boundary breaks the letter "
+                        f"slot for '{letter}' (encode(row + letter) != encode(row) "
+                        f"+ [slot]; tokenizer {type(tokenizer).__name__})",
+                    )
+            choices_map = dict(zip(letters, choices_list, strict=True))
+            fields_plan[fname] = {
+                "letters": letters,
+                "slot_ids": slot_ids,
+                "row_ids": row_prefix_ids,
+                "choices": choices_list,
+                "choices_map": choices_map,
+            }
+
+        # Multi fields: compile the trie plan for their rows.
+        trie_plan: dict[str, dict[str, Any]] = {}
+        if any(f.field_type == "multi" for f in self.fields.values()):
+            trie_plan = self.compile_batch_plan(tokenizer)["fields"]
+        for fname, fdef in self.fields.items():
+            if fdef.field_type == "multi":
+                fields_plan[fname] = trie_plan[fname]
+
+        # The letter rows share the row prefix (open brace, field name,
+        # colon-space); their common token prefix is the broadcast lead-in
+        # (strip it from the rows so the engine can keep it in the prefill
+        # cache, like trie mode).
+        row_prefixes = [p["row_ids"] for p in fields_plan.values() if "row_ids" in p]
+        lead_in = _common_token_prefix(row_prefixes) if row_prefixes else []
+        if lead_in:
+            for p in fields_plan.values():
+                if "row_ids" in p:
+                    p["row_ids"] = p["row_ids"][len(lead_in) :]
+        result = {
+            "lead_in_ids": list(lead_in),
+            "fields": fields_plan,
+            "mode": "letters",
+        }
+        self._cache_plan(tokenizer, result, mode="letters")
         return result

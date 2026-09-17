@@ -353,6 +353,207 @@ def _rows_per_chunk(budget_bytes: int, bytes_per_row: int, max_rows: int | None)
     return auto_cap
 
 
+def _run_letters_scoring(
+    model,
+    tokenizer,
+    context: str,
+    schema: StructuredSchema,
+    plan: dict[str, Any],
+    *,
+    temperature: float,
+    max_rows: int | None,
+    t0: float,
+) -> dict[str, Any]:
+    """Letter-slot scoring path (engine ``scoring="letters"``).
+
+    One row per enum/boolean field: the row is ``lead_in + row_ids`` (the
+    JSON row prefix ``'{\n  "<field>": '`` minus the broadcast lead-in), and
+    the choice is read from the next-token logits at the row's last position,
+    restricted to the field's letter slot tokens. The letter is mapped back
+    to its choice string by the plan. Multi fields reuse the trie mode's
+    per-option boolean rows, scored exactly as in trie mode.
+    """
+    from jevmlx.trie import softmax as _softmax
+
+    lead_in = plan["lead_in_ids"]
+    field_plans = plan["fields"]
+
+    # 1. Rows: letter fields get one row each (lead_in + row_ids); multi
+    #    fields get their trie-mode option rows.
+    rows: list[list[int]] = []
+    row_field: list[str] = []
+    row_option: dict[int, int] = {}
+    for fname in schema.fields:
+        p = field_plans[fname]
+        if "row_ids" in p:
+            rows.append(lead_in + list(p["row_ids"]))
+            row_field.append(fname)
+            continue
+        for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
+            rows.append(lead_in + list(suffix_ids))
+            row_field.append(fname)
+            row_option[len(rows) - 1] = oi
+
+    # 2. Prefill: the schema catalog lists the lettered choices.
+    schema_str = schema.to_letters_schema_str()
+    base_ids = _chat_ids(tokenizer, f"Classify JSON attributes:\n{schema_str}\n\n{context}")
+    base_arr = mx.array(base_ids)[None]
+
+    t_pre0 = time.perf_counter()
+    cache = make_prompt_cache(model)
+    model(base_arr, cache=cache)
+    mx.eval(
+        *[t for c in cache if hasattr(c, "keys") and c.keys is not None for t in (c.keys, c.values)]
+    )
+    t_prefill = (time.perf_counter() - t_pre0) * 1000
+
+    # 3. Memory guard (same heuristic as trie mode).
+    bytes_per_row = _cache_bytes_per_row(cache)
+    width_max = max(len(r) for r in rows) if rows else 0
+    vocab_size = (
+        model.args.vocab_size
+        if hasattr(model, "args") and hasattr(model.args, "vocab_size")
+        else model.model.embed_tokens.weight.shape[0]
+    )
+    bytes_per_row += width_max * vocab_size * 4
+    weight_bytes = _model_weight_bytes(model)
+    budget = max(1, _max_recommended_working_set() // 2 - weight_bytes)
+    auto_max_rows = _rows_per_chunk(budget, bytes_per_row, max_rows)
+    num_passes = max(1, math.ceil(len(rows) / auto_max_rows))
+    if num_passes > 1:
+        logger.warning(
+            "Chunking heuristic: %d rows over %d passes (bytes_per_row=%d)",
+            len(rows),
+            num_passes,
+            bytes_per_row,
+        )
+
+    # 4. Batched suffix passes.
+    pad_id = tokenizer.pad_token_id or 0
+    t_suf0 = time.perf_counter()
+    slot_logits: dict[int, list[float]] = {}  # letter-field row -> slot logits
+    option_pair: dict[int, list[float]] = {}  # multi option row -> true/false logits
+    for chunk_start in range(0, len(rows), auto_max_rows):
+        chunk = rows[chunk_start : chunk_start + auto_max_rows]
+        chunk_len = len(chunk)
+        width = max(len(r) for r in chunk)
+        padded = mx.array([r + [pad_id] * (width - len(r)) for r in chunk], dtype=mx.int32)
+        b_cache = _broadcast_cache(cache, chunk_len)
+        mx.eval(
+            *[
+                t
+                for c in b_cache
+                if hasattr(c, "keys") and c.keys is not None
+                for t in (c.keys, c.values)
+            ]
+        )
+        out = model(padded, cache=b_cache)
+        mx.eval(out)
+        for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
+            p = field_plans[row_field[ridx]]
+            if ridx in row_option:
+                lg = out[i, len(lead_in) + len(p["suffix_ids_list"][row_option[ridx]]) - 1, :]
+                option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][row_option[ridx]]]
+            else:
+                position = len(lead_in) + len(p["row_ids"]) - 1
+                lg = out[i, position, :]
+                slot_logits[ridx] = [float(lg[slot]) for slot in p["slot_ids"]]
+        del out
+
+    t_suffix_eval = (time.perf_counter() - t_suf0) * 1000
+
+    # 5. Score: softmax over the slot logits (temperature applied once, same
+    #    rule as trie mode); map the winning letter back to its choice string.
+    field_rows: dict[str, list[int]] = {}
+    for idx, fname in enumerate(row_field):
+        field_rows.setdefault(fname, []).append(idx)
+
+    parsed_json: dict[str, Any] = {}
+    field_telemetry: dict[str, Any] = {}
+    for fname, fdef in schema.fields.items():
+        p = field_plans[fname]
+        idxs = field_rows.get(fname, [])
+
+        if "row_ids" not in p:
+            # Multi field: identical scoring to trie mode.
+            probs_true = {}
+            for oi, ridx in enumerate(idxs):
+                pair = option_pair[ridx]
+                (p_true, _p_false) = _softmax(pair, temperature=temperature)
+                probs_true[p["options"][oi]] = p_true
+            selected, confidence = _fold_multi(probs_true)
+            parsed_json[fname] = {"value": selected, "prob": confidence}
+            field_telemetry[fname] = {
+                "value": selected,
+                "type": "multi",
+                "confidence": confidence,
+                "cardinality": fdef.cardinality,
+                "per_option": dict(probs_true),
+                "top_choices": [
+                    {"choice": o, "probability": pt}
+                    for o, pt in sorted(probs_true.items(), key=lambda kv: -kv[1])
+                ],
+                "rows": len(idxs),
+            }
+            continue
+
+        # Letter-slot field.
+        probs_list = _softmax(slot_logits[idxs[0]], temperature=temperature)
+        w_idx = max(range(len(probs_list)), key=probs_list.__getitem__)
+        w_prob = probs_list[w_idx]
+        letter = p["letters"][w_idx]
+        val = (
+            (p["choices"][w_idx].lower() == "true")
+            if fdef.field_type == "boolean"
+            else p["choices"][w_idx]
+        )
+        log_scores = {
+            choice: math.log(pr) if pr > 0 else float("-inf")
+            for choice, pr in zip(p["choices"], probs_list, strict=True)
+        }
+        scored_choices = [
+            {"choice": p["choices"][i], "probability": pr} for i, pr in enumerate(probs_list)
+        ]
+        scored_choices.sort(key=lambda x: x["probability"], reverse=True)
+        parsed_json[fname] = {"value": val, "prob": w_prob}
+        field_telemetry[fname] = {
+            "value": val,
+            "type": fdef.field_type,
+            "confidence": w_prob,
+            "cardinality": fdef.cardinality,
+            "log_scores": log_scores,
+            "top_choices": scored_choices[:5],
+            "rows": 1,
+            "slot_letter": letter,
+        }
+
+    total_elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.info(
+        "Decided %d fields in %.1f ms",
+        len(schema),
+        total_elapsed_ms,
+        extra={
+            "prefill_ms": round(t_prefill, 2),
+            "suffix_eval_ms": round(t_suffix_eval, 2),
+            "rows": len(rows),
+            "passes": num_passes,
+            "num_fields": len(schema),
+        },
+    )
+    return {
+        "elapsed_ms": round(total_elapsed_ms, 2),
+        "prefill_ms": round(t_prefill, 2),
+        "suffix_eval_ms": round(t_suffix_eval, 2),
+        "total_tokens_generated": 0,
+        "sequential_forward_passes": num_passes,
+        "schema_match": True,
+        "confidence_model": "letter_slots",
+        "parsed_json": parsed_json,
+        "field_telemetry": field_telemetry,
+        "num_fields": len(schema),
+    }
+
+
 def run_parallel_generation(
     model,
     tokenizer,
@@ -360,23 +561,38 @@ def run_parallel_generation(
     schema: StructuredSchema,
     temperature: float = 1.0,
     max_rows: int | None = None,
+    scoring: str = "trie",
 ) -> dict[str, Any]:
     """Decide every schema field in one batched forward pass.
 
-    Scoring: per field, a token trie over the choice continuations. Rows are
-    the trie's branch points (one row per node where choices diverge); each
-    node's children are softmaxed over their logits at the node's decision
-    position and every choice accumulates the log-probability of its branch.
-    Fields whose choices never share a first token get exactly one row, same
-    as before. Choice probabilities sum to 1, so confidence = P(choice).
+    Scoring modes:
+
+    - ``"trie"`` (default): per field, a token trie over the choice
+      continuations. Rows are the trie's branch points (one row per node
+      where choices diverge); each node's children are softmaxed over their
+      logits at the node's decision position and every choice accumulates the
+      log-probability of its branch. Fields whose choices never share a first
+      token get exactly one row. Choice probabilities sum to 1, so
+      confidence = P(choice).
+    - ``"letters"``: the prompt lists each field's choices as lettered
+      options (A, B, C ...); each enum/boolean field gets ONE row whose last
+      token is the empty slot after ``"  \"<field>\": "``, and the choice is
+      read from the next-token distribution restricted to the letter slot
+      tokens (one token per choice, no collisions by construction). Multi
+      fields keep the trie mode's per-option boolean rows. Confidence is the
+      slot softmax probability of the chosen letter (``confidence_model:
+      "letter_slots"``). The letter -> choice mapping follows the schema's
+      choice order, so order-rotation evals permute the letters.
 
     The prefill KV cache is broadcast across rows; batches larger than the
     chunking heuristic allows run in chunks over the same prefill cache.
 
-    ``temperature`` is a post-hoc temperature applied to the per-branch
+    ``temperature`` is a post-hoc temperature applied to the per-choice
     logits (softmax(logits / temperature)) — it is not a token-level sampling
     temperature; generation itself is deterministic.
     """
+    if scoring not in ("trie", "letters"):
+        raise ValueError(f"scoring must be 'trie' or 'letters', got {scoring!r}")
     if not math.isfinite(temperature) or temperature <= 0:
         raise ValueError(f"temperature must be a finite number > 0, got {temperature!r}")
     if max_rows is not None and max_rows < 1:
@@ -384,9 +600,25 @@ def run_parallel_generation(
 
     t0 = time.perf_counter()
 
-    # 1. Batch plan, then trie rows per field: one row per branch point of the
-    #    choice remainders (fields with distinct first tokens: exactly one row).
-    plan = schema.compile_batch_plan(tokenizer)
+    # 1. Batch plan, then rows per field. Trie mode: one row per branch point
+    #    of the choice remainders. Letters mode: one row per enum/boolean
+    #    field, ending right before the letter slot.
+    plan = (
+        schema.compile_letters_plan(tokenizer)
+        if scoring == "letters"
+        else schema.compile_batch_plan(tokenizer)
+    )
+    if scoring == "letters":
+        return _run_letters_scoring(
+            model,
+            tokenizer,
+            context,
+            schema,
+            plan,
+            temperature=temperature,
+            max_rows=max_rows,
+            t0=t0,
+        )
 
     rows: list[list[int]] = []  # token ids per row
     row_field: list[str] = []  # field each row belongs to

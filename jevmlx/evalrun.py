@@ -75,7 +75,7 @@ def _sha256_file(path: str | None) -> str | None:
     return digest.hexdigest()
 
 
-def parallel_decide_fn(model, tokenizer) -> DecideFn:
+def parallel_decide_fn(model, tokenizer, scoring: str = "trie") -> DecideFn:
     """Track ``parallel``: the jevmlx engine at T=1.
 
     Log scores come from field telemetry. The finalized engine key is
@@ -91,7 +91,9 @@ def parallel_decide_fn(model, tokenizer) -> DecideFn:
         from jevmlx.engine import run_parallel_generation
 
         schema = StructuredSchema(schema_dict)
-        result = run_parallel_generation(model, tokenizer, context, schema, temperature=1.0)
+        result = run_parallel_generation(
+            model, tokenizer, context, schema, temperature=1.0, scoring=scoring
+        )
         out: dict[str, dict[str, Any]] = {}
         for fname, telemetry in result["field_telemetry"].items():
             field = schema.fields.get(fname)
