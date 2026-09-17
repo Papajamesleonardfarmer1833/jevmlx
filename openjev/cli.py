@@ -165,6 +165,12 @@ def main(argv=None) -> None:
     eval_p.add_argument(
         "--out", required=True, help="output directory (predictions.jsonl, run.json)"
     )
+    report_p = sub.add_parser(
+        "report",
+        help="Build a JSON + markdown eval report from predictions.jsonl (offline)",
+    )
+    report_p.add_argument("--predictions", required=True, help="path to predictions.jsonl")
+    report_p.add_argument("--out", required=True, help="output path for the JSON report")
     args = ap.parse_args(argv)
 
     # serve defaults to INFO: the user must see the listen address. -v is a no-op there.
@@ -239,6 +245,15 @@ def main(argv=None) -> None:
         from openjev.serve import serve
 
         serve(args.model, args.host, args.port)
+
+    elif args.command == "report":
+        # Offline: pure-python metrics over predictions.jsonl -> evalreport.
+        from openjev.evalmetrics import compute_metrics, load_predictions
+        from openjev.evalreport import environment, write_report
+
+        records = load_predictions(args.predictions)
+        write_report(args.out, {"environment": environment(), "metrics": compute_metrics(records)})
+        print(f"wrote {args.out} (+ .md)")
 
     elif args.command == "validate":
         from dataclasses import asdict

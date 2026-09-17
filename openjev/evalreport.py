@@ -105,7 +105,12 @@ def _accuracy(value: object) -> float:
 
 
 def _metric_rows(run: dict) -> list[tuple]:
-    """Metrics-table rows: overall accuracy, per-type accuracy, ECE, NLL, latency."""
+    """Metrics-table rows: overall accuracy, per-type, then generic metrics.
+
+    Scalar metrics become one row; dicts of scalars become ``name[key]`` rows
+    (e.g. majority_class_baseline per field); list-valued or nested metrics
+    (risk_coverage curve) stay JSON-only to keep the table readable.
+    """
     metrics = run.get("metrics") or {}
     rows: list[tuple] = []
     if "accuracy" in metrics:
@@ -114,7 +119,28 @@ def _metric_rows(run: dict) -> list[tuple]:
         entry = run["per_type"][type_name]
         accuracy = entry.get("accuracy") if isinstance(entry, dict) else entry
         rows.append((f"accuracy[{type_name}]", accuracy))
-    for key in ("ece", "nll", "latency_ms_p50", "latency_ms_p90"):
+    ordered = (
+        "case_exact_match",
+        "multi_jaccard",
+        "brier",
+        "log_loss",
+        "correctness_auroc",
+        "ece_5bin_equal_mass",
+        "tie_rate",
+    )
+    for key in ordered:
+        if key in metrics:
+            rows.append((key, metrics[key]))
+    handled = set(ordered) | {"accuracy", "risk_coverage"}
+    for key in sorted(set(metrics) - handled):
+        value = metrics[key]
+        if isinstance(value, dict):
+            for sub_key, sub_value in sorted(value.items()):
+                if isinstance(sub_value, (int, float)):
+                    rows.append((f"{key}[{sub_key}]", sub_value))
+        elif isinstance(value, (int, float)):
+            rows.append((key, value))
+    for key in ("latency_ms_p50", "latency_ms_p90"):
         if key in metrics:
             rows.append((key, metrics[key]))
     return rows
