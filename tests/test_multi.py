@@ -65,8 +65,18 @@ def test_schema_from_model_list_and_set_literal():
         badges: set[Literal["x", "y"]] = Field(description="badges")
 
     assert schema_from_model(WithTags) == {
-        "tags": {"type": "multi", "choices": ["a", "b"], "description": "tags that apply"},
-        "badges": {"type": "multi", "choices": ["x", "y"], "description": "badges"},
+        "tags": {
+            "type": "multi",
+            "choices": ["a", "b"],
+            "description": "tags that apply",
+            "choice_descriptions": {},
+        },
+        "badges": {
+            "type": "multi",
+            "choices": ["x", "y"],
+            "description": "badges",
+            "choice_descriptions": {},
+        },
     }
 
 

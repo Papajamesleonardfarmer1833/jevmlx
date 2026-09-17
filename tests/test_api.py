@@ -33,11 +33,13 @@ def test_schema_from_model_exact_dict():
             "type": "enum",
             "choices": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
             "description": "Risk tier",
+            "choice_descriptions": {},
         },
         "severity": {
             "type": "enum",
             "choices": ["LOW", "MEDIUM", "HIGH"],
             "description": "Case severity",
+            "choice_descriptions": {},
         },
         "notes": {"type": "boolean", "description": "notes"},
     }
@@ -73,9 +75,10 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
                 "risk_tier": {"value": "HIGH"},
             },
             "field_telemetry": {
-                "is_fraudulent": {"confidence": 0.9},
-                "risk_tier": {"confidence": 0.8},
+                "is_fraudulent": {"value": True, "confidence": 0.9},
+                "risk_tier": {"value": "HIGH", "confidence": 0.8},
             },
+            "confidence_model": "constrained_path",
             "elapsed_ms": 5.0,
         }
 
@@ -92,7 +95,9 @@ def test_decide_many_uses_one_engine_and_one_schema(monkeypatch):
     assert len(decisions) == 3
     for d in decisions:
         assert d.value == TwoField(is_fraudulent=True, risk_tier="HIGH")
-        assert d.confidence == {"is_fraudulent": 0.9, "risk_tier": 0.8}
+        assert set(d.fields) == {"is_fraudulent", "risk_tier"}
+        assert d.fields["is_fraudulent"].probability == 0.9
+        assert d.fields["risk_tier"].probability == 0.8
         assert d.latency_ms == 5.0
 
     assert load_calls == ["fake/model"]  # engine loaded exactly once
@@ -170,7 +175,12 @@ def test_schema_from_model_accepts_strenum():
         color: Color = Field(description="color")
 
     assert schema_from_model(Ok) == {
-        "color": {"type": "enum", "choices": ["red", "green"], "description": "color"}
+        "color": {
+            "type": "enum",
+            "choices": ["red", "green"],
+            "description": "color",
+            "choice_descriptions": {},
+        }
     }
 
 
@@ -214,6 +224,242 @@ def test_decide_end_to_end():
         model="mlx-community/Qwen2.5-0.5B-Instruct-4bit",
     )
     assert isinstance(d.value, TwoField)
-    assert set(d.confidence) == {"is_fraudulent", "risk_tier"}
-    assert all(0.0 <= c <= 1.0 for c in d.confidence.values())
+    assert set(d.fields) == {"is_fraudulent", "risk_tier"}
+    assert all(0.0 <= fr.probability <= 1.0 for fr in d.fields.values())
     assert d.latency_ms > 0
+
+
+# --- V3: per-choice glosses -------------------------------------------------
+
+
+class SeverityGlossed(enum.Enum):
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+    descriptions = {  # becomes an enum MEMBER whose value is this dict
+        "LOW": "routine case",
+        "MEDIUM": "needs review today",
+        "HIGH": "escalate immediately",
+    }
+
+
+def test_choice_glosses_from_json_schema_extra():
+    """Literal glosses come from Field(json_schema_extra={'choice_descriptions': ...})."""
+
+    class WithGlosses(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(
+            description="Risk tier",
+            json_schema_extra={"choice_descriptions": {"LOW": "nothing to do", "HIGH": "act now"}},
+        )
+
+    schema = schema_from_model(WithGlosses)
+    assert schema["risk_tier"]["choice_descriptions"] == {
+        "LOW": "nothing to do",
+        "HIGH": "act now",
+    }
+    # Flows through StructuredSchema into FieldDefinition.
+    fs = StructuredSchema(schema).fields["risk_tier"]
+    assert fs.choice_descriptions == {"LOW": "nothing to do", "HIGH": "act now"}
+    assert fs.to_dict()["choice_descriptions"] == fs.choice_descriptions
+
+
+def test_choice_glosses_from_enum_class_descriptions():
+    class WithEnum(BaseModel):
+        severity: SeverityGlossed = Field(description="Severity")
+
+    schema = schema_from_model(WithEnum)
+    assert schema["severity"]["choice_descriptions"] == {
+        "LOW": "routine case",
+        "MEDIUM": "needs review today",
+        "HIGH": "escalate immediately",
+    }
+
+
+def test_choice_glosses_absent_means_empty_dict():
+    class Plain(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(description="Risk tier")
+
+    schema = schema_from_model(Plain)
+    assert schema["risk_tier"]["choice_descriptions"] == {}
+
+
+def test_choice_glosses_malformed_raise():
+    class Bad(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(
+            description="Risk tier",
+            json_schema_extra={"choice_descriptions": {"LOW": 3}},
+        )
+
+    with pytest.raises(TypeError, match="choice_descriptions"):
+        schema_from_model(Bad)
+
+
+def test_choice_glosses_unknown_choice_rejected_by_schema():
+    with pytest.raises(ValueError, match="choice_descriptions keys not in choices"):
+        StructuredSchema(
+            {
+                "f": {
+                    "type": "enum",
+                    "description": "d",
+                    "choices": ["a", "b"],
+                    "choice_descriptions": {"nope": "gloss"},
+                }
+            }
+        )
+
+
+# --- V3: allow_unknown ------------------------------------------------------
+
+
+def test_allow_unknown_requires_optional_enum():
+    class Strict(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] = Field(description="Risk tier")
+
+    with pytest.raises(TypeError, match=r"'risk_tier'.*Optional"):
+        jevmlx.decide(Strict, "ctx", model="fake/model", allow_unknown=True)
+
+
+def test_allow_unknown_appends_choice_and_maps_to_none(monkeypatch):
+    class Maybe(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] | None = Field(description="Risk tier")
+
+    captured = {}
+
+    def fake_run_parallel(engine_model, tokenizer, context, schema, **kwargs):
+        captured["choices"] = schema.fields["risk_tier"].choices
+        captured["descriptions"] = schema.fields["risk_tier"].choice_descriptions
+        return {
+            "parsed_json": {"risk_tier": {"value": "UNKNOWN"}},
+            "field_telemetry": {
+                "risk_tier": {
+                    "value": "UNKNOWN",
+                    "confidence": 0.4,
+                    "log_scores": {"LOW": -2.1, "HIGH": -3.0, "UNKNOWN": -1.1},
+                    "top_choices": [{"choice": "UNKNOWN", "probability": 0.4}],
+                }
+            },
+            "confidence_model": "constrained_path",
+            "elapsed_ms": 5.0,
+        }
+
+    monkeypatch.setattr("jevmlx.api.load_engine", lambda model_id: ("engine", "tokenizer"))
+    monkeypatch.setattr("jevmlx.api.run_parallel_generation", fake_run_parallel)
+
+    d = jevmlx.decide(Maybe, "ctx", model="fake/model", allow_unknown=True)
+    # UNKNOWN was appended to the engine's choices with the standard gloss...
+    assert captured["choices"] == ["LOW", "HIGH", "UNKNOWN"]
+    assert captured["descriptions"]["UNKNOWN"] == "insufficient evidence or none of the options"
+    # ...and mapped to None in the validated model.
+    assert d.value.risk_tier is None
+    assert d.fields["risk_tier"].value == "UNKNOWN"
+
+
+def test_allow_unknown_off_leaves_schema_untouched(monkeypatch):
+    class Maybe(BaseModel):
+        risk_tier: Literal["LOW", "HIGH"] | None = Field(description="Risk tier")
+
+    captured = {}
+
+    def fake_run_parallel(engine_model, tokenizer, context, schema, **kwargs):
+        captured["choices"] = schema.fields["risk_tier"].choices
+        return {
+            "parsed_json": {"risk_tier": {"value": "LOW"}},
+            "field_telemetry": {"risk_tier": {"value": "LOW", "confidence": 0.9}},
+            "confidence_model": "constrained_path",
+            "elapsed_ms": 5.0,
+        }
+
+    monkeypatch.setattr("jevmlx.api.load_engine", lambda model_id: ("engine", "tokenizer"))
+    monkeypatch.setattr("jevmlx.api.run_parallel_generation", fake_run_parallel)
+
+    jevmlx.decide(Maybe, "ctx", model="fake/model")
+    assert captured["choices"] == ["LOW", "HIGH"]
+
+
+def test_allow_unknown_rejects_existing_unknown_choice():
+    class Collide(BaseModel):
+        risk_tier: Literal["LOW", "UNKNOWN"] | None = Field(description="Risk tier")
+
+    with pytest.raises(TypeError, match="already exists"):
+        jevmlx.decide(Collide, "ctx", model="fake/model", allow_unknown=True)
+
+
+# --- V3: Decision.fields / FieldResult --------------------------------------
+
+
+def _fake_result(confidence_model="constrained_path"):
+    return {
+        "parsed_json": {"risk_tier": {"value": "HIGH"}, "tags": {"value": ["a"]}},
+        "field_telemetry": {
+            "risk_tier": {
+                "value": "HIGH",
+                "confidence": 0.7,
+                "log_scores": {"LOW": -0.5, "HIGH": -0.1, "CRITICAL": -2.0},
+                "top_choices": [
+                    {"choice": "HIGH", "probability": 0.7},
+                    {"choice": "LOW", "probability": 0.2},
+                    {"choice": "CRITICAL", "probability": 0.1},
+                ],
+            },
+            "tags": {
+                "value": ["a"],
+                "confidence": 0.8,
+                "per_option": {"a": 0.8, "b": 0.1},
+            },
+        },
+        "confidence_model": confidence_model,
+        "elapsed_ms": 5.0,
+    }
+
+
+def test_field_result_built_from_fake_engine_result(monkeypatch):
+    import jevmlx.api as api
+
+    monkeypatch.setattr(api, "run_parallel_generation", lambda *a, **k: _fake_result())
+    monkeypatch.setattr(api, "load_engine", lambda model_id: ("engine", "tokenizer"))
+
+    class TwoField(BaseModel):
+        risk_tier: Literal["LOW", "HIGH", "CRITICAL"] = Field(description="Risk tier")
+        tags: list[Literal["a", "b"]] = Field(description="Tags")
+
+    d = jevmlx.decide(TwoField, "ctx", model="fake/model")
+    fr = d.fields["risk_tier"]
+    assert isinstance(fr, api.FieldResult)
+    assert fr.value == "HIGH"
+    assert fr.score == -0.1  # log P of the winner
+    assert abs(fr.margin - (-0.1 - -0.5)) < 1e-9  # top1 minus top2 log score
+    assert fr.probability == 0.7
+    assert fr.calibrated is False
+    assert fr.model == "labels"
+    assert fr.alternatives == (("HIGH", 0.7), ("LOW", 0.2), ("CRITICAL", 0.1))
+    # multi: no log_scores -> score from probability, margin 0, alternatives
+    # from per_option
+    multi = d.fields["tags"]
+    assert multi.value == ["a"]
+    assert multi.margin == 0.0
+    assert multi.alternatives == (("a", 0.8), ("b", 0.1))
+    assert isinstance(d.value, TwoField)
+
+
+def test_field_result_model_slots_for_letters(monkeypatch):
+    import jevmlx.api as api
+
+    monkeypatch.setattr(
+        api, "run_parallel_generation", lambda *a, **k: _fake_result("letter_slots")
+    )
+    monkeypatch.setattr(api, "load_engine", lambda model_id: ("engine", "tokenizer"))
+
+    class OneField(BaseModel):
+        risk_tier: Literal["LOW", "HIGH", "CRITICAL"] = Field(description="Risk tier")
+
+    d = jevmlx.decide(OneField, "ctx", model="fake/model")
+    assert d.fields["risk_tier"].model == "slots"
+
+
+def test_decision_has_no_confidence_attribute():
+    """HARD RULE: .confidence is gone, replaced by .fields."""
+    import dataclasses
+
+    from jevmlx.api import Decision
+
+    assert not any(f.name == "confidence" for f in dataclasses.fields(Decision))
