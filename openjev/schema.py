@@ -4,8 +4,21 @@ Supports booleans, categorical enums (cardinality up to 255), and multi fields
 (subset of choices, 2-64 options, decided as one boolean decision per option).
 """
 
-import os
 from typing import Any
+
+
+def _common_token_prefix(sequences: list[list[int]]) -> list[int]:
+    """Longest common token-ID prefix of every sequence (at least one required)."""
+    if not sequences:
+        return []
+    shared: list[int] = []
+    shortest = min(len(sequence) for sequence in sequences)
+    for position in range(shortest):
+        tokens_at = {sequence[position] for sequence in sequences}
+        if len(tokens_at) != 1:
+            break
+        shared.append(sequences[0][position])
+    return shared
 
 
 class FieldDefinition:
@@ -66,6 +79,9 @@ class StructuredSchema:
                 description=spec.get("description", ""),
                 choices=spec.get("choices", None),
             )
+        # Compiled plans, keyed by tokenizer identity: one schema object can be
+        # reused with several models, and token IDs are tokenizer-specific.
+        self._plans: dict[str, dict[str, Any]] = {}
 
     def get_field_names(self) -> list[str]:
         return list(self.fields.keys())
@@ -106,16 +122,34 @@ class StructuredSchema:
             lines.append(f'  "{name}": {desc}')
         return "\n".join(lines)
 
-    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
-        """Pre-indexes everything the engine needs for the batched suffix pass.
+    def _tokenizer_key(self, tokenizer) -> str:
+        """Stable cache key for one tokenizer identity."""
+        name = getattr(tokenizer, "name_or_path", None) or repr(type(tokenizer))
+        try:
+            size = str(len(tokenizer))
+        except TypeError:
+            size = ""
+        return f"{name}:{size}"
 
-        Per field: the suffix token ids (the ``  "name": "`` tail, including the
-        common prefix shared by all choices) and each choice's full token list
-        (the remainder after the common prefix; the bare literal for booleans).
-        A choice that adds nothing beyond the common prefix is scored via the
-        closing-quote token so its row still ends the JSON string.
+    def compile_batch_plan(self, tokenizer) -> dict[str, dict[str, Any]]:
+        """Pre-index everything the engine needs for the batched suffix pass.
+
+        Token-aligned: every choice is encoded as its complete, JSON-escaped
+        row candidate (``  "name": "choice"`` including the closing quote;
+        the bare literal for booleans) in one tokenization pass, then the
+        field's shared token prefix and per-choice remainders are computed on
+        token IDs. Encoding the prefix and the remainder separately would be
+        wrong: BPE merges are not compositional, so the concatenated ids would
+        not be the tokenization of the full candidate.
+
+        Per enum/boolean field the plan carries ``shared_ids`` (the common
+        token-ID prefix of all candidates) and per-choice ``remainders``.
+        Per multi field it carries one ``suffix_ids_list`` entry per option
+        (``  "name.option": ``) plus the shared true/false token lists.
+        Plans are cached per tokenizer identity (name_or_path + vocab size).
         """
-        cached = getattr(self, "_batch_plan", None)
+        key = self._tokenizer_key(tokenizer)
+        cached = self._plans.get(key)
         if cached is not None:
             return cached
 
@@ -124,38 +158,53 @@ class StructuredSchema:
             if fdef.field_type == "multi":
                 # One boolean row per option: suffix '  "<field>.<option>": '
                 # scored against the true/false literals. The engine folds the
-                # per-option probabilities back into the selected subset.
+                # per-option probabilities back into the selected subset. The
+                # true/false remainders come from the token-aligned rule: the
+                # option rows share their suffix, so the remainders are the
+                # full ' true'/' false' sequences with the common token prefix
+                # removed.
+                full_lists = [
+                    tokenizer.encode(f'  "{fname}.{option}": {literal}', add_special_tokens=False)
+                    for option in fdef.choices
+                    for literal in ("true", "false")
+                ]
+                shared = _common_token_prefix(full_lists)
                 plan[fname] = {
                     "options": list(fdef.choices),
                     "suffix_ids_list": [
                         tokenizer.encode(f'  "{fname}.{option}": ', add_special_tokens=False)
                         for option in fdef.choices
                     ],
-                    "choice_token_lists": [
-                        tokenizer.encode(v, add_special_tokens=False) for v in ("true", "false")
-                    ],
+                    "shared_ids": shared,
+                    "remainders": [full[len(shared) :] for full in full_lists],
                 }
                 continue
+
             if fdef.field_type == "boolean":
-                prefix = ""
-                suffix_ids = tokenizer.encode(f'  "{fname}": ', add_special_tokens=False)
-                choice_token_lists = [
-                    tokenizer.encode(v, add_special_tokens=False) for v in ("true", "false")
+                candidates = [
+                    tokenizer.encode(f'  "{fname}": {literal}', add_special_tokens=False)
+                    for literal in ("true", "false")
                 ]
             else:
-                prefix = os.path.commonprefix(fdef.choices)
-                suffix_ids = tokenizer.encode(f'  "{fname}": "{prefix}', add_special_tokens=False)
-                choice_token_lists = []
-                for choice in fdef.choices:
-                    toks = tokenizer.encode(choice[len(prefix) :], add_special_tokens=False)
-                    if not toks:
-                        toks = tokenizer.encode('"', add_special_tokens=False)
-                    choice_token_lists.append(toks)
+                candidates = [
+                    tokenizer.encode(f'  "{fname}": "{choice}"', add_special_tokens=False)
+                    for choice in fdef.choices
+                ]
+
+            shared = _common_token_prefix(candidates)
+            remainders = [full[len(shared) :] for full in candidates]
+            if any(len(remainder) == 0 for remainder in remainders):
+                same = [
+                    fdef.choices[i] for i, remainder in enumerate(remainders) if len(remainder) == 0
+                ]
+                raise ValueError(
+                    f"field '{fname}': choices {same} are token-identical to another "
+                    "choice of the same field; the engine cannot distinguish them"
+                )
             plan[fname] = {
-                "suffix_ids": suffix_ids,
-                "prefix": prefix,
-                "choice_token_lists": choice_token_lists,
+                "shared_ids": shared,
+                "remainders": remainders,
             }
 
-        self._batch_plan = plan
+        self._plans[key] = plan
         return plan

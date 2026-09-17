@@ -18,6 +18,7 @@ import time
 from typing import Any
 
 from openjev.schema import StructuredSchema
+from openjev.trie import build_trie, score_trie, softmax
 
 logger = logging.getLogger(__name__)
 
@@ -271,14 +272,18 @@ def run_parallel_generation(
 ) -> dict[str, Any]:
     """Decide every schema field in one batched forward pass.
 
-    Each choice is scored as the sum of its tokens' log-probs (teacher forced);
-    choice probabilities are a softmax of those scores. The prefill KV cache is
-    broadcast across rows; colliding choices get one row per choice, everything
-    else one row. Batches larger than the memory guard allow run in chunks over
-    the same prefill cache.
+    Scoring: per field, a token trie over the choice continuations. Rows are
+    the trie's branch points (one row per node where choices diverge); each
+    node's children are softmaxed over their logits at the node's decision
+    position and every choice accumulates the log-probability of its branch.
+    Fields whose choices never share a first token get exactly one row, same
+    as before. Choice probabilities sum to 1, so confidence = P(choice).
 
-    ``temperature`` is a post-hoc temperature applied to the per-choice score
-    logits (softmax(scores / temperature)) — it is not a token-level sampling
+    The prefill KV cache is broadcast across rows; batches larger than the
+    chunking heuristic allows run in chunks over the same prefill cache.
+
+    ``temperature`` is a post-hoc temperature applied to the per-branch
+    logits (softmax(logits / temperature)) — it is not a token-level sampling
     temperature; generation itself is deterministic.
     """
     if not math.isfinite(temperature) or temperature <= 0:
@@ -288,40 +293,31 @@ def run_parallel_generation(
 
     t0 = time.perf_counter()
 
-    # 1. Batch plan: per field, suffix ids and per-choice token lists.
+    # 1. Batch plan, then trie rows per field: one row per branch point of the
+    #    choice remainders (fields with distinct first tokens: exactly one row).
     plan = schema.compile_batch_plan(tokenizer)
 
     rows: list[list[int]] = []  # token ids per row
     row_field: list[str] = []  # field each row belongs to
-    row_choice: list[int | None] = []  # choice index for choice-rows, else None
+    row_branch: dict[int, int] = {}  # row idx -> branch-node index within its field
     row_option: dict[int, int] = {}  # row idx -> option index (multi fields only)
-    collides: dict[str, bool] = {}
+    tries: dict[str, list[dict]] = {}
     for fname in schema.fields:
         p = plan[fname]
         if "options" in p:
-            # multi: one boolean row per option (same true/false token lists).
-            collides[fname] = False
+            # multi: one boolean row per option (true/false remainders from the
+            # token-aligned plan, scored at the option suffix's last position).
             for oi, suffix_ids in enumerate(p["suffix_ids_list"]):
-                # Suffix-only row, like the boolean case: the p_true logit is
-                # read at the suffix's last position.
                 rows.append(list(suffix_ids))
                 row_field.append(fname)
-                row_choice.append(None)
                 row_option[len(rows) - 1] = oi
             continue
-        lists = p["choice_token_lists"]
-        # Collision = two choices share the FIRST token (not merely identical lists).
-        collides[fname] = len({t[0] for t in lists}) < len(lists)
-        if collides[fname]:
-            # One teacher-forced row per choice; the suffix-only row would be unused.
-            for ci, toks in enumerate(lists):
-                rows.append(list(p["suffix_ids"]) + list(toks))
-                row_field.append(fname)
-                row_choice.append(ci)
-        else:
-            rows.append(list(p["suffix_ids"]))
+        field_trie = build_trie(p["remainders"])
+        tries[fname] = field_trie
+        for bi, node in enumerate(field_trie):
+            rows.append(list(p["shared_ids"]) + list(node["path"]))
             row_field.append(fname)
-            row_choice.append(None)
+            row_branch[len(rows) - 1] = bi
 
     # 2. Prefill once (compact schema catalog + context).
     schema_str = schema.to_parallel_schema_str()
@@ -374,8 +370,10 @@ def run_parallel_generation(
     #    [rows, width, vocab] output is dropped immediately (F3).
     pad_id = tokenizer.pad_token_id or 0
     t_suf0 = time.perf_counter()
-    first_token_scores: dict[int, list[float]] = {}  # row idx -> per-choice first-token logit
-    choice_total: dict[int, float] = {}  # row idx -> summed choice-token log-prob
+    # Row idx -> {branch-node index: [child logits in node["children"] order]}.
+    node_logits: dict[int, dict[int, list[float]]] = {}
+    # Multi option rows: [p_true logit, p_false logit] at the suffix end.
+    option_pair: dict[int, list[float]] = {}
     for chunk_start in range(0, len(rows), auto_max_rows):
         chunk = rows[chunk_start : chunk_start + auto_max_rows]
         chunk_len = len(chunk)
@@ -395,30 +393,23 @@ def run_parallel_generation(
         for i, ridx in enumerate(range(chunk_start, chunk_start + chunk_len)):
             p = plan[row_field[ridx]]
             if ridx in row_option:
-                # multi option row: suffix '  "field.option": ', scored at its
-                # last position against the true/false first tokens.
-                s_len = len(p["suffix_ids_list"][row_option[ridx]])
-                lg = out[i, s_len - 1, :]
-                first_token_scores[ridx] = [float(lg[t[0]]) for t in p["choice_token_lists"]]
-            elif row_choice[ridx] is None:
-                s_len = len(p["suffix_ids"])
-                lg = out[i, s_len - 1, :]
-                first_token_scores[ridx] = [float(lg[t[0]]) for t in p["choice_token_lists"]]
+                # multi option row: true/false logits at the suffix's last position.
+                oi = row_option[ridx]
+                lg = out[i, len(p["suffix_ids_list"][oi]) - 1, :]
+                option_pair[ridx] = [float(lg[t[0]]) for t in p["remainders"][2 * oi : 2 * oi + 2]]
             else:
-                s_len = len(p["suffix_ids"])
-                toks = p["choice_token_lists"][row_choice[ridx]]
-                total = 0.0
-                for step, tid in enumerate(toks):
-                    row = out[i, s_len + step - 1, :]
-                    # log_softmax(row)[tid] = row[tid] - logsumexp(row)
-                    total += float(row[tid]) - float(mx.logsumexp(row))
-                choice_total[ridx] = total
+                # Branch-node row: child logits at the node's last position,
+                # in node["children"] order.
+                node = tries[row_field[ridx]][row_branch[ridx]]
+                lg = out[i, len(p["shared_ids"]) + len(node["path"]) - 1, :]
+                node_logits[ridx] = {row_branch[ridx]: [float(lg[tok]) for tok in node["children"]]}
         del out
 
     t_suffix_eval = (time.perf_counter() - t_suf0) * 1000
 
-    # 5. One scoring rule for every field: sum of choice-token log-probs,
-    #    softmax over choices, confidence = max probability. No clamps.
+    # 5. Trie scoring: P(choice) = product of branch factors along its path;
+    #    proper distribution, so confidence = P(choice). Full precision: no
+    #    rounding anywhere in the engine's results (presentation rounds in cli).
     parsed_json: dict[str, Any] = {}
     field_telemetry: dict[str, Any] = {}
 
@@ -431,52 +422,62 @@ def run_parallel_generation(
         idxs = field_rows[fname]
 
         if "options" in p:
-            # multi: one p_true per option from its boolean row (first-token
-            # logit pair true/false, softmaxed at the decision position).
+            # multi: one boolean decision per option. Each option's two
+            # remainders form a 2-leaf trie; its logit pair is the root's
+            # children, softmaxed at the option suffix's decision position.
             probs_true = {}
             for oi, ridx in enumerate(idxs):
-                scores = first_token_scores[ridx]
-                probs = mx.softmax(mx.array(scores) / max(temperature, 1e-4))
-                mx.eval(probs)
-                probs_true[p["options"][oi]] = float(probs[0])
+                pair = option_pair[ridx]
+                (p_true, p_false) = softmax(pair, temperature=temperature)
+                probs_true[p["options"][oi]] = p_true
             selected, confidence = _fold_multi(probs_true)
             parsed_json[fname] = {
                 "value": selected,
-                "prob": round(confidence, 4),
+                "prob": confidence,
             }
             field_telemetry[fname] = {
                 "value": selected,
                 "type": "multi",
-                "confidence": round(confidence, 4),
+                "confidence": confidence,
                 "cardinality": fdef.cardinality,
-                # No 'scores' key for multi: for every other type it holds raw
-                # choice scores, which do not exist here. per_option carries
-                # the p_true values instead; calibrate skips multi fields.
-                "per_option": {o: round(pt, 4) for o, pt in probs_true.items()},
+                # No 'scores' key for multi: for every other type it holds log
+                # P(choice), which does not exist here. per_option carries the
+                # p_true values instead; calibrate skips multi fields.
+                "per_option": dict(probs_true),
                 "top_choices": [
-                    {"choice": o, "probability": round(pt, 4)}
+                    {"choice": o, "probability": pt}
                     for o, pt in sorted(probs_true.items(), key=lambda kv: -kv[1])
                 ],
+                "rows": len(idxs),
             }
             continue
 
-        choice_token_lists = p["choice_token_lists"]
-        n_choices = len(choice_token_lists)
+        field_trie = tries[fname]
+        n_choices = fdef.cardinality
 
-        if row_choice[idxs[0]] is None:
-            # Distinct first tokens: one row, first choice token scored at the
-            # field's last real suffix position (padding excluded).
-            scores = first_token_scores[idxs[0]]
-        else:
-            # Collision: choice ci has its own teacher-forced row at idxs[ci].
-            scores = [choice_total[idxs[ci]] for ci in range(n_choices)]
+        # logits_at_node for score_trie: branch-node rows carry their child
+        # logits under the branch-node index (row_branch of that row). Bound
+        # per field so the score_trie callback cannot see a later iteration's
+        # dictionaries.
+        logits_by_branch: dict[int, list[float]] = {}
+        for ridx in idxs:
+            logits_by_branch.update(node_logits[ridx])
+        branch_index = {id(node): bi for bi, node in enumerate(field_trie)}
 
-        scores_arr = mx.array(scores) / max(temperature, 1e-4)
-        probs = mx.softmax(scores_arr)
-        mx.eval(probs)
-        probs_list = probs.tolist()
-        w_idx = int(mx.argmax(probs))
-        w_prob = float(probs_list[w_idx])
+        def logits_at_node(
+            node: dict, _lookup=logits_by_branch, _index=branch_index
+        ) -> list[float]:
+            return _lookup[_index[id(node)]]
+
+        scores = score_trie(
+            field_trie,
+            n_choices,
+            logits_at_node,
+            temperature=temperature,
+        )
+        probs_list = [math.exp(lp) for lp in scores]
+        w_idx = max(range(n_choices), key=probs_list.__getitem__)
+        w_prob = probs_list[w_idx]
 
         choices_list = ["true", "false"] if fdef.field_type == "boolean" else fdef.choices
         val = (
@@ -487,22 +488,22 @@ def run_parallel_generation(
 
         parsed_json[fname] = {
             "value": val,
-            "prob": round(w_prob, 4),
+            "prob": w_prob,
         }
 
         scored_choices = [
-            {"choice": c, "probability": round(pr, 4)}
-            for c, pr in zip(choices_list, probs_list, strict=False)
+            {"choice": c, "probability": pr} for c, pr in zip(choices_list, probs_list, strict=True)
         ]
         scored_choices.sort(key=lambda x: x["probability"], reverse=True)
 
         field_telemetry[fname] = {
             "value": val,
             "type": fdef.field_type,
-            "confidence": round(w_prob, 4),
+            "confidence": w_prob,
             "cardinality": fdef.cardinality,
-            "scores": [round(s, 6) for s in scores],
+            "scores": scores,  # natural-log P(choice), full precision
             "top_choices": scored_choices[:5],
+            "rows": len(field_trie),
         }
 
     total_elapsed_ms = (time.perf_counter() - t0) * 1000

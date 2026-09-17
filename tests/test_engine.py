@@ -5,6 +5,7 @@ import pytest
 from openjev.cli import load_preset
 from openjev.engine import load_engine, run_parallel_generation
 from openjev.schema import StructuredSchema
+from openjev.trie import build_trie
 
 MODEL_ID = "mlx-community/Qwen2.5-0.5B-Instruct-4bit"
 
@@ -66,17 +67,29 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
     for fname in full["parsed_json"]:
         assert full["parsed_json"][fname]["value"] == chunked["parsed_json"][fname]["value"], fname
 
-    # Rows: 1 per field, +1 extra per choice for colliding fields (shared first
-    # token, the B1 rule). Pass count must match ceil(rows / max_rows).
+    # Rows: 1 per field, one extra per trie branch point for fields whose
+    # choice continuations share tokens. Pass count must match
+    # ceil(rows / max_rows).
     plan = schema.compile_batch_plan(tokenizer)
-    expected_rows = sum(
-        len(p["choice_token_lists"])
-        if len({t[0] for t in p["choice_token_lists"]}) < len(p["choice_token_lists"])
-        else 1
-        for p in plan.values()
-    )
+    expected_rows = sum(len(build_trie(p["remainders"])) for p in plan.values())
     assert chunked["sequential_forward_passes"] == math.ceil(expected_rows / 5)
     assert full["sequential_forward_passes"] == 1
+
+
+@pytest.mark.slow
+def test_trie_winner_stable_under_chunking(engine):
+    """T4: per-field winners identical with max_rows=3 vs unchunked (trie rows)."""
+    model, tokenizer = engine
+    for preset_name in ("fintech_fraud", "support_triage"):
+        preset = load_preset(preset_name)
+        schema = StructuredSchema(preset["schema"])
+        full = run_parallel_generation(model, tokenizer, preset["context"], schema)
+        chunked = run_parallel_generation(model, tokenizer, preset["context"], schema, max_rows=3)
+        for fname in full["parsed_json"]:
+            assert full["parsed_json"][fname]["value"] == chunked["parsed_json"][fname]["value"], (
+                preset_name,
+                fname,
+            )
 
 
 @pytest.mark.slow

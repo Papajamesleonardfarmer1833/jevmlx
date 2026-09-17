@@ -89,12 +89,13 @@ def test_duplicate_choice_flagged():
     assert 'choice "ALLOW" appears 2 times' in duplicates[0].message
 
 
-def test_empty_choice_flagged():
-    """A choice equal to the shared prefix is scored via the closing quote.
+def test_quote_fusion_gives_prefix_choice_its_own_branch():
+    """The closing quote fuses into the final word token (non-compositional).
 
-    BLOCK is the common prefix, so it gets the closing-quote row while the
-    longer choices keep their own rows — and those longer choices collide on
-    the leading-underscore token, so both findings legitimately coexist.
+    BLOCK's candidate ends ...BLOCK" (quote fused into the token), while
+    BLOCK_TRANSACTION/BLOCK_USER carry a bare ...BLOCK token followed by the
+    rest. BLOCK therefore diverges at the root (no empty_choice), and the two
+    longer choices share their first token (collision, with rotation fix).
     """
     findings = _findings(
         {
@@ -105,12 +106,9 @@ def test_empty_choice_flagged():
             }
         }
     )
-    empties = [f for f in findings if f.kind == "empty_choice"]
-    assert len(empties) == 1
-    assert 'choice "BLOCK"' in empties[0].message
-    collisions = [f for f in findings if f.kind == "collision"]
-    assert len(collisions) == 1
-    assert "BLOCK_TRANSACTION, BLOCK_USER" in collisions[0].message
+    assert [f.kind for f in findings] == ["collision"]
+    assert "BLOCK_TRANSACTION, BLOCK_USER" in findings[0].message
+    assert findings[0].suggestion == "TRANSACTION_BLOCK, USER_BLOCK"
 
 
 def test_boolean_fields_are_skipped():
@@ -157,11 +155,14 @@ def test_findings_are_dataclasses_with_kind_and_field():
     assert finding.suggestion
 
 
-def test_collision_without_rotation_suggestion():
-    """A collision the rotation rule cannot fix (single-word choice) gets None.
+def test_closing_quote_splits_first_token_collision():
+    """Token-aligned encoding can dissolve an apparent first-token collision.
 
-    With no shared prefix, X and X_Y tokenize to [X] and [X, Y] — same first
-    token — and X cannot be rotated (single word), so suggestion is None.
+    With the char-level fake tokenizer the closing quote fuses into the word
+    token: 'X' tokenizes as one token ending the candidate, while 'X_Y' keeps
+    a bare X token followed by the rest. The two choices therefore diverge at
+    the first token and the engine scores them in a single root row — no
+    collision finding, no rotation suggestion.
     """
     findings = _findings(
         {
@@ -172,7 +173,4 @@ def test_collision_without_rotation_suggestion():
             }
         }
     )
-    collisions = [f for f in findings if f.kind == "collision"]
-    assert len(collisions) == 1
-    assert "X, X_Y" in collisions[0].message
-    assert collisions[0].suggestion is None
+    assert findings == []

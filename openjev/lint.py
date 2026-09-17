@@ -65,13 +65,13 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     collide.
 
     Checks per enum field:
-    - collision: two or more choices share the same first token. Scoring is
-      still correct, but the engine falls back to one teacher-forced row per
-      choice and compares them across different token paths — n rows instead
-      of one.
+    - collision: two or more choices share their first diverging token. The
+      engine still scores them correctly, but the field needs one row per
+      trie branch point instead of one row total (slower).
     - duplicate_choice: the same literal appears more than once.
-    - empty_choice: a choice adds no tokens beyond the shared prefix, so it is
-      scored via the closing-quote token rather than value text.
+    - empty_choice: a choice's token remainder is a strict prefix of another
+      choice's remainder, so the shorter choice is never uniquely determined
+      by the engine's branch scoring.
     """
     findings: list[Finding] = []
     plan = schema.compile_batch_plan(tokenizer)
@@ -96,7 +96,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                 )
 
         groups: dict[int, list[int]] = {}
-        for idx, tokens in enumerate(entry["choice_token_lists"]):
+        for idx, tokens in enumerate(entry["remainders"]):
             groups.setdefault(tokens[0], []).append(idx)
         for indices in groups.values():
             if len(indices) < 2:
@@ -107,24 +107,26 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
                     field=fname,
                     kind="collision",
                     message=(
-                        "choices share their first token; the engine scores them with "
-                        "one row per choice (slower). Rename to keep one row per "
-                        f"field: {', '.join(colliding)}"
+                        "choices share their first token; the field needs one row per "
+                        "trie branch point instead of one row per field (slower). "
+                        f"Rename to keep one row per field: {', '.join(colliding)}"
                     ),
                     suggestion=_rotation_suggestion(colliding),
                 )
             )
 
-        for choice in fdef.choices:
-            if choice == entry["prefix"]:
+        for choice, remainder in zip(fdef.choices, entry["remainders"], strict=True):
+            if any(
+                other != remainder and other[: len(remainder)] == remainder
+                for other in entry["remainders"]
+            ):
                 findings.append(
                     Finding(
                         field=fname,
                         kind="empty_choice",
                         message=(
-                            f'choice "{choice}" adds no tokens beyond the shared '
-                            "prefix; its score comes from the closing-quote token "
-                            "rather than value text"
+                            f'choice "{choice}" is a token-prefix of another choice; '
+                            "its value is never uniquely determined by branch scoring"
                         ),
                     )
                 )

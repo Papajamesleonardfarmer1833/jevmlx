@@ -34,11 +34,12 @@ def test_compile_batch_plan_expands_multi_field():
     # One row per option, stable suffix '  "<field>.<option>": '.
     assert p["options"] == ["billing", "technical"]
     assert len(p["suffix_ids_list"]) == 2
-    # Each option row has distinct suffix ids, and both rows share the same
-    # true/false token lists (the boolean literals).
+    # Each option row has distinct suffix ids, and both share one token-aligned
+    # prefix with true/false remainders underneath.
     assert p["suffix_ids_list"][0] != p["suffix_ids_list"][1]
-    assert len(p["choice_token_lists"]) == 2  # [true, false]
-    assert all(len(toks) >= 1 for toks in p["choice_token_lists"])
+    assert len(p["remainders"]) == 4  # [true, false] x 2 options
+    assert all(len(toks) >= 1 for toks in p["remainders"])
+    assert all(t[0] != p["shared_ids"][-1] for t in p["remainders"])
     # Fold mapping: the engine folds rows back by option index.
     assert p["options"].index("billing") == 0
     assert p["options"].index("technical") == 1
