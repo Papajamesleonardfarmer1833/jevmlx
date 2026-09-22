@@ -1,4 +1,5 @@
 import enum
+import os
 from typing import Literal
 
 import pytest
@@ -279,6 +280,12 @@ def test_load_engine_resolves_before_caching():
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(
+    os.environ.get("JEVMLX_CI_SLOW") == "1",
+    reason=(
+        "JEVMLX_CI_SLOW=1: CI caches only the 0.5B; this test loads the 7B via the 'quality' alias"
+    ),
+)
 def test_load_engine_identity_alias_is_object(monkeypatch):
     """The required identity test: load_engine("quality") and
     load_engine(full id) return the ONE cached Engine object (is-identity).
