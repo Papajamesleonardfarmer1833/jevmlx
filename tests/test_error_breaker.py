@@ -231,32 +231,34 @@ def test_check_results_reports_tripped_combo_as_fail(tmp_path):
 
     # Write a minimal predictions.jsonl (1 line).
     (out_dir / "predictions.jsonl").write_text(
-        json.dumps({
-            "run_id": "test",
-            "case_id": "case-1",
-            "group_id": "case-1",
-            "source": None,
-            "workflow": None,
-            "field": "field_0",
-            "type": "enum",
-            "track": "parallel",
-            "model": "fake",
-            "permutation": "canonical",
-            "label": "A",
-            "prediction": None,
-            "valid": False,
-            "correct": False,
-            "log_scores": None,
-            "probability": None,
-            "per_option": None,
-            "latency_ms": None,
-            "per_item_end_to_end_ms": None,
-            "rows": None,
-            "passes": None,
-            "error": "simulated_error:call_3",
-            "salvage_prediction": None,
-            "oracle_prediction": None,
-        })
+        json.dumps(
+            {
+                "run_id": "test",
+                "case_id": "case-1",
+                "group_id": "case-1",
+                "source": None,
+                "workflow": None,
+                "field": "field_0",
+                "type": "enum",
+                "track": "parallel",
+                "model": "fake",
+                "permutation": "canonical",
+                "label": "A",
+                "prediction": None,
+                "valid": False,
+                "correct": False,
+                "log_scores": None,
+                "probability": None,
+                "per_option": None,
+                "latency_ms": None,
+                "per_item_end_to_end_ms": None,
+                "rows": None,
+                "passes": None,
+                "error": "simulated_error:call_3",
+                "salvage_prediction": None,
+                "oracle_prediction": None,
+            }
+        )
         + "\n",
         encoding="utf-8",
     )
@@ -266,15 +268,17 @@ def test_check_results_reports_tripped_combo_as_fail(tmp_path):
         json.dumps({"environment": {}, "metrics": compute_metrics([])}), encoding="utf-8"
     )
     (out_dir / "timing.json").write_text(
-        json.dumps({
-            "calls": 1,
-            "median": {
-                "prefill_ms": 1.0,
-                "scoring_ms": 1.0,
-                "assembly_ms": 1.0,
-                "per_item_end_to_end_ms": 1.0,
-            },
-        }),
+        json.dumps(
+            {
+                "calls": 1,
+                "median": {
+                    "prefill_ms": 1.0,
+                    "scoring_ms": 1.0,
+                    "assembly_ms": 1.0,
+                    "per_item_end_to_end_ms": 1.0,
+                },
+            }
+        ),
         encoding="utf-8",
     )
 

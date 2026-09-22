@@ -1621,15 +1621,17 @@ class TestFailedComboReruns:
         combo_dir = tmp_path / "combo"
         combo_dir.mkdir()
         (combo_dir / "run.json").write_text(
-            json.dumps({
-                "circuit_breaker": {
-                    "tripped": True,
-                    "reason": "error rate 0.32 > 0.10",
-                    "fields_error": 8,
-                    "fields_total": 25,
-                    "first_error": "simulated_error",
+            json.dumps(
+                {
+                    "circuit_breaker": {
+                        "tripped": True,
+                        "reason": "error rate 0.32 > 0.10",
+                        "fields_error": 8,
+                        "fields_total": 25,
+                        "first_error": "simulated_error",
+                    }
                 }
-            }),
+            ),
             encoding="utf-8",
         )
         assert bench._combo_previously_failed(combo_dir) is True

@@ -820,8 +820,7 @@ def run_bench(
                     # resumed from partial predictions) and continue.
                     failed_combos[combo] = f"CircuitBreakerTrippedError: {exc}"
                     print(
-                        f"FAILED combo {combo} (circuit_breaker_tripped): "
-                        f"{failed_combos[combo]}",
+                        f"FAILED combo {combo} (circuit_breaker_tripped): {failed_combos[combo]}",
                         flush=True,
                     )
                 else:
