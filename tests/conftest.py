@@ -44,6 +44,27 @@ PARITY_ATOL = INSTABILITY_BAND
 # this constant — never a hardcoded id or a 0.5B-only expectation.
 MODEL_ID = os.environ.get("MODEL_ID", "mlx-community/Qwen2.5-0.5B-Instruct-4bit")
 
+# Shared-macOS-runner skip: the GitHub Actions macos-14 runner has a slower
+# GPU whose Metal command buffer times out on the 28-row full-batch forward
+# pass (kIOGPUCommandBufferCallbackErrorTimeout). The engine retries in 2
+# chunks, which breaks tests that assert exactly 1 forward pass, and crashes
+# the batched-vs-chunked parity twin. These tests are verified on real
+# hardware (M5) via slowtest.sh. Under JEVMLX_CI_SLOW=1 (set in slow.yml),
+# skip them with a clear reason.
+_SKIP_REASON = (
+    "shared macOS runner: Metal command buffer times out on the 28-row full "
+    "batch; one-pass batching is verified on real hardware via slowtest.sh"
+)
+
+
+def skip_on_shared_runner():
+    """Skip marker for GPU-bound slow tests that cannot run on the shared
+    macOS runner. The list of affected tests lives here — one place."""
+    return pytest.mark.skipif(
+        os.environ.get("JEVMLX_CI_SLOW") == "1",
+        reason=_SKIP_REASON,
+    )
+
 
 # %97+1 tokenizer: ids = ord(c) % 97 + 1 (so ids start at 1), the shape
 # shared by test_multi / test_w2e_calib / test_w2e_count / test_w2_setcons /

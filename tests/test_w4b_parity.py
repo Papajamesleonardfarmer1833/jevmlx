@@ -10,7 +10,7 @@ parity_failed in SUMMARY.md and cannot enter the README compat table
 import json
 
 import pytest
-from conftest import PARITY_ATOL, make_engine
+from conftest import PARITY_ATOL, make_engine, skip_on_shared_runner
 from conftest import YNLogitModel as _StableModel
 from conftest import _Mod97Tokenizer as _CountTokenizer
 
@@ -176,6 +176,7 @@ def test_summarize_gates_parity_failed_rows(tmp_path):
 
 
 @pytest.mark.slow
+@skip_on_shared_runner()
 def test_parity_real_model_twin(engine):
     """Slow twin: the SAME check on a real model must pass with drift
     within PARITY_ATOL — this is exactly the W1-A slow test's invariant,

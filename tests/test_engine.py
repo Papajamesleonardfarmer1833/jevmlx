@@ -5,6 +5,7 @@ from conftest import (  # noqa: F401  (documented in slow-test docstrings)
     MODEL_ID,
     PARITY_ATOL,
     make_test_renderer,
+    skip_on_shared_runner,
 )
 
 from jevmlx.api import decide
@@ -62,6 +63,7 @@ def test_collision_field_scores_mechanically(engine):
 
 
 @pytest.mark.slow
+@skip_on_shared_runner()
 def test_chunking_matches_full_batch_and_counts_passes(engine):
     preset = load_preset("fintech_fraud")
     schema = StructuredSchema(preset["schema"])
@@ -238,6 +240,7 @@ def test_naive_generation_returns_parseable_text(engine):
 
 
 @pytest.mark.slow
+@skip_on_shared_runner()
 def test_slots_scoring_fintech_fraud(engine):
     """Slots mode on the slow-suite model: one pass, all values valid.
 
@@ -274,6 +277,7 @@ def test_slots_scoring_fintech_fraud(engine):
 
 
 @pytest.mark.slow
+@skip_on_shared_runner()
 def test_labels_scoring_fintech_fraud_valid(engine):
     """Labels mode on the slow-suite model: every value valid, log_scores keyed by
     the real choice strings (same contract as slots, no alias hop)."""
