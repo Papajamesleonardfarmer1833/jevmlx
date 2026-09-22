@@ -1607,6 +1607,15 @@ def _build_now(now_combo, now_hb, now_cfg, out_dir) -> dict:
                 pass
     # W6-UI round 4b: run_i/run_n not in config; derive from model folders.
     _run_i, _run_n = _derive_run_index(out_dir, now_combo)
+    # A2: field-level error count + rate from the latest heartbeat record
+    # (cumulative for the combo). The NOW panel shows 'errors N/T (P%)' in
+    # red when rate > 5%, grey otherwise.
+    fields_error = 0
+    fields_total = 0
+    if now_hb:
+        fields_error = now_hb.get("fields_error", 0) or 0
+        fields_total = now_hb.get("fields_total", 0) or 0
+    error_rate = (fields_error / fields_total) if fields_total else 0.0
     return {
         "model": now_cfg.get("model") or "—",
         "track": now_cfg.get("track") or "—",
@@ -1623,6 +1632,9 @@ def _build_now(now_combo, now_hb, now_cfg, out_dir) -> dict:
         "heartbeat_age_s": hb_age,
         "running_accuracy": running_acc,
         "running_majority": running_maj,
+        "fields_error": fields_error,
+        "fields_total": fields_total,
+        "error_rate": round(error_rate, 4),
     }
 
 
@@ -1756,6 +1768,10 @@ def _build_results(out_dir, combos, env) -> list[dict]:
             # Check if ANY sibling combo in the same model folder has a
             # run.json with config.model (the real model id).
             model = _model_from_sibling(c) or "alias folder (no run)"
+        # A2: field-level error count + rate from the prediction records.
+        fields_error = sum(1 for r in records if r.get("error"))
+        fields_total = len(records)
+        err_rate = (fields_error / fields_total) if fields_total else 0.0
         rows.append(
             {
                 "combo_id": _combo_id(c, out_dir),
@@ -1776,6 +1792,9 @@ def _build_results(out_dir, combos, env) -> list[dict]:
                 "calls": timing.get("calls"),
                 "cases": ((run.get("counts") if run else {}) or {}).get("cases") if run else None,
                 "ab_delta": ab_delta,
+                "fields_error": fields_error,
+                "fields_total": fields_total,
+                "error_rate": round(err_rate, 4),
             }
         )
     return rows
@@ -1999,6 +2018,8 @@ def build_questions(out_dir: str | Path, combo_id: str) -> list[dict]:
                 "rotations_same_field": rotations,
                 "rescored": r.get("rescored"),
                 "drift": r.get("drift"),
+                "error": r.get("error"),
+                "raw_text": r.get("raw_text"),
             }
         )
     return out
