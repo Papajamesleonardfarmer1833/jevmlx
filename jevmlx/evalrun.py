@@ -696,7 +696,7 @@ def run_eval(
     resume: bool = False,
     heartbeat_every: int = 0,
     combo: str = "",
-    max_error_rate: float = 0.10,
+    max_error_rate: float | None = None,
 ) -> dict:
     """Run the batch and write ``predictions.jsonl`` + ``run.json`` into out_dir.
 
@@ -844,6 +844,15 @@ def run_eval(
     # A1: error-rate circuit breaker — tracks fields_total and fields_error
     # per combo. Trips when fields_error / fields_total > max_error_rate AND
     # at least 20 fields have been scored. 0 disables.
+    #
+    # Naive tracks (naive_local, api_baseline) free-write JSON and parse
+    # errors ARE the measurement — the model failing to produce valid JSON
+    # is the outcome the baseline exists to quantify, not an engine or infra
+    # fault. So the default is disabled (0) for naive tracks; the breaker
+    # applies only to the scoring tracks (parallel + its permutations). A
+    # caller-supplied max_error_rate (not None) always wins for any track.
+    if max_error_rate is None:
+        max_error_rate = 0.0 if track in ("naive_local", "api_baseline") else 0.10
     _fields_total = 0
     _fields_error = 0
     _first_error_text: str | None = None

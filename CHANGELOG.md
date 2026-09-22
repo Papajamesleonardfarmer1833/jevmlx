@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- evalrun: error-rate breaker applies to scoring tracks only. Naive tracks
+  (naive_local, api_baseline) free-write JSON and parse errors ARE the
+  measurement — the model failing to produce valid JSON is the outcome the
+  baseline exists to quantify, not an engine or infra fault. The default
+  `max_error_rate` is now `None` (sentinel): resolves to 0.10 for the
+  parallel track, 0 (disabled) for naive tracks. A caller-supplied
+  `max_error_rate` always wins for any track. Field data (M5, hash 90f79bc):
+  Llama naive typesafe tripped at 31% (112/365), Gemma at 24% (88/365) — both
+  are the model failing valid JSON, not infra faults.
+
 - engine: near-tie rescore gate uses post-prior probability margin (closes
   the parity escape gap). The rescore gate in `finalize_scalar_evidence`
   previously selected band candidates on RAW log-scores (before prior
