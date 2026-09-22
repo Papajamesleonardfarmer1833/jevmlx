@@ -287,3 +287,131 @@ def test_check_results_reports_tripped_combo_as_fail(tmp_path):
     assert any("circuit breaker tripped" in p for p in problems), (
         f"expected 'circuit breaker tripped' in problems: {problems}"
     )
+
+
+def test_naive_track_50pct_errors_does_not_trip(tmp_path):
+    """Naive tracks (naive_local) are exempt: parse errors ARE the measurement.
+
+    A naive_local run with 50% field errors completes normally (no breaker
+    trip), writes run.json with circuit_breaker=None, and produces a
+    report.json. The errors are the model failing to produce valid JSON —
+    the outcome the baseline exists to quantify.
+    """
+    cases = _make_cases(25, n_fields=1)
+
+    call_count = [0]
+
+    def decide(schema_dict, context, constraints=None, oracle_overrides=None):
+        call_count[0] += 1
+        results = {}
+        for fname in schema_dict:
+            if call_count[0] % 2 == 0:  # 50% error rate
+                results[fname] = {
+                    "prediction": None,
+                    "probability": None,
+                    "valid": False,
+                    "error": f"parse_error:call_{call_count[0]}",
+                }
+            else:
+                results[fname] = {
+                    "prediction": "A",
+                    "probability": 0.9,
+                    "valid": True,
+                }
+        return results
+
+    out_dir = tmp_path / "naive_out"
+    # No explicit max_error_rate — the default (None) resolves to 0 for
+    # naive_local, so the breaker is disabled.
+    evalrun.run_eval(
+        cases,
+        decide,
+        track="naive_local",
+        model="fake",
+        out_dir=str(out_dir),
+    )
+    run = json.loads((out_dir / "run.json").read_text())
+    assert run.get("circuit_breaker") is None
+    # The run completed (no exception), wrote predictions.
+    assert (out_dir / "predictions.jsonl").is_file()
+    # report.json is written by the bench, not run_eval; but the run itself
+    # must not have raised CircuitBreakerTrippedError (we got here).
+
+
+def test_parallel_track_50pct_errors_still_trips(tmp_path):
+    """The parallel track is NOT exempt: 50% errors still trips the breaker."""
+    cases = _make_cases(25, n_fields=1)
+
+    call_count = [0]
+
+    def decide(schema_dict, context, constraints=None, oracle_overrides=None):
+        call_count[0] += 1
+        results = {}
+        for fname in schema_dict:
+            if call_count[0] % 2 == 0:  # 50% error rate
+                results[fname] = {
+                    "prediction": None,
+                    "probability": None,
+                    "valid": False,
+                    "error": f"simulated_error:call_{call_count[0]}",
+                }
+            else:
+                results[fname] = {
+                    "prediction": "A",
+                    "probability": 0.9,
+                    "valid": True,
+                }
+        return results
+
+    breaker = _run_and_get_breaker(tmp_path, decide, cases)
+    assert breaker is not None
+    assert isinstance(breaker, dict)
+    assert breaker["tripped"] is True
+
+
+def test_naive_track_explicit_max_error_rate_overrides_exemption(tmp_path):
+    """A caller-supplied max_error_rate wins for any track, even naive.
+
+    If the caller explicitly sets max_error_rate for a naive track, the
+    breaker is NOT exempt — the caller opted in.
+    """
+    cases = _make_cases(25, n_fields=1)
+
+    call_count = [0]
+
+    def decide(schema_dict, context, constraints=None, oracle_overrides=None):
+        call_count[0] += 1
+        results = {}
+        for fname in schema_dict:
+            if call_count[0] % 2 == 0:  # 50% error rate
+                results[fname] = {
+                    "prediction": None,
+                    "probability": None,
+                    "valid": False,
+                    "error": f"simulated_error:call_{call_count[0]}",
+                }
+            else:
+                results[fname] = {
+                    "prediction": "A",
+                    "probability": 0.9,
+                    "valid": True,
+                }
+        return results
+
+    out_dir = tmp_path / "naive_forced"
+    try:
+        evalrun.run_eval(
+            cases,
+            decide,
+            track="naive_local",
+            model="fake",
+            out_dir=str(out_dir),
+            max_error_rate=0.10,  # explicit — wins over the track exemption
+        )
+    except evalrun.CircuitBreakerTrippedError:
+        pass  # expected
+    run = json.loads((out_dir / "run.json").read_text())
+    cb = run.get("circuit_breaker")
+    assert cb is not None
+    assert isinstance(cb, dict)
+    assert cb["tripped"] is True

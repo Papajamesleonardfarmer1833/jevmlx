@@ -1061,7 +1061,7 @@ def _run_one(
     combo: str = "",
     run_i: int | None = None,
     run_n: int | None = None,
-    max_error_rate: float = 0.10,
+    max_error_rate: float | None = None,
 ) -> dict:
     """One eval run (in-process) + metrics + report, into combo_dir."""
     cases = _load_cases(jsonl)

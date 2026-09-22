@@ -520,10 +520,12 @@ def build_parser() -> argparse.ArgumentParser:
     eval_p.add_argument(
         "--max-error-rate",
         type=float,
-        default=0.10,
+        default=None,
         help="per-combo error-rate circuit breaker: trip when fields_error / "
         "fields_total exceeds this fraction AND at least 20 fields have been "
-        "scored (default 0.10). 0 disables — never trips.",
+        "scored. Default: 0.10 for the parallel track, 0 (disabled) for "
+        "naive tracks (naive_local, api_baseline) — parse errors ARE the "
+        "measurement, not an infra fault. 0 disables — never trips.",
     )
     bench_p = sub.add_parser(
         "bench",
@@ -1044,7 +1046,7 @@ def _run_eval_command(args) -> None:
         dataset_lock_path=lock if os.path.exists(lock) else None,
         dataset_path=os.path.abspath(args.data),
         resume=getattr(args, "resume", False),
-        max_error_rate=getattr(args, "max_error_rate", 0.10),
+        max_error_rate=getattr(args, "max_error_rate", None),
     )
     print(
         f"run {run['run_id']}: {run['counts']['cases']} cases, "
