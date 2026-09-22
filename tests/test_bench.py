@@ -609,8 +609,8 @@ def test_release_between_models_logs_memory(tmp_path, monkeypatch, capsys):
 
     from jevmlx import engine
 
-    monkeypatch.setattr(bench, "_metal_cache_memory_gb", lambda: 2.0)
-    monkeypatch.setattr(bench, "_clear_metal_cache", lambda: released.append(1))
+    monkeypatch.setattr(bench, "cache_memory_gb", lambda: 2.0)
+    monkeypatch.setattr(bench, "clear_cache", lambda: released.append(1))
     # clear_engine_cache is looked up as jevmlx.engine.clear_engine_cache inside
     # run_bench_models (lazy import so bench.py loads without mlx); patch it there.
     monkeypatch.setattr(
@@ -1163,18 +1163,20 @@ def test_w5c14_set_cache_limit_called_once_with_configured_bytes(tmp_path, monke
 
 
 def test_w5c14_set_cache_limit_returns_none_on_failure(monkeypatch, capsys):
-    """_set_metal_cache_limit returns None when mx (top-level) raises (best-effort)
-    and prints a 'NOT set' warning so the silent-failure path is visible."""
+    """jevmlx.metal.set_cache_limit returns None when mx raises (best-effort).
+
+    The 'NOT set' warning is logged by the bench caller (run_bench), not the
+    helper — the helper just returns None and the caller decides how to log.
+    This test asserts the helper returns None on failure (the contract the
+    caller relies on)."""
     import mlx.core as mx
 
-    from jevmlx.bench import _set_metal_cache_limit
+    from jevmlx.metal import set_cache_limit
 
     monkeypatch.setattr(
         mx, "set_cache_limit", lambda b: (_ for _ in ()).throw(RuntimeError("no metal"))
     )
-    assert _set_metal_cache_limit(8.0) is None
-    captured = capsys.readouterr()
-    assert "NOT set" in captured.out
+    assert set_cache_limit(8.0) is None
 
 
 # --- W5c-17: dataset lock sha256 in run.json --------------------------------

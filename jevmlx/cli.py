@@ -436,6 +436,14 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_PROMPT_TOKENS,
         help="hard limit on prompt token count (exceed -> 413)",
     )
+    serve_p.add_argument(
+        "--metal-cache-gb",
+        type=float,
+        default=None,
+        help="cap Metal buffer cache in GB (default: 2.0 or env "
+        "JEVMLX_METAL_CACHE_GB; prevents #149 memory hoarding in long "
+        "daemon runs)",
+    )
     ap.add_argument("-v", "--verbose", action="store_true", help="info-level logs on stderr")
 
     validate_p = sub.add_parser(
@@ -868,6 +876,7 @@ def _dispatch(argv) -> None:
             queue_size=args.queue_size,
             max_rows=args.max_rows,
             max_prompt_tokens=args.max_prompt_tokens,
+            metal_cache_gb=args.metal_cache_gb,
         )
 
     elif args.command == "bench":
