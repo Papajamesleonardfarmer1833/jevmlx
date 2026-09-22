@@ -1616,6 +1616,24 @@ class TestFailedComboReruns:
         combo_dir.mkdir()
         assert bench._combo_previously_failed(combo_dir) is False
 
+    def test_combo_previously_failed_detects_tripped_breaker(self, tmp_path):
+        """A1: a tripped error-rate circuit breaker also counts as failed."""
+        combo_dir = tmp_path / "combo"
+        combo_dir.mkdir()
+        (combo_dir / "run.json").write_text(
+            json.dumps({
+                "circuit_breaker": {
+                    "tripped": True,
+                    "reason": "error rate 0.32 > 0.10",
+                    "fields_error": 8,
+                    "fields_total": 25,
+                    "first_error": "simulated_error",
+                }
+            }),
+            encoding="utf-8",
+        )
+        assert bench._combo_previously_failed(combo_dir) is True
+
     def test_failed_combo_reruns_fresh_not_resume(self, tmp_path, monkeypatch):
         """A combo with run_failed + manifest.json must rerun fresh (dir
         removed, resume=False), not resume from partial predictions."""
