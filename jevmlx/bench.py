@@ -21,7 +21,7 @@ from typing import Any
 
 from jevmlx.evalmetrics import compute_metrics, load_predictions
 from jevmlx.evalreport import environment, write_report
-from jevmlx.evalrun import parallel_decide_fn, run_eval
+from jevmlx.evalrun import CircuitBreakerTrippedError, parallel_decide_fn, run_eval
 
 BENCH_CACHE = Path.home() / ".cache" / "jevmlx" / "bench"
 HERE = Path(__file__).resolve().parent.parent / "benchmarks"
@@ -571,15 +571,25 @@ def _load_engine_with_timeout(model: str, load_timeout: float) -> Any:
 def _combo_previously_failed(combo_dir: Path) -> bool:
     """B6: True when the combo's run.json records a run_failed/load_failed
     status — a failed combo must rerun fresh, not resume from partial
-    predictions (which are not a valid resume point)."""
+    predictions (which are not a valid resume point).
+
+    A1: a tripped error-rate circuit breaker also counts as failed (the
+    combo stopped early; its partial predictions are not a valid resume
+    point).
+    """
     run_path = combo_dir / "run.json"
     if not run_path.is_file():
         return False
     try:
-        status = json.loads(run_path.read_text(encoding="utf-8")).get("status")
+        run = json.loads(run_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    return status in ("run_failed", "load_failed")
+    if run.get("status") in ("run_failed", "load_failed"):
+        return True
+    cb = run.get("circuit_breaker")
+    if isinstance(cb, dict) and cb.get("tripped"):
+        return True
+    return False
 
 
 def _write_failure_run(combo_dir: Path, status: str, exc: BaseException) -> Path:
@@ -803,9 +813,20 @@ def run_bench(
                 _clear_metal_cache()
             except Exception as exc:  # noqa: BLE001 - failure is a result
                 status = "load_failed" if not engine_loaded else "run_failed"
-                _write_failure_run(combo_dir, status, exc)
-                failed_combos[combo] = f"{type(exc).__name__}: {exc}"
-                print(f"FAILED combo {combo} ({status}): {failed_combos[combo]}", flush=True)
+                if isinstance(exc, CircuitBreakerTrippedError):
+                    # A1: run.json already carries the circuit_breaker dict.
+                    # Do NOT overwrite it — the breaker dict IS the result.
+                    # Mark it as run_failed so the combo reruns fresh (not
+                    # resumed from partial predictions) and continue.
+                    failed_combos[combo] = f"CircuitBreakerTrippedError: {exc}"
+                    print(
+                        f"FAILED combo {combo} (circuit_breaker_tripped): {failed_combos[combo]}",
+                        flush=True,
+                    )
+                else:
+                    _write_failure_run(combo_dir, status, exc)
+                    failed_combos[combo] = f"{type(exc).__name__}: {exc}"
+                    print(f"FAILED combo {combo} ({status}): {failed_combos[combo]}", flush=True)
     finally:
         # After ALL combos: drop the engine/weights cache so memory returns
         # to baseline before the caller (or the next model in
@@ -1040,6 +1061,7 @@ def _run_one(
     combo: str = "",
     run_i: int | None = None,
     run_n: int | None = None,
+    max_error_rate: float = 0.10,
 ) -> dict:
     """One eval run (in-process) + metrics + report, into combo_dir."""
     cases = _load_cases(jsonl)
@@ -1081,6 +1103,7 @@ def _run_one(
         resume=resume,
         heartbeat_every=heartbeat_every,
         combo=combo,
+        max_error_rate=max_error_rate,
     )
 
     records = load_predictions(combo_dir / "predictions.jsonl")

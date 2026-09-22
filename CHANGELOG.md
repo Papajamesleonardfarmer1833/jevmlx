@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- evalrun: error-rate circuit breaker per combo. When `fields_error / fields_total` exceeds `--max-error-rate` (default 0.10, 0 disables) AND at least 20 fields have been scored, the combo stops: remaining cases are skipped, `run.json`'s existing `circuit_breaker` key carries `{tripped, reason, fields_error, fields_total, first_error}`, and the combo exits non-zero so the M5 runbook's fail-fast logic marks it FAILED and continues with the next combo. `check_results` reports a tripped combo as FAIL with the reason. Fixes the silent-failure path where the M5 rest bench ran for hours after 116/365 (Llama) and 90/365 (Gemma) error lines.
 - watch: data round 4b (cases_total unit, run index, cap, live step,
   alias/ab-worktree/invariance folders). Six data-layer bugs fixed against
   the real M5 tree shapes (issue #63, 07:24 comment): (1) cases_total never

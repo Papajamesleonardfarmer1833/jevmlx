@@ -257,6 +257,15 @@ def check_folder(folder: Path) -> tuple[bool, list[str]]:
         if key not in run:
             problems.append(f"{name}: run.json missing top-level key {key!r}")
 
+    # A1: a tripped error-rate circuit breaker is a FAIL.
+    cb = run.get("circuit_breaker") if isinstance(run, dict) else None
+    if isinstance(cb, dict) and cb.get("tripped"):
+        problems.append(
+            f"{name}: circuit breaker tripped — {cb.get('reason', 'unknown')} "
+            f"({cb.get('fields_error', '?')}/{cb.get('fields_total', '?')} fields "
+            f"errored; first error: {cb.get('first_error', '?')})"
+        )
+
     # Dataset lock: since #84/#110 the lock lives at the MODEL folder level
     # as <dataset>.dataset.lock.json (the parent of this combo), and
     # run.json carries dataset_lock_sha256. Resolve the lock by dataset name

@@ -40,6 +40,7 @@ from jevmlx.models import DEFAULT_SCORING
 from jevmlx.schema import StructuredSchema, _thaw_plan
 
 __all__ = [
+    "CircuitBreakerTrippedError",
     "DecideFn",
     "api_baseline_decide_fn",
     "make_run_id",
@@ -90,6 +91,16 @@ PREDICTION_LINE_KEYS: tuple[str, ...] = (
 
 # run.json required top-level keys (config and counts are dicts).
 RUN_REQUIRED_KEYS: tuple[str, ...] = ("run_id", "environment", "config", "counts")
+
+
+class CircuitBreakerTrippedError(RuntimeError):
+    """A1: raised when the error-rate circuit breaker trips mid-combo.
+
+    The combo's run.json is ALREADY written (with the circuit_breaker dict)
+    by the time this is raised; callers MUST NOT overwrite run.json in their
+    except handler. The run.json circuit_breaker key carries the reason,
+    counts, and first error text.
+    """
 
 
 def make_run_id() -> str:
@@ -675,6 +686,7 @@ def run_eval(
     resume: bool = False,
     heartbeat_every: int = 0,
     combo: str = "",
+    max_error_rate: float = 0.10,
 ) -> dict:
     """Run the batch and write ``predictions.jsonl`` + ``run.json`` into out_dir.
 
@@ -819,6 +831,13 @@ def run_eval(
     first_field_telemetry: dict[str, Any] | None = None
     _breaker = CircuitBreaker()
     _circuit_tripped: str | None = None
+    # A1: error-rate circuit breaker — tracks fields_total and fields_error
+    # per combo. Trips when fields_error / fields_total > max_error_rate AND
+    # at least 20 fields have been scored. 0 disables.
+    _fields_total = 0
+    _fields_error = 0
+    _first_error_text: str | None = None
+    _error_breaker_tripped: dict | None = None
     # W5c-16: heartbeat counters (cases committed + run start time).
     _hb_done = 0
     _hb_start = time.perf_counter()
@@ -1025,7 +1044,52 @@ def run_eval(
                     if isinstance(constraints, list) and constraints:
                         line["constraints"] = constraints
                     variant_lines.append(line)
+                    # A1: error-rate circuit breaker.
+                    _fields_total += 1
+                    if res.get("error"):
+                        _fields_error += 1
+                        if _first_error_text is None:
+                            _first_error_text = str(res["error"])[:200]
+                        if (
+                            max_error_rate > 0
+                            and _fields_total >= 20
+                            and _fields_error / _fields_total > max_error_rate
+                            and _error_breaker_tripped is None
+                        ):
+                            _error_breaker_tripped = {
+                                "tripped": True,
+                                "reason": (
+                                    f"error rate {_fields_error / _fields_total:.2f} "
+                                    f"> {max_error_rate}"
+                                ),
+                                "fields_error": _fields_error,
+                                "fields_total": _fields_total,
+                                "first_error": _first_error_text,
+                            }
+                            logger.error(
+                                "error-rate circuit breaker tripped: "
+                                "%d/%d fields errored (%.2f > %.2f); "
+                                "first error: %s",
+                                _fields_error,
+                                _fields_total,
+                                _fields_error / _fields_total,
+                                max_error_rate,
+                                _first_error_text,
+                            )
                     # B1: commit this variant's lines with its own journal key.
+                if _error_breaker_tripped is not None:
+                    # A1: error-rate breaker tripped mid-combo — stop processing
+                    # this combo. Flush what we have, then break out of the
+                    # variants loop + the cases loop.
+                    if variant_lines:
+                        write_case_blob(
+                            os.path.join(out_dir, "predictions.jsonl"),
+                            os.path.join(out_dir, "completed_cases.jsonl"),
+                            _ckey,
+                            variant_lines,
+                        )
+                        lines.extend(variant_lines)
+                    break
                 if variant_lines:
                     write_case_blob(
                         os.path.join(out_dir, "predictions.jsonl"),
@@ -1038,6 +1102,9 @@ def run_eval(
                     _hb_done += 1
                     if heartbeat_every and _hb_done % heartbeat_every == 0:
                         _heartbeat(combo, _hb_done, len(lines), _hb_start, out_dir)
+                if _error_breaker_tripped is not None:
+                    # A1: break out of the cases loop too.
+                    break
 
     config: dict[str, Any] = {
         "model": model,
@@ -1103,7 +1170,7 @@ def run_eval(
             "fields": n_canonical,
             "prediction_lines": _total_lines,
         },
-        "circuit_breaker": _circuit_tripped,
+        "circuit_breaker": _error_breaker_tripped if _error_breaker_tripped else _circuit_tripped,
     }
 
     # predictions.jsonl is written per-case via write_case_blob (above);
@@ -1139,6 +1206,15 @@ def run_eval(
         _total_lines,
         out_dir,
     )
+    if _error_breaker_tripped is not None:
+        # A1: run.json is written with the circuit_breaker dict. Raise so
+        # the bench's except handler marks the combo FAILED — but the
+        # handler MUST NOT overwrite run.json (the breaker dict is the
+        # result). The bench checks for this exception type.
+        raise CircuitBreakerTrippedError(
+            f"error rate {_fields_error / _fields_total:.2f} > {max_error_rate} "
+            f"({_fields_error}/{_fields_total} fields errored)"
+        )
     return run
 
 
