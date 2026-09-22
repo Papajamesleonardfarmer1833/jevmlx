@@ -125,6 +125,19 @@
   `'  TRUE  '` stripped+case-insensitive, plus the pre-existing
   `'yes'` wrong-type test kept).
 
+- watch: error counters in heartbeat and dashboard. The heartbeat writer
+  (jevmlx/evalrun.py:_heartbeat) gains `fields_error` and `fields_total`
+  (cumulative for the combo), so the dashboard NOW panel shows `errors N/T
+  (P%)` in red when the rate > 5%, grey otherwise. RESULTS rows get an
+  Errors column (count and %), with an `error` status filter chip that
+  shows rows with errors sorted red-first (highest error rate). The
+  questions panel gets an `errors only` filter (case id, field, error text,
+  raw_text when present) and an error block in the question card. The
+  prediction line `error` and `raw_text` fields are passed through to the
+  /questions.json payload. 1 heartbeat test (error counter accumulation
+  from a decide_fn that errors on every 2nd case) + 3 node tests
+  (errorsCell grey/red/em-dash).
+
 - baseline: accept numeric scalars for string-digit enum choices. The naive
   baseline parser (`jevmlx/baseline.py:_validate_field`) rejected an integer
   where the schema expects a string from `('0','1','2','3')` — e.g.

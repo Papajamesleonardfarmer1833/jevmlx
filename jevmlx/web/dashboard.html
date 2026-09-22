@@ -194,6 +194,7 @@ function buildNowHTML(n,m,hl){
   h+='<div class="stat"><span class="l">pred lines</span><span class="v" id="now-predlines">—</span></div>';
   h+='<div class="stat"><span class="l">combo elapsed</span><span class="v" id="now-elapsed">—</span></div>';
   h+='<div class="stat"><span class="l">running accuracy</span><span class="v" id="now-acc">—</span></div>';
+  h+='<div class="stat"><span class="l">errors</span><span class="v" id="now-errors">—</span></div>';
   h+='</div></div>';
   h+='<div class="panel mem"><h2>Memory <span class="sub" id="mem-sub"></span></h2>';
   h+='<div class="row"><span>cache</span><b id="mem-cache">—</b></div>';
@@ -291,6 +292,14 @@ function patchNow(n,m,hl){
   setText("now-elapsed",fmtDur(n.combo_elapsed_s));
   const ae=document.getElementById("now-acc");
   if(ae)ae.innerHTML=fmtNum(n.running_accuracy,3)+' <small>maj '+fmtNum(n.running_majority,2)+'</small>';
+  // A2: errors N/T (P%) — red when rate > 5%, grey otherwise.
+  const ee=document.getElementById("now-errors");
+  if(ee){
+    const fe=n.fields_error||0,ft=n.fields_total||0;
+    const rate=ft?(fe/ft*100):0;
+    const color=rate>5?"var(--fail)":"var(--dim)";
+    ee.innerHTML=fe>0?('<b style="color:'+color+'">'+fe+'/'+ft+'</b> <small>('+rate.toFixed(0)+'%)</small>'):'<b style="color:var(--dim)">0/'+ft+'</b>';
+  }
   // memory
   setText("mem-sub","cap "+fmtNullable(m.cap_gb)+" GB · stop "+fmtNullable(m.stop_gb)+" GB · machine "+fmtNullable(m.machine_gb)+" GB");
   const cacheOver=m.cache_gb>=m.stop_gb;
@@ -379,14 +388,14 @@ function patchResults(rows){
   // Rebuild filter chips + headers (cheap, few elements).
   const rc=document.getElementById("r-chips");
   if(rc){
-    const models=[...new Set(rows.map(r=>r.model))],datasets=[...new Set(rows.map(r=>r.dataset))],scorers=[...new Set(rows.map(r=>r.scorer))],tracks=[...new Set(rows.map(r=>r.track))],statuses=["done","running","queued","failed"];
+    const models=[...new Set(rows.map(r=>r.model))],datasets=[...new Set(rows.map(r=>r.dataset))],scorers=[...new Set(rows.map(r=>r.scorer))],tracks=[...new Set(rows.map(r=>r.track))],statuses=["done","running","queued","failed","error"];
     rc.innerHTML=chipGroup("model",["all",...models],rChips)+chipGroup("dataset",["all",...datasets],rChips)+chipGroup("scorer",scorers,rChips)+chipGroup("track",tracks,rChips)+chipGroup("status",statuses,rChips);
     rc.querySelectorAll(".chip[data-g]").forEach(c=>{c.onclick=()=>{toggleChip(rChips,c.dataset.g,c.dataset.c);patchResults(D.results);};});
   }
   // Headers (rebuild on sort change).
   const head=document.getElementById("r-head");
   if(head){
-    const headers=["model","dataset","scorer","track","status","accuracy 95% CI","majority","exact","parity","time/case","calls","cases","A/B Δ"];
+    const headers=["model","dataset","scorer","track","status","accuracy 95% CI","majority","exact","parity","time/case","calls","cases","errors","A/B Δ"];
     let hh="";
     headers.forEach((hd,i)=>{const cls=i>=5?' class="num"':'';const arrow=sortKey===i?(sortDir>0?' ▲':' ▼'):'';hh+='<th'+cls+' data-col="'+i+'">'+esc(hd)+(i>=5?'<span class="s">'+esc(arrow.trim())+'</span>':arrow)+'</th>';});
     head.innerHTML=hh;
@@ -417,6 +426,7 @@ function patchResults(rows){
       '<td class="num">'+(row.time_per_case_s!=null?fmtNum(row.time_per_case_s,2)+" s":"—")+'</td>'+
       '<td class="num">'+(row.calls!=null?row.calls:"—")+'</td>'+
       '<td class="num">'+(row.cases!=null?row.cases:"—")+'</td>'+
+      '<td class="num">'+errorsCell(row)+'</td>'+
       '<td class="num">'+abDelta(row.ab_delta)+'</td>';
     let tr=existing[key];
     if(tr){
@@ -441,16 +451,23 @@ function patchResults(rows){
 }
 function statusPill(row){if(row.status==="done")return pill("ok","done");if(row.status==="running")return pill("run","running");if(row.status==="failed")return pill("fail","failed");if(row.status==="queued")return pill("skip","queued");return pill("skip",row.status);}
 function parityPill(row){if(!row.parity_status)return "—";if(row.parity_status==="pass")return pill("pass","pass");if(row.parity_status==="drift")return pill("drift","drift "+fmtNum(row.parity_drift,3));if(row.parity_status==="fail")return pill("fail","fail · winner flip");return esc(row.parity_status);}
-function abDelta(d){if(d==null)return "—";const dir=d>0?"up":"down";const s=d>0?"+":"−";return '<span class="delta '+dir+'">'+s+Math.abs(d).toFixed(2)+'</span>';}
+function abDelta(d){if(d==null)return "—";const dir=d>0?"up":"down";const s=d>0?"+":"−";return '<span class="delta '+dir+'">'+s+Math.abs(d).toFixed(2)+'</span>';};
+/* A2: errors cell — count and %, red when rate > 5%. */
+function errorsCell(row){const fe=row.fields_error||0,ft=row.fields_total||0;if(!ft)return "—";const rate=fe/ft*100;const color=rate>5?"var(--fail)":"var(--dim)";return '<b style="color:'+color+'">'+fe+'/'+ft+'</b> <small>('+rate.toFixed(0)+'%)</small>';}
 function chipGroup(g,labels,chips){let h='<span class="chip g">'+esc(g)+'</span>';for(const l of labels){const on=isOn(chips,g,l);h+='<span class="chip'+(on?' on':'')+'" data-g="'+esc(g)+'" data-c="'+esc(l)+'" data-scope="r">'+esc(l)+'</span>';}return h;}
 function isOn(chips,g,label){const s=chips[g];if(!s||s.size===0)return label==="all";return s.has(label);}
 function filterSortRows(rows){
   let out=rows.filter(row=>{
     if(rText){const hay=(row.model+" "+row.dataset+" "+row.scorer+" "+row.track).toLowerCase();if(!hay.includes(rText.toLowerCase()))return false;}
-    for(const g in rChips){const s=rChips[g];if(!s||s.size===0)continue;if(s.has("all"))continue;let val=null;if(g==="model")val=row.model;else if(g==="dataset")val=row.dataset;else if(g==="scorer")val=row.scorer;else if(g==="track")val=row.track;else if(g==="status")val=row.status;if(val&&!s.has(val))return false;}
+    for(const g in rChips){const s=rChips[g];if(!s||s.size===0)continue;if(s.has("all"))continue;let val=null;if(g==="model")val=row.model;else if(g==="dataset")val=row.dataset;else if(g==="scorer")val=row.scorer;else if(g==="track")val=row.track;else if(g==="status"){// A2: 'error' is a virtual status = fields_error > 0 (red-first when filtered).
+      if(s.has("error")){if(!(row.fields_error>0))return false;continue;}
+      val=row.status;}
+    if(val&&!s.has(val))return false;}
     return true;
   });
-  if(sortKey!=null){const keys=["model","dataset","scorer","track","status","accuracy","majority","exact_record","parity_drift","time_per_case_s","calls","cases","ab_delta"];const k=keys[sortKey];out.sort((a,b)=>{let va=a[k],vb=b[k];if(va==null)va=-Infinity;if(vb==null)vb=-Infinity;if(typeof va==="number"&&typeof vb==="number")return (va-vb)*sortDir;return String(va).localeCompare(String(vb))*sortDir;});}
+  // A2: when the 'error' status chip is active, sort red-first (highest error rate).
+  if(rChips["status"]&&rChips["status"].has("error")&&sortKey==null){out.sort((a,b)=>(b.error_rate||0)-(a.error_rate||0));}
+  if(sortKey!=null){const keys=["model","dataset","scorer","track","status","accuracy","majority","exact_record","parity_drift","time_per_case_s","calls","cases","error_rate","ab_delta"];const k=keys[sortKey];out.sort((a,b)=>{let va=a[k],vb=b[k];if(va==null)va=-Infinity;if(vb==null)vb=-Infinity;if(typeof va==="number"&&typeof vb==="number")return (va-vb)*sortDir;return String(va).localeCompare(String(vb))*sortDir;});}
   return out;
 }
 function toggleChip(chips,g,label){if(!chips[g])chips[g]=new Set();const s=chips[g];if(label==="all"){s.clear();}else{s.delete("all");if(s.has(label))s.delete(label);else s.add(label);}if(s.size===0)delete chips[g];}
@@ -492,7 +509,7 @@ function renderQuestionsPanel(){
   const headers=["time","case · rotation","field","predicted","label","ok","p(pred)","margin","call ms","acc so far"];
   let h='<div class="panel"><h2>Questions <span class="sub">every decision of the selected combo'+(selCombo?' · '+esc(selComboDisplayName||selCombo):'')+' · '+(list.length?list.length.toLocaleString()+" lines":"none")+'</span></h2>';
   h+='<div class="filters"><input class="search" id="q-search" placeholder="filter: case id, field, label, text…" value="'+esc(qText)+'">';
-  h+=chipGroup("show",["all","wrong only","near-tie","order flips"],qChips)+chipGroup("workflow",["all","invoice","security","agent trace","customer service"],qChips)+chipGroup("field",["all"],qChips);
+  h+=chipGroup("show",["all","wrong only","near-tie","order flips","errors only"],qChips)+chipGroup("workflow",["all","invoice","security","agent trace","customer service"],qChips)+chipGroup("field",["all"],qChips);
   h+='</div><div class="qwrap"><div class="tw qlist"><table><thead><tr>';
   headers.forEach((hd,i)=>{const cls=i>=6?' class="num"':'';h+='<th'+cls+'>'+esc(hd)+'</th>';});
   h+='</tr></thead><tbody>';
@@ -501,7 +518,7 @@ function renderQuestionsPanel(){
     h+='<tr class="'+(origIdx===selQuestion?"sel":"")+'" data-qi="'+origIdx+'">';
     h+='<td>'+esc(r.ts)+'</td><td>'+esc(r.case_id)+' · rot'+fmtNullable(r.rotation)+'</td><td>'+esc(r.field)+'</td>';
     h+='<td>'+esc(r.predicted)+'</td><td>'+esc(r.label)+'</td>';
-    h+='<td>'+(r.ok?pill("ok","✓"):pill("fail","✗"))+'</td>';
+    h+='<td>'+(r.error?pill("fail","err"):(r.ok?pill("ok","✓"):pill("fail","✗")))+'</td>';
     h+='<td class="num">'+fmtNum(r.p_pred,2)+'</td><td class="num">'+fmtNum(r.margin,2)+'</td>';
     h+='<td class="num">'+(r.call_ms!=null?r.call_ms:"—")+'</td><td class="num">'+fmtNum(r.acc_so_far,3)+'</td>';
     h+='</tr>';
@@ -525,7 +542,16 @@ function renderQuestionsPanel(){
     h+='<span>same field other rotations: <b>'+esc((c.rotations_same_field||[]).join(" · "))+'</b></span>';
     h+='<span>rescored: <b>'+(c.rescored?"yes":"no")+'</b></span>';
     h+='<span>log-odds drift vs single: <b>'+fmtNum(c.drift,3)+'</b></span>';
-    h+='</div></div>';
+    h+='</div>';
+    // A2: error block — case id, field, error text, raw_text (when present).
+    if(c.error){
+      h+='<div class="qmeta" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">';
+      h+='<span class="pill fail">error</span><span>case <b>'+esc(c.case_id)+'</b></span><span>field <b>'+esc(c.field)+'</b></span>';
+      h+='</div>';
+      h+='<div class="ctx" style="color:var(--fail)">'+esc(c.error)+'</div>';
+      if(c.raw_text){h+='<details style="margin-top:4px"><summary>raw generated text ('+c.raw_text.length+' chars)</summary><pre class="ctx" style="white-space:pre-wrap;word-break:break-all">'+esc(c.raw_text)+'</pre></details>';}
+    }
+    h+='</div>';
   } else {h+='<div class="qcard">no question selected — click a row</div>';}
   h+='</div></div>';
   slot.innerHTML=h;
@@ -539,8 +565,11 @@ function filterQuestions(list){
   const s=qChips["show"];if(s&&s.size>0&&!s.has("all")){
     if(s.has("wrong only"))out=out.filter(r=>!r.ok);
     if(s.has("near-tie"))out=out.filter(r=>r.margin!=null&&r.margin<0.10);
+    // A2: 'errors only' shows case id, field, error text, raw_text.
+    if(s.has("errors only"))out=out.filter(r=>r.error);
+    if(s.has("order flips"))out=out.filter(r=>{const rots=(r.rotations_same_field||[]);return rots.length>1&&new Set(rots).size>1;});
   }
-  if(qText){out=out.filter(r=>(r.case_id+" "+r.field+" "+r.predicted+" "+r.label+" "+(r.context_text||"")).toLowerCase().includes(qText.toLowerCase()));}
+  if(qText){out=out.filter(r=>(r.case_id+" "+r.field+" "+r.predicted+" "+r.label+" "+(r.context_text||"")+(r.error||"")+(r.raw_text||"")).toLowerCase().includes(qText.toLowerCase()));}
   return out;
 }
 

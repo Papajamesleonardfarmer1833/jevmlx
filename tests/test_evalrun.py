@@ -705,9 +705,16 @@ class TestHeartbeat:
                 "peak_memory_bytes",
                 "active_memory_bytes",
                 "cache_memory_bytes",
+                "fields_error",
+                "fields_total",
             }
         assert hb_records[0]["cases_done"] == 2
         assert hb_records[1]["cases_done"] == 4
+        # A2: no errors in the happy-path decide -> 0/ cumulative.
+        assert hb_records[0]["fields_error"] == 0
+        assert hb_records[0]["fields_total"] == 2
+        assert hb_records[1]["fields_error"] == 0
+        assert hb_records[1]["fields_total"] == 4
 
     def test_heartbeat_disabled_when_zero(self, tmp_path, capsys, monkeypatch):
         """N=0: no heartbeat lines, no heartbeat.jsonl."""
@@ -730,6 +737,58 @@ class TestHeartbeat:
         out = capsys.readouterr().out
         assert "[heartbeat]" not in out
         assert not (tmp_path / "heartbeat.jsonl").exists()
+
+    def test_heartbeat_counts_field_errors(self, tmp_path, capsys, monkeypatch):
+        """A2: fields_error / fields_total accumulate from error rows.
+
+        A decide_fn that errors on every other case must produce heartbeat
+        records whose fields_error / fields_total reflects the cumulative
+        error count (real writer output, not hand-made lines)."""
+        import mlx.core as mx
+
+        monkeypatch.setattr(mx, "get_peak_memory", lambda: 0)
+        monkeypatch.setattr(mx, "get_active_memory", lambda: 0)
+        monkeypatch.setattr(mx, "get_cache_memory", lambda: 0)
+
+        call = {"i": 0}
+
+        def err_decide(s, c):
+            call["i"] += 1
+            is_err = call["i"] % 2 == 0  # error on every 2nd case
+            return {
+                "action": {
+                    "prediction": None if is_err else "A",
+                    "valid": not is_err,
+                    "error": "invalid value for action: 2" if is_err else None,
+                },
+                "_meta": {"latency_ms": 1.0, "rows": 1, "passes": 1},
+            }
+
+        evalrun.run_eval(
+            _n_cases(5),
+            err_decide,
+            track="parallel",
+            model="fake/model",
+            out_dir=str(tmp_path),
+            run_id="hb-err",
+            heartbeat_every=2,
+            combo="parallel-trie-bundled",
+        )
+        hb_records = [
+            json.loads(line) for line in (tmp_path / "heartbeat.jsonl").read_text().splitlines()
+        ]
+        assert len(hb_records) == 2
+        # Case 1 (ok), case 2 (err) -> heartbeat at done=2: 1 error / 2 total.
+        assert hb_records[0]["fields_error"] == 1
+        assert hb_records[0]["fields_total"] == 2
+        # Case 3 (ok), case 4 (err) -> heartbeat at done=4: 2 errors / 4 total.
+        assert hb_records[1]["fields_error"] == 2
+        assert hb_records[1]["fields_total"] == 4
+        # The stdout line carries the error rate too.
+        out = capsys.readouterr().out
+        hb_lines = [ln for ln in out.splitlines() if ln.startswith("[heartbeat]")]
+        assert "fields_error=1/2" in hb_lines[0]
+        assert "fields_error=2/4" in hb_lines[1]
 
 
 # --- B11-naive: naive_local track writes timing.json -----------------------

@@ -74,6 +74,7 @@ const {
   statusPill,
   parityPill,
   abDelta,
+  errorsCell,
   filterSortRows,
   toggleChip,
 } = sandbox;
@@ -208,6 +209,25 @@ describe("dashboard pure helpers", () => {
       const out = abDelta(-0.3);
       assert.ok(out.includes("down"));
       assert.ok(out.includes("−0.30"));
+    });
+  });
+
+  describe("errorsCell", () => {
+    it("renders em dash when no fields_total", () => {
+      assert.equal(errorsCell({}), "—");
+      assert.equal(errorsCell({ fields_error: 0, fields_total: 0 }), "—");
+    });
+    it("renders count and pct, grey when rate <= 5%", () => {
+      const out = errorsCell({ fields_error: 1, fields_total: 100 });
+      assert.ok(out.includes("1/100"));
+      assert.ok(out.includes("(1%)"));
+      assert.ok(out.includes("var(--dim)"));
+    });
+    it("renders red when rate > 5%", () => {
+      const out = errorsCell({ fields_error: 10, fields_total: 100 });
+      assert.ok(out.includes("10/100"));
+      assert.ok(out.includes("(10%)"));
+      assert.ok(out.includes("var(--fail)"));
     });
   });
 

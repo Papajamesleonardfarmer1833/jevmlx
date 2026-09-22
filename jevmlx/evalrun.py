@@ -571,6 +571,8 @@ def _heartbeat(
     pred_lines: int,
     start: float,
     out_dir: str,
+    fields_error: int = 0,
+    fields_total: int = 0,
 ) -> None:
     """W5c-16: print + append one heartbeat record for every N completed cases.
 
@@ -578,12 +580,18 @@ def _heartbeat(
     reusing the local _sample_metal_memory + _memory_block_gb) and one
     JSON object appended to ``<out_dir>/heartbeat.jsonl`` (machine-readable).
     Best-effort: a Metal read failure yields -1 and never breaks the run.
+
+    A2: ``fields_error`` / ``fields_total`` are the cumulative field-level
+    error count and total committed prediction lines for THIS combo (the
+    dashboard NOW panel shows the error rate from these).
     """
     elapsed = int(time.perf_counter() - start)
     mem = _sample_metal_memory()
+    err_rate = (fields_error / fields_total) if fields_total else 0.0
     print(
         f"[heartbeat] {combo} cases_done={done} pred_lines={pred_lines} "
-        f"elapsed_s={elapsed} {_memory_block_gb(mem)}",
+        f"fields_error={fields_error}/{fields_total} "
+        f"err_rate={err_rate:.1%} elapsed_s={elapsed} {_memory_block_gb(mem)}",
         flush=True,
     )
     rec = {
@@ -594,6 +602,8 @@ def _heartbeat(
         "peak_memory_bytes": mem["peak_memory"],
         "active_memory_bytes": mem["active_memory"],
         "cache_memory_bytes": mem["cache_memory"],
+        "fields_error": fields_error,
+        "fields_total": fields_total,
     }
     try:
         with open(os.path.join(out_dir, "heartbeat.jsonl"), "a", encoding="utf-8") as f:
@@ -841,6 +851,12 @@ def run_eval(
     # W5c-16: heartbeat counters (cases committed + run start time).
     _hb_done = 0
     _hb_start = time.perf_counter()
+    # A2: cumulative field-level error counters for the heartbeat record.
+    # fields_error = prediction lines with a non-null 'error'; fields_total
+    # = all committed prediction lines. Tracked per-combo (reset when the
+    # combo changes — see the heartbeat call sites).
+    _hb_fields_error = 0
+    _hb_fields_total = 0
     with ResultsLock(out_dir):
         for case in selected:
             schema = StructuredSchema(case["schema"])
@@ -912,8 +928,18 @@ def run_eval(
                         )
                         # W5c-16: heartbeat every N committed cases.
                         _hb_done += 1
+                        _hb_fields_total += len(variant_lines)
+                        _hb_fields_error += sum(1 for vl in variant_lines if vl.get("error"))
                         if heartbeat_every and _hb_done % heartbeat_every == 0:
-                            _heartbeat(combo, _hb_done, len(lines), _hb_start, out_dir)
+                            _heartbeat(
+                                combo,
+                                _hb_done,
+                                len(lines),
+                                _hb_start,
+                                out_dir,
+                                _hb_fields_error,
+                                _hb_fields_total,
+                            )
                     else:
                         _errors_path = os.path.join(out_dir, "errors.jsonl")
                         _blob = "".join(
@@ -1100,8 +1126,18 @@ def run_eval(
                     lines.extend(variant_lines)
                     # W5c-16: heartbeat every N committed cases.
                     _hb_done += 1
+                    _hb_fields_total += len(variant_lines)
+                    _hb_fields_error += sum(1 for vl in variant_lines if vl.get("error"))
                     if heartbeat_every and _hb_done % heartbeat_every == 0:
-                        _heartbeat(combo, _hb_done, len(lines), _hb_start, out_dir)
+                        _heartbeat(
+                            combo,
+                            _hb_done,
+                            len(lines),
+                            _hb_start,
+                            out_dir,
+                            _hb_fields_error,
+                            _hb_fields_total,
+                        )
                 if _error_breaker_tripped is not None:
                     # A1: break out of the cases loop too.
                     break
