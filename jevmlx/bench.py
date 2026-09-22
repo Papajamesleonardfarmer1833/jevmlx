@@ -22,6 +22,7 @@ from typing import Any
 from jevmlx.evalmetrics import compute_metrics, load_predictions
 from jevmlx.evalreport import environment, write_report
 from jevmlx.evalrun import CircuitBreakerTrippedError, parallel_decide_fn, run_eval
+from jevmlx.metal import cache_memory_gb, clear_cache, set_cache_limit
 
 BENCH_CACHE = Path.home() / ".cache" / "jevmlx" / "bench"
 HERE = Path(__file__).resolve().parent.parent / "benchmarks"
@@ -672,11 +673,16 @@ def run_bench(
     # no per-case clear needed. Default 8 GB (the 7B weights are ~4 GB; the
     # cap bounds the GPU leftover, not the live working set). Best-effort:
     # a non-Metal build logs and continues.
-    metal_cache_limit_bytes = _set_metal_cache_limit(metal_cache_gb)
+    metal_cache_limit_bytes = set_cache_limit(metal_cache_gb)
     if metal_cache_limit_bytes is not None:
         print(
             f"[memory] Metal buffer cache cap: {metal_cache_gb} GB "
             f"({metal_cache_limit_bytes} bytes)",
+            flush=True,
+        )
+    else:
+        print(
+            "[memory] Metal buffer cache cap NOT set; the allocator may hoard",
             flush=True,
         )
 
@@ -810,7 +816,7 @@ def run_bench(
                 _augment_run_json_memory(
                     combo_dir, mem, metal_cache_limit_bytes=metal_cache_limit_bytes
                 )
-                _clear_metal_cache()
+                clear_cache()
             except Exception as exc:  # noqa: BLE001 - failure is a result
                 status = "load_failed" if not engine_loaded else "run_failed"
                 if isinstance(exc, CircuitBreakerTrippedError):
@@ -911,12 +917,12 @@ def run_bench_models(
         else:
             all_combos += 1
         finally:
-            before = _metal_cache_memory_gb()
+            before = cache_memory_gb()
             from jevmlx.engine import clear_engine_cache
 
             clear_engine_cache()
-            _clear_metal_cache()
-            after = _metal_cache_memory_gb()
+            clear_cache()
+            after = cache_memory_gb()
             print(
                 f"[memory] released {model}: metal cache {before} GB -> {after} GB",
                 flush=True,
@@ -928,49 +934,6 @@ def run_bench_models(
     # per model folder and marks parity_failed rows itself.
     summarize(out)
     return out
-
-
-def _metal_cache_memory_gb() -> float:
-    """Metal buffer-cache bytes in GB, or -1.0 when unreadable."""
-    try:
-        import mlx.core as mx
-
-        return round(mx.get_cache_memory() / 2**30, 2)
-    except Exception:  # noqa: BLE001 - memory logging must never break the run
-        return -1.0
-
-
-def _clear_metal_cache() -> None:
-    """Release the Metal buffer cache; never raises."""
-    try:
-        import mlx.core as mx
-
-        mx.clear_cache()
-    except Exception:  # noqa: BLE001 - cleanup must never break the run
-        pass
-
-
-def _set_metal_cache_limit(cache_gb: float) -> int | None:
-    """Cap the Metal buffer cache (W5c-14 #79); returns the bytes set, or None.
-
-    The per-combo clear (W5c-13) releases the cache between combos, but
-    inside a long combo the Metal allocator hoards freed buffers and pushes
-    the machine into swap. ``mx.set_cache_limit`` makes the allocator
-    evict buffers above the cap instead of hoarding — no per-case clear
-    needed. Best-effort: a non-Metal build returns None and never raises.
-    """
-    try:
-        import mlx.core as mx
-
-        limit_bytes = int(float(cache_gb) * 2**30)
-        mx.set_cache_limit(limit_bytes)
-        return limit_bytes
-    except Exception as exc:  # noqa: BLE001 - telemetry must never break the run
-        print(
-            f"[memory] Metal buffer cache cap NOT set ({exc!r}); the allocator may hoard",
-            flush=True,
-        )
-        return None
 
 
 # W5c-13 (#79): per-combo Metal memory telemetry. The three counters the

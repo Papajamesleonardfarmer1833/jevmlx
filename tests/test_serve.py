@@ -19,6 +19,16 @@ FAKE_RESULT = make_engine_result(
 )
 
 
+def _free_port():
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
 def _start_server(decide_fn, model_id="fake", *, stats=None, aq=None, **kw):
     if stats is None:
         stats = _ServerStats()
@@ -129,6 +139,8 @@ def test_health(server):
     assert "queue_depth" in body
     assert "queue_capacity" in body
     assert "busy" not in body
+    # #149: cache_memory_bytes is always present (best-effort, -1 on CPU).
+    assert "cache_memory_bytes" in body
 
 
 def test_health_after_decide_shows_served(server):
@@ -1016,3 +1028,143 @@ def test_systemone_mapping_noul_as_boolean():
     questions = {"q": {"type": "noul", "instructions": "True?"}}
     schema = _systemone_to_schema(questions)
     assert schema["q"]["type"] == "boolean"
+
+
+def test_serve_applies_metal_cache_cap_at_startup(monkeypatch):
+    """#149: the shared metal helper calls mx.set_cache_limit with the
+    configured cap (2 GB), so a long-running daemon does not hoard freed
+    buffers. Tested by injecting a fake mlx.core module into sys.modules."""
+    import importlib
+    import sys
+    import types
+
+    calls = {"set_cache_limit": []}
+
+    fake_mx = types.ModuleType("mlx.core")
+    fake_mx.set_cache_limit = lambda b: calls["set_cache_limit"].append(b)
+    fake_mx.get_cache_memory = lambda: 0
+    fake_mx.clear_cache = lambda: None
+    fake_mx_mod = types.ModuleType("mlx")
+    fake_mx_mod.core = fake_mx
+    monkeypatch.setitem(sys.modules, "mlx", fake_mx_mod)
+    monkeypatch.setitem(sys.modules, "mlx.core", fake_mx)
+
+    import jevmlx.metal as metal_mod
+
+    importlib.reload(metal_mod)
+    result = metal_mod.set_cache_limit(2.0)
+    assert result == int(2.0 * 2**30)
+    assert calls["set_cache_limit"] == [int(2.0 * 2**30)]
+    # Restore the real module for other tests.
+    importlib.reload(metal_mod)
+
+
+def test_admission_queue_clears_cache_when_idle():
+    """#149: the admission worker calls clear_cache() when the queue is
+    idle (empty) after a request finishes, but NOT while requests are still
+    queued (avoids re-allocation cost under load).
+
+    Deterministic: inject the fake clear_cache directly into the
+    _AdmissionQueue instance (no module-global monkeypatch). Send ONE
+    request via submit(), wait on result_event, then wait on a
+    threading.Event set by the fake (fires after the idle check). Assert
+    exactly 1 call — no sleeps, no relaxation."""
+    import threading
+
+    clear_calls = {"count": 0}
+    clear_event = threading.Event()
+
+    def fake_clear_cache():
+        clear_calls["count"] += 1
+        clear_event.set()
+
+    stats = _ServerStats()
+    aq = _AdmissionQueue(maxsize=4, stats=stats, clear_cache_fn=fake_clear_cache)
+
+    def decide_fn(schema, context, temperature):
+        return {"action": {"prediction": "A", "valid": True}}
+
+    # Build the request the same way the real /decide handler builds it
+    # (submit() stamps queued_at and sets the queued flag the worker reads).
+    request = {
+        "schema_dict": {"action": {"type": "enum", "choices": ["A"], "description": "d"}},
+        "context": "ctx1",
+        "temperature": 1.0,
+        "decide_fn": decide_fn,
+        "cancel_event": threading.Event(),
+        "result_event": threading.Event(),
+        "result": None,
+        "error": None,
+    }
+    assert aq.submit(request), "submit rejected (queue full?)"
+    # Wait for the request to complete (result_event) AND for the idle check
+    # to fire clear_cache (clear_event). Both are deterministic signals — no
+    # sleeps.
+    assert request["result_event"].wait(timeout=10.0), "request did not complete"
+    assert clear_event.wait(timeout=10.0), (
+        f"clear_cache was not called after idle; worker_alive={stats.worker_alive} "
+        f"worker_thread_alive={aq._worker.is_alive()} queue_empty={aq._q.empty()} "
+        f"depth={aq.depth}"
+    )
+    aq.shutdown()
+
+    # Exactly 1 call: one request, one idle check.
+    assert clear_calls["count"] == 1
+
+
+@pytest.mark.slow
+def test_serve_300_requests_cache_bounded():
+    """#149 slow: 300 sequential /decide requests through the real server path
+    (0.5B) must keep the Metal buffer cache at or below the cap + one batch,
+    and active memory must stay flat (not climb to the 29 GB reported in the
+    issue)."""
+    import threading
+    import urllib.request
+
+    from conftest import MODEL_ID
+
+    from jevmlx.serve import serve
+
+    port = _free_port()
+
+    serve_thread = threading.Thread(
+        target=serve,
+        args=(MODEL_ID, "127.0.0.1", port),
+        kwargs={"metal_cache_gb": 2.0, "queue_size": 4},
+        daemon=True,
+    )
+    serve_thread.start()
+
+    # Wait for /ready.
+    import time as _time
+
+    deadline = _time.time() + 120
+    ready = False
+    while _time.time() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/ready", timeout=2) as r:
+                if r.status == 200:
+                    ready = True
+                    break
+        except Exception:
+            _time.sleep(0.5)
+    assert ready, "server did not become ready in 120s"
+
+    schema = {"action": {"type": "enum", "choices": ["A", "B"], "description": "decide"}}
+    for i in range(300):
+        body = json.dumps({"schema": schema, "context": f"request {i}"}).encode()
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/decide",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            assert r.status == 200
+
+    # Check /health for cache_memory_bytes — must be at or below the cap
+    # (2 GB) + one batch of headroom.
+    with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=5) as r:
+        health = json.loads(r.read())
+    cache_bytes = health.get("cache_memory_bytes", -1)
+    # Cap is 2 GB; allow one batch (1 GB) of headroom for in-flight buffers.
+    assert cache_bytes <= int(3.0 * 2**30), f"cache {cache_bytes} exceeded cap+batch"

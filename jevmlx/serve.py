@@ -28,6 +28,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 logger = logging.getLogger(__name__)
 
+
+from jevmlx.metal import (  # noqa: E402 (module-level; metal.py imports mlx lazily)
+    cache_memory_bytes,
+    clear_cache,
+    set_cache_limit,
+)
+
+
+def _cache_memory_bytes() -> int:
+    """Metal buffer-cache bytes for /health (best-effort, -1 if unreadable)."""
+    return cache_memory_bytes()
+
+
 # ---------------------------------------------------------------------------
 # Admission limits (W6-B7 item 7)
 # ---------------------------------------------------------------------------
@@ -134,10 +147,15 @@ class _AdmissionQueue:
         self,
         maxsize: int = DEFAULT_QUEUE_SIZE,
         stats: _ServerStats | None = None,
+        clear_cache_fn: Callable[[], None] | None = None,
     ) -> None:
         self._q: queue.Queue[dict | None] = queue.Queue()  # unbounded
         self._max = maxsize
         self._stats = stats
+        # #149: the idle-clear function. Defaults to the module-level
+        # clear_cache; injectable so tests can use a deterministic fake
+        # without module-global monkeypatch timing issues.
+        self._clear_cache_fn = clear_cache_fn if clear_cache_fn is not None else clear_cache
         self._live_queued = 0
         self._lock = threading.Lock()
         self._worker = threading.Thread(target=self._run, daemon=True)
@@ -232,7 +250,17 @@ class _AdmissionQueue:
                     request["result_event"].set()
                     if self._stats:
                         self._stats.mark_worker_alive()
+                    # #149: release the Metal buffer cache when the queue is
+                    # idle (not per-request; the cap already bounds hoarding).
+                    # After result_event.set so the request is answered first.
+                    if self._q.empty():
+                        self._clear_cache_fn()
         except BaseException:
+            # M5: any uncaught exception marks the worker dead so /ready goes
+            # 503. Log the traceback once at ERROR so silent worker failures
+            # (e.g. a bad request shape) are visible — no spam (the worker
+            # dies and stops logging).
+            logger.exception("admission worker died")
             if self._stats:
                 self._stats.mark_worker_dead()
             raise
@@ -517,6 +545,9 @@ def make_handler(
                         "requests_served": stats.requests_served,
                         "queue_depth": admission_queue.depth,
                         "queue_capacity": admission_queue.capacity,
+                        # #149: Metal buffer-cache bytes so operators can
+                        # see hoarding at a glance.
+                        "cache_memory_bytes": _cache_memory_bytes(),
                     },
                 )
             elif self.path == "/v1/models":
@@ -763,6 +794,7 @@ def serve(
     queue_size: int = DEFAULT_QUEUE_SIZE,
     max_rows: int = DEFAULT_MAX_ROWS,
     max_prompt_tokens: int = DEFAULT_MAX_PROMPT_TOKENS,
+    metal_cache_gb: float | None = None,
 ) -> None:
     """Load the model once, then serve decisions until interrupted.
 
@@ -774,9 +806,39 @@ def serve(
     N2: during warm-up the bound server returns 503 for /decide (not 200
     with empty fields). Only ONE AdmissionQueue exists — it is created
     after warm-up, not during the placeholder phase.
+
+    #149: the Metal buffer cache is capped at startup (default 2 GB, or
+    env ``JEVMLX_METAL_CACHE_GB``, or ``--metal-cache-gb``) so a
+    long-running daemon does not hoard freed buffers (29 GB physical after
+    ~900 requests on a 128 GB machine). The admission worker also calls
+    ``mx.clear_cache()`` when the queue is idle (not per-request, to avoid
+    re-allocation cost under load; the cap already bounds hoarding).
     """
+    # #149: cap the Metal buffer cache before loading the model. Same helper
+    # bench uses (#79); one owner in jevmlx.metal.
+    import os
+
     from jevmlx.engine import load_engine, run_parallel_generation
     from jevmlx.schema import StructuredSchema
+
+    effective_cache_gb = metal_cache_gb
+    if effective_cache_gb is None:
+        env_val = os.environ.get("JEVMLX_METAL_CACHE_GB")
+        if env_val is not None:
+            effective_cache_gb = float(env_val)
+    if effective_cache_gb is None:
+        effective_cache_gb = 2.0  # default cap: 2 GB
+    limit_bytes = set_cache_limit(effective_cache_gb)
+    if limit_bytes is not None:
+        logger.info(
+            "Metal buffer cache cap set to %.2f GB (%d bytes)",
+            effective_cache_gb,
+            limit_bytes,
+        )
+    else:
+        logger.warning(
+            "Metal buffer cache cap NOT set (non-Metal build?); the allocator may hoard",
+        )
 
     stats = _ServerStats()
 
