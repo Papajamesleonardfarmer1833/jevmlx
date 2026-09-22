@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- engine: near-tie rescore gate uses post-prior margins (closes the parity
+  escape gap). The rescore gate in `finalize_scalar_evidence` previously
+  selected band candidates on RAW log-scores (before prior correction),
+  but parity's near-tie detection (`_field_margin`) checks FINAL
+  probabilities (after prior + softmax). A field whose raw margin was above
+  the rescore band but whose post-prior margin was below it escaped the
+  rescore — the Llama-3.1-8B parity run had exactly one such field
+  (`support_triage/secondary_department`, raw margin ≥ 0.094, final margin
+  0.050), making the whole model FAIL on `escaped_near_tie` even though no
+  winner changed and no drift moved. Fix: the gate now applies the prior
+  correction, computes the final probabilities, and checks the top-two
+  probability margin (via the shared `_near_tie_margin_nats` helper) against
+  the band — the same quantity parity checks. A field that is a final
+  near-tie always gets the batch=1 rescore, regardless of its raw margin.
+  The `escaped_near_tie` count for this construction becomes 0. The
+  band/DRIFT/FAIL rule is unchanged (separate decision pending).
+
 - ci: slow model tests run on every merge to main (and on manual dispatch).
   New `.github/workflows/slow.yml` (push to main + workflow_dispatch) runs
   `pytest -m slow` on the macOS runner against the pinned 0.5B dev model,

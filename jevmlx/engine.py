@@ -1075,6 +1075,27 @@ def _field_semantics(
     }
 
 
+def _near_tie_margin_nats(probs: list[float]) -> float:
+    """Top-two probability margin in NATS — the shared near-tie quantity.
+
+    Both the engine's rescore gate (finalize_scalar_evidence) and parity's
+    _field_margin key on the same concept: is the top-2 gap small enough
+    that batch-shape noise could flip the winner? This helper converts the
+    probability margin (p1 - p2) to the log-score gap (log(p1) - log(p2))
+    which lives on the same nat scale as the rescore band. A zero-margin
+    tie (p1 == p2) returns 0.0; a single-choice field returns inf.
+    """
+    if len(probs) < 2:
+        return float("inf")
+    sorted_p = sorted(probs, reverse=True)
+    p1, p2 = sorted_p[0], sorted_p[1]
+    if p1 <= 0 or p2 <= 0:
+        # A zero-probability choice has log = -inf; the gap is infinite
+        # unless both are zero (exact tie at 0 — return 0).
+        return 0.0 if p1 == 0 and p2 == 0 else float("inf")
+    return math.log(p1) - math.log(p2)
+
+
 def finalize_scalar_evidence(
     evidence: ScalarEvidence,
     *,
@@ -1127,10 +1148,20 @@ def finalize_scalar_evidence(
     # by the persisted drift envelope's E_bound for the pass's shape bucket.
     band = rescore_band_nats
     rescored = False
-    if n > 0:
-        order = sorted(range(n), key=raw_scores.__getitem__, reverse=True)
-        band_candidates = [i for i in order if raw_scores[order[0]] - raw_scores[i] < band]
-        if len(band_candidates) > 1 and evidence.source_shape == "batch" and rescore is not None:
+    if n > 1 and evidence.source_shape == "batch" and rescore is not None:
+        # D5 fix (c): the gate decides on the FINAL post-prior probability
+        # margin (p1 - p2 after prior correction + softmax), NOT the raw
+        # log-score gap. Parity's near-tie detection (_field_margin) checks
+        # the same final probabilities; a field that is a final near-tie must
+        # always get the batch=1 rescore, even when the raw margin was above
+        # the band (the prior correction can narrow the gap). The band is in
+        # NATS; the final margin is in probability space — convert via the
+        # logit gap which lives on the same nat scale as the band. This
+        # keeps one definition of 'near-tie margin' shared by engine and
+        # parity. The prior correction is cheap (no model call).
+        pre_scores = _apply_prior(raw_scores, choices, prior_entry)
+        pre_probs = softmax(pre_scores, temperature=temperature)
+        if _near_tie_margin_nats(pre_probs) < band:
             rescored_evidence = rescore(rescore_idxs or [])
             raw_scores = list(rescored_evidence.log_scores_raw)
             legal_logs = list(rescored_evidence.legal_mass_logs)

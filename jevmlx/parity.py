@@ -174,6 +174,10 @@ def _field_margin(tel: dict) -> float:
     ``top_choices`` is sorted by probability descending; the margin is
     p1 - p2 (the same quantity the near-tie rescore keys on, in
     probability space). A field with one choice has margin inf.
+
+    D5 fix (c): the engine's rescore gate now uses the same final
+    probability margin (via _near_tie_margin_nats) — see
+    finalize_scalar_evidence.
     """
     tc = tel.get("top_choices") or []
     if len(tc) < 2:
