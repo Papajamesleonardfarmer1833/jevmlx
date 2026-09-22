@@ -14,6 +14,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 import pytest
@@ -27,6 +28,14 @@ import jevmlx
 # the 0.5B and flips the scam case to 'low', failing the <= 1 flip gate).
 # Anyone running -m slow without MODEL_ID set still gets the 1.5B here.
 ISSUE105_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+
+# A4/O2: the slow-on-main CI job caches ONLY the 0.5B (it must not download
+# the 1.5B on every merge). When JEVMLX_CI_SLOW=1 is set, these 1.5B-pinned
+# tests skip cleanly rather than attempting a download.
+_skip_in_ci = pytest.mark.skipif(
+    os.environ.get("JEVMLX_CI_SLOW") == "1",
+    reason="JEVMLX_CI_SLOW=1: CI caches only the 0.5B; this test pins the 1.5B",
+)
 
 # The 6 cases from the issue (paraphrased — same semantic content).
 CASES: dict[str, str] = {
@@ -124,6 +133,7 @@ def _slot_distribution(results: dict[str, dict[str, str]]) -> dict[int, int]:
 
 
 @pytest.mark.slow
+@_skip_in_ci
 def test_issue105_reproduce_table(capsys):
     """Reproduce the issue #105 4-row table on the current main."""
     print(f"\nmodel: {ISSUE105_MODEL}")
@@ -206,6 +216,7 @@ def test_prior_is_order_invariant_on_fake_engine(monkeypatch):
 
 
 @pytest.mark.slow
+@_skip_in_ci
 def test_prior_corrected_labels_order_invariant_on_15b():
     """Issue #105 slow: with prior_correction=True and labels scoring, the
     canonical-prior fix reduces order-dependent flips on the 1.5B.

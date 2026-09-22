@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- ci: slow model tests run on every merge to main (and on manual dispatch).
+  New `.github/workflows/slow.yml` (push to main + workflow_dispatch) runs
+  `pytest -m slow` on the macOS runner against the pinned 0.5B dev model,
+  with a 40-min timeout. The 0.5B weights are pre-cached
+  (`actions/cache` keyed on the model id) so repeated runs do not
+  re-download. Tests that pin a bigger model skip cleanly when
+  `JEVMLX_CI_SLOW=1` is set: `test_issue105_prior_order` (1.5B) and
+  `test_api.test_load_engine_identity_alias_is_object` (7B via the
+  `quality` alias). NOT a required check — main protection stays
+  test+build.
+
 - W2-A field-local prompts: the global schema block is
   replaced by per-field prompt blocks. The engine renders one complete chat
   prompt per field (system + nonce-delimited context + that field's block +
