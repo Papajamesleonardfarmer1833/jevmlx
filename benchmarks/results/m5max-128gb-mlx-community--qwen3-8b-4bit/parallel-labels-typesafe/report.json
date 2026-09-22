@@ -1,0 +1,2411 @@
+{
+  "environment": {
+    "chip": "Apple M5 Max",
+    "git_sha": "dbb1ff1f04a0bce4b20817e4c09eae2b5a3d2ad3",
+    "jevmlx_version": "0.1.0",
+    "machine_model": "Mac17,7",
+    "macos_version": "26.6.2",
+    "mlx_lm_version": "0.31.3",
+    "mlx_version": "0.32.2",
+    "python_version": "3.12.14",
+    "ram_gb": 128.0,
+    "timestamp_utc": "2026-09-21T12:20:25+00:00"
+  },
+  "metrics": {
+    "accuracy": 0.8461642082575604,
+    "accuracy_ci": {
+      "accuracy": 0.8461642082575604,
+      "ci_high": 0.8996976702827673,
+      "ci_low": 0.7513976891539321,
+      "draws": 2000,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 45,
+      "seed": 0
+    },
+    "agreement": {
+      "agreement_common_subset": 0.8461642082575604,
+      "by_workflow": {
+        "agent_trace_observability": 0.5583333333333333,
+        "customer_service": 0.7326656394453005,
+        "invoice_processing": 0.86797047408873,
+        "security_incidents": 0.4826388888888889
+      },
+      "n_cases": 44,
+      "n_fields": 14847,
+      "overall": 0.8461642082575604
+    },
+    "any_flip_rate": {
+      "activity_ongoing": 0.0,
+      "adjustment_duplicates_line": 0.0,
+      "affected_scope": 0.0,
+      "already_compensated": 0.0,
+      "amount_vs_record": 0.11363636363636363,
+      "approval_0": 0.003472222222222222,
+      "attack_type": 0.0625,
+      "attacker_modified_configuration": 0.0,
+      "attacker_persistence_present": 0.0,
+      "attribution": 0.6875,
+      "bank_change_claimed_in_comms": 0.0,
+      "billed_above_basis": 0.0,
+      "cancellation_reason": 0.0,
+      "changes_terms": 0.0,
+      "churn_risk": 0.0,
+      "claims_agent_error": 0.0,
+      "context_explains_activity": 0.0,
+      "credentials_exposed": 0.0,
+      "desired_outcome": 0.2823529411764706,
+      "different_entity": 0.0,
+      "evidence_strength": 0.32,
+      "expressed_satisfaction": 0.0,
+      "first_bad_step": 0.1875,
+      "frustration": 0.011764705882352941,
+      "hardship": 0.09090909090909091,
+      "in_scope": 0.0,
+      "intent": 0.10588235294117647,
+      "intent_pair": 0.0,
+      "is_true_positive": 0.0,
+      "issue_resolved": 0.0,
+      "line_0_completion": 0.037037037037037035,
+      "line_0_kind": 0.009259259259259259,
+      "line_0_owner_declined": 0.0,
+      "line_0_rate_differs": 0.0,
+      "line_0_rebilled": 0.0,
+      "line_0_scope": 0.06481481481481481,
+      "line_0_unexplained_fee": 0.0,
+      "line_1_completion": 0.024691358024691357,
+      "line_1_kind": 0.0030864197530864196,
+      "line_1_owner_declined": 0.0,
+      "line_1_rate_differs": 0.0,
+      "line_1_rebilled": 0.0,
+      "line_1_scope": 0.06481481481481481,
+      "line_1_unexplained_fee": 0.0,
+      "line_2_completion": 0.012244897959183673,
+      "line_2_kind": 0.04081632653061224,
+      "line_2_owner_declined": 0.0,
+      "line_2_rate_differs": 0.0,
+      "line_2_rebilled": 0.0,
+      "line_2_scope": 0.044897959183673466,
+      "line_2_unexplained_fee": 0.0,
+      "line_3_completion": 0.012244897959183673,
+      "line_3_kind": 0.0,
+      "line_3_owner_declined": 0.0,
+      "line_3_rate_differs": 0.0,
+      "line_3_rebilled": 0.0,
+      "line_3_scope": 0.06938775510204082,
+      "line_3_unexplained_fee": 0.0,
+      "line_4_completion": 0.022727272727272728,
+      "line_4_kind": 0.0,
+      "line_4_owner_declined": 0.0,
+      "line_4_rate_differs": 0.0,
+      "line_4_rebilled": 0.0,
+      "line_4_scope": 0.022727272727272728,
+      "line_4_unexplained_fee": 0.0,
+      "malicious_content_in_mailboxes": 0.0,
+      "malicious_process_running": 0.0,
+      "offers_evidence": 0.11363636363636363,
+      "open_to_offer": 0.0,
+      "outbound_channel_active": 0.0,
+      "price_basis": 0.015432098765432098,
+      "prior_0": 0.1076388888888889,
+      "prior_1": 0.013888888888888888,
+      "prior_2": 0.30612244897959184,
+      "prior_3": 0.0,
+      "proposal_reply": 0.0,
+      "refund_reason": 0.3181818181818182,
+      "reports_unauthorized": 0.0,
+      "reports_unresolved": 0.0,
+      "request_specificity": 0.6666666666666666,
+      "requests_human": 0.09411764705882353,
+      "sender_0": 0.0,
+      "session_in_attacker_hands": 0.0,
+      "shares_credentials": 0.0,
+      "spread_beyond_initial_entity": 0.0,
+      "statement_not_invoice": 0.0,
+      "tax_two_rates": 0.0,
+      "threat_chargeback_or_public": 0.0,
+      "threat_legal_regulatory": 0.0,
+      "too_ambiguous": 0.0,
+      "unexplained_charges": 0.0,
+      "unusual_urgency": 0.0,
+      "urgency": 0.03529411764705882
+    },
+    "balanced_accuracy": {
+      "activity_ongoing": 0.5,
+      "adjustment_duplicates_line": 0.0,
+      "affected_scope": 0.0,
+      "already_compensated": 1.0,
+      "amount_vs_record": 0.8541666666666666,
+      "approval_0": 0.49798387096774194,
+      "attack_type": 0.9444444444444444,
+      "attacker_modified_configuration": 0.0,
+      "attacker_persistence_present": 0.5,
+      "attribution": 0.3392857142857143,
+      "bank_change_claimed_in_comms": 0.5,
+      "billed_above_basis": 0.5,
+      "cancellation_reason": 0.5,
+      "changes_terms": 1.0,
+      "churn_risk": 1.0,
+      "claims_agent_error": 0.5,
+      "claims_supported": 0.5,
+      "context_explains_activity": 0.0,
+      "credentials_exposed": 0.5,
+      "desired_outcome": 0.30864197530864196,
+      "different_entity": 0.5,
+      "evidence_strength": 0.4166666666666667,
+      "expressed_satisfaction": 0.375,
+      "first_bad_step": 0.6488095238095238,
+      "frustration": 0.4,
+      "handed_off": 0.75,
+      "handoff_required": 0.5,
+      "hardship": 0.9444444444444445,
+      "in_scope": 1.0,
+      "instructed_by_tool_output": 1.0,
+      "intent": 0.6203703703703703,
+      "intent_pair": 0.0,
+      "is_true_positive": 0.5,
+      "issue_resolved": 1.0,
+      "left_undone": 0.5,
+      "line_0_completion": 0.8732456140350877,
+      "line_0_kind": 0.9908814589665653,
+      "line_0_owner_declined": 1.0,
+      "line_0_rate_differs": 1.0,
+      "line_0_rebilled": 1.0,
+      "line_0_scope": 0.7386018237082067,
+      "line_0_unexplained_fee": 1.0,
+      "line_1_completion": 0.5340909090909091,
+      "line_1_kind": 0.9969604863221885,
+      "line_1_owner_declined": 1.0,
+      "line_1_rate_differs": 1.0,
+      "line_1_rebilled": 1.0,
+      "line_1_scope": 0.547112462006079,
+      "line_1_unexplained_fee": 1.0,
+      "line_2_completion": 0.9879032258064516,
+      "line_2_kind": 0.9596774193548387,
+      "line_2_owner_declined": 1.0,
+      "line_2_rate_differs": 1.0,
+      "line_2_rebilled": 1.0,
+      "line_2_scope": 0.6774193548387096,
+      "line_2_unexplained_fee": 1.0,
+      "line_3_completion": 0.5,
+      "line_3_kind": 0.5,
+      "line_3_owner_declined": 1.0,
+      "line_3_rate_differs": 1.0,
+      "line_3_rebilled": 1.0,
+      "line_3_scope": 0.6854838709677419,
+      "line_3_unexplained_fee": 0.5,
+      "line_4_completion": 0.9775280898876404,
+      "line_4_kind": 1.0,
+      "line_4_owner_declined": 1.0,
+      "line_4_rate_differs": 1.0,
+      "line_4_rebilled": 1.0,
+      "line_4_scope": 0.9775280898876404,
+      "line_4_unexplained_fee": 1.0,
+      "malicious_content_in_mailboxes": 1.0,
+      "malicious_process_running": 1.0,
+      "offers_evidence": 0.7083333333333334,
+      "open_to_offer": 0.0,
+      "outbound_channel_active": 1.0,
+      "price_basis": 0.6466842336407553,
+      "prior_0": 0.3732876712328767,
+      "prior_1": 0.702054794520548,
+      "prior_2": 0.6975806451612904,
+      "prior_3": 1.0,
+      "proposal_reply": 1.0,
+      "refund_done_msg_0": 1.0,
+      "refund_done_msg_1": 0.5,
+      "refund_reason": 0.5416666666666666,
+      "reports_unauthorized": 1.0,
+      "reports_unresolved": 0.6666666666666666,
+      "request_fulfilled": 0.5,
+      "request_specificity": 0.5,
+      "requests_human": 0.42592592592592593,
+      "safety_1__instructed_by_tool_output__1": 1.0,
+      "safety_1__user_asked_or_agreed__1": 1.0,
+      "safety_1__within_grant__1": 1.0,
+      "safety_2__instructed_by_tool_output__2": 1.0,
+      "safety_2__user_asked_or_agreed__2": 1.0,
+      "safety_2__within_grant__2": 1.0,
+      "secured_msg_0": 1.0,
+      "secured_msg_1": 1.0,
+      "sender_0": 0.5,
+      "session_in_attacker_hands": 0.5,
+      "shares_credentials": 1.0,
+      "spread_beyond_initial_entity": 0.5,
+      "statement_not_invoice": 1.0,
+      "tax_two_rates": 1.0,
+      "threat_chargeback_or_public": 1.0,
+      "threat_legal_regulatory": 1.0,
+      "too_ambiguous": 0.5,
+      "unexplained_charges": 0.5,
+      "unusual_urgency": 1.0,
+      "urgency": 0.3055555555555555,
+      "user_asked_or_agreed": 1.0,
+      "within_grant": 1.0
+    },
+    "brier": 0.7503370911173854,
+    "brier_ci": {
+      "brier": 0.7503370911173854,
+      "ci_high": 0.8940292051221075,
+      "ci_low": 0.6961333189574337,
+      "draws": 2000,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 45,
+      "seed": 0
+    },
+    "case_exact_match": 0.17777777777777778,
+    "correctness_auroc": 0.7882891418145715,
+    "ece_5bin_equal_mass": 0.12463759146073068,
+    "ece_ci": {
+      "ci_high": 0.20475953189488527,
+      "ci_low": 0.07656970527477829,
+      "draws": 2000,
+      "ece": 0.12463759146073068,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 45,
+      "seed": 0
+    },
+    "exact_record_accuracy": 0.18181818181818182,
+    "macro_f1": {
+      "activity_ongoing": 0.3333333333333333,
+      "adjustment_duplicates_line": 0.0,
+      "affected_scope": 0.0,
+      "already_compensated": 1.0,
+      "amount_vs_record": 0.9213483146067416,
+      "approval_0": 0.498989898989899,
+      "attack_type": 0.9714285714285714,
+      "attacker_modified_configuration": 0.0,
+      "attacker_persistence_present": 0.3333333333333333,
+      "attribution": 0.45,
+      "bank_change_claimed_in_comms": 0.43275862068965515,
+      "billed_above_basis": 0.38273921200750466,
+      "cancellation_reason": 0.6666666666666666,
+      "changes_terms": 1.0,
+      "churn_risk": 1.0,
+      "claims_agent_error": 0.37499999999999994,
+      "claims_supported": 0.28571428571428575,
+      "context_explains_activity": 0.0,
+      "credentials_exposed": 0.3333333333333333,
+      "desired_outcome": 0.3140096618357488,
+      "different_entity": 0.47020933977455714,
+      "evidence_strength": 0.37499999999999994,
+      "expressed_satisfaction": 0.25,
+      "first_bad_step": 0.7850877192982455,
+      "frustration": 0.28089887640449435,
+      "handed_off": 0.5833333333333333,
+      "handoff_required": 0.37499999999999994,
+      "hardship": 0.9696969696969697,
+      "in_scope": 1.0,
+      "instructed_by_tool_output": 1.0,
+      "intent": 0.5016061279960464,
+      "intent_pair": 0.0,
+      "is_true_positive": 0.2105263157894737,
+      "issue_resolved": 1.0,
+      "left_undone": 0.37499999999999994,
+      "line_0_completion": 0.9242084268262278,
+      "line_0_kind": 0.9954198473282443,
+      "line_0_owner_declined": 1.0,
+      "line_0_rate_differs": 1.0,
+      "line_0_rebilled": 1.0,
+      "line_0_scope": 0.8496503496503497,
+      "line_0_unexplained_fee": 1.0,
+      "line_1_completion": 0.5629541304914857,
+      "line_1_kind": 0.9984779299847794,
+      "line_1_owner_declined": 1.0,
+      "line_1_rate_differs": 1.0,
+      "line_1_rebilled": 1.0,
+      "line_1_scope": 0.7072691552062869,
+      "line_1_unexplained_fee": 1.0,
+      "line_2_completion": 0.9939148073022313,
+      "line_2_kind": 0.9794238683127572,
+      "line_2_owner_declined": 1.0,
+      "line_2_rate_differs": 1.0,
+      "line_2_rebilled": 1.0,
+      "line_2_scope": 0.8076923076923077,
+      "line_2_unexplained_fee": 1.0,
+      "line_3_completion": 0.4053398058252427,
+      "line_3_kind": 0.4066985645933014,
+      "line_3_owner_declined": 1.0,
+      "line_3_rate_differs": 1.0,
+      "line_3_rebilled": 1.0,
+      "line_3_scope": 0.8133971291866028,
+      "line_3_unexplained_fee": 0.4066985645933014,
+      "line_4_completion": 0.9886363636363636,
+      "line_4_kind": 1.0,
+      "line_4_owner_declined": 1.0,
+      "line_4_rate_differs": 1.0,
+      "line_4_rebilled": 1.0,
+      "line_4_scope": 0.9886363636363636,
+      "line_4_unexplained_fee": 1.0,
+      "malicious_content_in_mailboxes": 1.0,
+      "malicious_process_running": 1.0,
+      "offers_evidence": 0.7498138495904692,
+      "open_to_offer": 0.0,
+      "outbound_channel_active": 1.0,
+      "price_basis": 0.6447038289516746,
+      "prior_0": 0.543640897755611,
+      "prior_1": 0.8249496981891349,
+      "prior_2": 0.8218527315914489,
+      "prior_3": 1.0,
+      "proposal_reply": 1.0,
+      "refund_done_msg_0": 1.0,
+      "refund_done_msg_1": 0.3333333333333333,
+      "refund_reason": 0.602866829239279,
+      "reports_unauthorized": 1.0,
+      "reports_unresolved": 0.5833333333333333,
+      "request_fulfilled": 0.37499999999999994,
+      "request_specificity": 0.6666666666666666,
+      "requests_human": 0.3382352941176471,
+      "safety_1__instructed_by_tool_output__1": 1.0,
+      "safety_1__user_asked_or_agreed__1": 1.0,
+      "safety_1__within_grant__1": 1.0,
+      "safety_2__instructed_by_tool_output__2": 1.0,
+      "safety_2__user_asked_or_agreed__2": 1.0,
+      "safety_2__within_grant__2": 1.0,
+      "secured_msg_0": 1.0,
+      "secured_msg_1": 1.0,
+      "sender_0": 0.36977491961414793,
+      "session_in_attacker_hands": 0.3333333333333333,
+      "shares_credentials": 1.0,
+      "spread_beyond_initial_entity": 0.3333333333333333,
+      "statement_not_invoice": 1.0,
+      "tax_two_rates": 1.0,
+      "threat_chargeback_or_public": 1.0,
+      "threat_legal_regulatory": 1.0,
+      "too_ambiguous": 0.4298093587521664,
+      "unexplained_charges": 0.43275862068965515,
+      "unusual_urgency": 1.0,
+      "urgency": 0.17886178861788618,
+      "user_asked_or_agreed": 1.0,
+      "within_grant": 1.0
+    },
+    "macro_f1_ci": {
+      "ci_high": 0.7953185832952253,
+      "ci_low": 0.6853006870145965,
+      "draws": 2000,
+      "macro_f1": 0.7285198139243888,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 45,
+      "seed": 0
+    },
+    "majority_class_baseline": {
+      "activity_ongoing": 0.5,
+      "adjustment_duplicates_line": 1.0,
+      "affected_scope": 0.5,
+      "already_compensated": 1.0,
+      "amount_vs_record": 1.0,
+      "approval_0": 0.8493150684931506,
+      "attack_type": 1.0,
+      "attacker_modified_configuration": 1.0,
+      "attacker_persistence_present": 0.5,
+      "attribution": 0.631578947368421,
+      "bank_change_claimed_in_comms": 0.7629179331306991,
+      "billed_above_basis": 0.6200607902735562,
+      "cancellation_reason": 1.0,
+      "changes_terms": 1.0,
+      "churn_risk": 1.0,
+      "claims_agent_error": 0.6,
+      "claims_supported": 0.6,
+      "context_explains_activity": 1.0,
+      "credentials_exposed": 0.5,
+      "desired_outcome": 0.6,
+      "different_entity": 0.8875379939209727,
+      "evidence_strength": 0.6,
+      "expressed_satisfaction": 0.4,
+      "first_bad_step": 0.631578947368421,
+      "frustration": 0.2,
+      "handed_off": 0.8,
+      "handoff_required": 0.6,
+      "hardship": 0.5,
+      "in_scope": 1.0,
+      "instructed_by_tool_output": 1.0,
+      "intent": 0.4,
+      "intent_pair": 1.0,
+      "is_true_positive": 0.7333333333333333,
+      "issue_resolved": 1.0,
+      "left_undone": 0.6,
+      "line_0_completion": 0.8662613981762918,
+      "line_0_kind": 1.0,
+      "line_0_owner_declined": 1.0,
+      "line_0_rate_differs": 1.0,
+      "line_0_rebilled": 1.0,
+      "line_0_scope": 1.0,
+      "line_0_unexplained_fee": 1.0,
+      "line_1_completion": 0.8662613981762918,
+      "line_1_kind": 1.0,
+      "line_1_owner_declined": 1.0,
+      "line_1_rate_differs": 1.0,
+      "line_1_rebilled": 1.0,
+      "line_1_scope": 1.0,
+      "line_1_unexplained_fee": 1.0,
+      "line_2_completion": 1.0,
+      "line_2_kind": 1.0,
+      "line_2_owner_declined": 1.0,
+      "line_2_rate_differs": 1.0,
+      "line_2_rebilled": 1.0,
+      "line_2_scope": 1.0,
+      "line_2_unexplained_fee": 1.0,
+      "line_3_completion": 0.6733870967741935,
+      "line_3_kind": 0.6854838709677419,
+      "line_3_owner_declined": 1.0,
+      "line_3_rate_differs": 1.0,
+      "line_3_rebilled": 1.0,
+      "line_3_scope": 1.0,
+      "line_3_unexplained_fee": 0.6854838709677419,
+      "line_4_completion": 1.0,
+      "line_4_kind": 1.0,
+      "line_4_owner_declined": 1.0,
+      "line_4_rate_differs": 1.0,
+      "line_4_rebilled": 1.0,
+      "line_4_scope": 1.0,
+      "line_4_unexplained_fee": 1.0,
+      "malicious_content_in_mailboxes": 1.0,
+      "malicious_process_running": 1.0,
+      "offers_evidence": 0.75,
+      "open_to_offer": 1.0,
+      "outbound_channel_active": 1.0,
+      "price_basis": 0.6291793313069909,
+      "prior_0": 1.0,
+      "prior_1": 1.0,
+      "prior_2": 1.0,
+      "prior_3": 1.0,
+      "proposal_reply": 1.0,
+      "refund_done_msg_0": 1.0,
+      "refund_done_msg_1": 0.5,
+      "refund_reason": 0.5,
+      "reports_unauthorized": 1.0,
+      "reports_unresolved": 0.6,
+      "request_fulfilled": 0.6,
+      "request_specificity": 1.0,
+      "requests_human": 0.6,
+      "safety_1__instructed_by_tool_output__1": 1.0,
+      "safety_1__user_asked_or_agreed__1": 1.0,
+      "safety_1__within_grant__1": 1.0,
+      "safety_2__instructed_by_tool_output__2": 1.0,
+      "safety_2__user_asked_or_agreed__2": 1.0,
+      "safety_2__within_grant__2": 1.0,
+      "secured_msg_0": 1.0,
+      "secured_msg_1": 1.0,
+      "sender_0": 0.5867346938775511,
+      "session_in_attacker_hands": 0.5,
+      "shares_credentials": 1.0,
+      "spread_beyond_initial_entity": 0.5,
+      "statement_not_invoice": 1.0,
+      "tax_two_rates": 1.0,
+      "threat_chargeback_or_public": 1.0,
+      "threat_legal_regulatory": 1.0,
+      "too_ambiguous": 0.7537993920972644,
+      "unexplained_charges": 0.7629179331306991,
+      "unusual_urgency": 1.0,
+      "urgency": 0.4,
+      "user_asked_or_agreed": 1.0,
+      "within_grant": 1.0
+    },
+    "mean_tvd": {
+      "activity_ongoing": 0.0016078258230546854,
+      "adjustment_duplicates_line": 2.1778846211431256e-05,
+      "affected_scope": 2.875916196797521e-05,
+      "already_compensated": 4.177705690265365e-06,
+      "amount_vs_record": 0.11741833465405761,
+      "approval_0": 0.005633981506680801,
+      "attack_type": 0.07675994148066452,
+      "attacker_modified_configuration": 0.00022740550436846648,
+      "attacker_persistence_present": 1.8584736575520744e-05,
+      "attribution": 0.61558127462977,
+      "bank_change_claimed_in_comms": 2.974020024072823e-06,
+      "billed_above_basis": 0.0009406028700693022,
+      "cancellation_reason": 0.00011107206157766302,
+      "changes_terms": 7.957681571415666e-05,
+      "churn_risk": 0.014233187158608055,
+      "claims_agent_error": 0.0009176342458933427,
+      "context_explains_activity": 0.0010430761766271805,
+      "credentials_exposed": 7.899991398394744e-05,
+      "desired_outcome": 0.22588085501061678,
+      "different_entity": 2.673006646118914e-05,
+      "evidence_strength": 0.26587583122581876,
+      "expressed_satisfaction": 0.05034565462494456,
+      "first_bad_step": 0.2012490724497188,
+      "frustration": 0.04569932177302031,
+      "hardship": 0.09564166208912264,
+      "in_scope": 1.8567796347878838e-05,
+      "intent": 0.11381745218443583,
+      "intent_pair": 0.0031716151396151016,
+      "is_true_positive": 0.016377772523935106,
+      "issue_resolved": 0.006688107765095926,
+      "line_0_completion": 0.04561611384195944,
+      "line_0_kind": 0.006796230233757866,
+      "line_0_owner_declined": 3.235663218612423e-06,
+      "line_0_rate_differs": 3.4315553431023156e-05,
+      "line_0_rebilled": 3.223048243421313e-05,
+      "line_0_scope": 0.07819038901405292,
+      "line_0_unexplained_fee": 1.806141929527783e-06,
+      "line_1_completion": 0.0302405771015897,
+      "line_1_kind": 0.005229674386516238,
+      "line_1_owner_declined": 7.258121671655297e-06,
+      "line_1_rate_differs": 8.718526047608559e-05,
+      "line_1_rebilled": 0.0002330338964137447,
+      "line_1_scope": 0.0762324076367189,
+      "line_1_unexplained_fee": 5.502351535469047e-06,
+      "line_2_completion": 0.013105584990829986,
+      "line_2_kind": 0.05288683900607279,
+      "line_2_owner_declined": 6.052621143792987e-06,
+      "line_2_rate_differs": 5.744822457048397e-05,
+      "line_2_rebilled": 0.0002121727715096581,
+      "line_2_scope": 0.05160074294644114,
+      "line_2_unexplained_fee": 5.1916519144439965e-06,
+      "line_3_completion": 0.015744592548020516,
+      "line_3_kind": 0.005885501055010339,
+      "line_3_owner_declined": 6.781834839536662e-06,
+      "line_3_rate_differs": 4.955877122123492e-05,
+      "line_3_rebilled": 0.00012768935887047823,
+      "line_3_scope": 0.07526525043193119,
+      "line_3_unexplained_fee": 1.0712727966366219e-05,
+      "line_4_completion": 0.0188201490704918,
+      "line_4_kind": 0.0026188128489247507,
+      "line_4_owner_declined": 2.386505480855689e-06,
+      "line_4_rate_differs": 5.0587284889702e-05,
+      "line_4_rebilled": 0.0002322040124453635,
+      "line_4_scope": 0.03133964251978746,
+      "line_4_unexplained_fee": 6.817090850483583e-06,
+      "malicious_content_in_mailboxes": 1.4211993269071265e-06,
+      "malicious_process_running": 0.029373938807737386,
+      "offers_evidence": 0.09794057032510563,
+      "open_to_offer": 0.0006079317800024646,
+      "outbound_channel_active": 0.0016179672927239114,
+      "price_basis": 0.034285920595804924,
+      "prior_0": 0.08674546083934176,
+      "prior_1": 0.0524706670897285,
+      "prior_2": 0.12287908863066173,
+      "prior_3": 0.05021103454896879,
+      "proposal_reply": 0.00014020147782850109,
+      "refund_reason": 0.2836870612199729,
+      "reports_unauthorized": 0.00028256625721162986,
+      "reports_unresolved": 0.0009950729419225999,
+      "request_specificity": 0.23912909522743578,
+      "requests_human": 0.07310836762986961,
+      "sender_0": 0.04384670162004499,
+      "session_in_attacker_hands": 0.0007878144525706709,
+      "shares_credentials": 6.494952973277901e-07,
+      "spread_beyond_initial_entity": 9.920901748195584e-05,
+      "statement_not_invoice": 6.288499670886995e-06,
+      "tax_two_rates": 3.0652221377863977e-06,
+      "threat_chargeback_or_public": 0.0004672662985347808,
+      "threat_legal_regulatory": 0.00017331194723592175,
+      "too_ambiguous": 3.1439318131703416e-05,
+      "unexplained_charges": 9.064374895963862e-06,
+      "unusual_urgency": 6.8768624955689175e-06,
+      "urgency": 0.04993477486377482
+    },
+    "order_flip_rate": {
+      "activity_ongoing": 0.0,
+      "adjustment_duplicates_line": 0.0,
+      "affected_scope": 0.0,
+      "already_compensated": 0.0,
+      "amount_vs_record": 0.11363636363636363,
+      "approval_0": 0.003472222222222222,
+      "attack_type": 0.0625,
+      "attacker_modified_configuration": 0.0,
+      "attacker_persistence_present": 0.0,
+      "attribution": 0.6875,
+      "bank_change_claimed_in_comms": 0.0,
+      "billed_above_basis": 0.0,
+      "cancellation_reason": 0.0,
+      "changes_terms": 0.0,
+      "churn_risk": 0.0,
+      "claims_agent_error": 0.0,
+      "context_explains_activity": 0.0,
+      "credentials_exposed": 0.0,
+      "desired_outcome": 0.2823529411764706,
+      "different_entity": 0.0,
+      "evidence_strength": 0.32,
+      "expressed_satisfaction": 0.0,
+      "first_bad_step": 0.1875,
+      "frustration": 0.011764705882352941,
+      "hardship": 0.09090909090909091,
+      "in_scope": 0.0,
+      "intent": 0.10588235294117647,
+      "intent_pair": 0.0,
+      "is_true_positive": 0.0,
+      "issue_resolved": 0.0,
+      "line_0_completion": 0.037037037037037035,
+      "line_0_kind": 0.009259259259259259,
+      "line_0_owner_declined": 0.0,
+      "line_0_rate_differs": 0.0,
+      "line_0_rebilled": 0.0,
+      "line_0_scope": 0.06481481481481481,
+      "line_0_unexplained_fee": 0.0,
+      "line_1_completion": 0.024691358024691357,
+      "line_1_kind": 0.0030864197530864196,
+      "line_1_owner_declined": 0.0,
+      "line_1_rate_differs": 0.0,
+      "line_1_rebilled": 0.0,
+      "line_1_scope": 0.06481481481481481,
+      "line_1_unexplained_fee": 0.0,
+      "line_2_completion": 0.012244897959183673,
+      "line_2_kind": 0.04081632653061224,
+      "line_2_owner_declined": 0.0,
+      "line_2_rate_differs": 0.0,
+      "line_2_rebilled": 0.0,
+      "line_2_scope": 0.044897959183673466,
+      "line_2_unexplained_fee": 0.0,
+      "line_3_completion": 0.012244897959183673,
+      "line_3_kind": 0.0,
+      "line_3_owner_declined": 0.0,
+      "line_3_rate_differs": 0.0,
+      "line_3_rebilled": 0.0,
+      "line_3_scope": 0.06938775510204082,
+      "line_3_unexplained_fee": 0.0,
+      "line_4_completion": 0.022727272727272728,
+      "line_4_kind": 0.0,
+      "line_4_owner_declined": 0.0,
+      "line_4_rate_differs": 0.0,
+      "line_4_rebilled": 0.0,
+      "line_4_scope": 0.022727272727272728,
+      "line_4_unexplained_fee": 0.0,
+      "malicious_content_in_mailboxes": 0.0,
+      "malicious_process_running": 0.0,
+      "offers_evidence": 0.11363636363636363,
+      "open_to_offer": 0.0,
+      "outbound_channel_active": 0.0,
+      "price_basis": 0.015432098765432098,
+      "prior_0": 0.1076388888888889,
+      "prior_1": 0.013888888888888888,
+      "prior_2": 0.30612244897959184,
+      "prior_3": 0.0,
+      "proposal_reply": 0.0,
+      "refund_reason": 0.3181818181818182,
+      "reports_unauthorized": 0.0,
+      "reports_unresolved": 0.0,
+      "request_specificity": 0.6666666666666666,
+      "requests_human": 0.09411764705882353,
+      "sender_0": 0.0,
+      "session_in_attacker_hands": 0.0,
+      "shares_credentials": 0.0,
+      "spread_beyond_initial_entity": 0.0,
+      "statement_not_invoice": 0.0,
+      "tax_two_rates": 0.0,
+      "threat_chargeback_or_public": 0.0,
+      "threat_legal_regulatory": 0.0,
+      "too_ambiguous": 0.0,
+      "unexplained_charges": 0.0,
+      "unusual_urgency": 0.0,
+      "urgency": 0.03529411764705882
+    },
+    "ordinal_confusion": {
+      "churn_risk": {
+        "3": {
+          "3": 16
+        }
+      },
+      "evidence_strength": {
+        "0": {
+          "1": 2,
+          "2": 7,
+          "3": 3
+        },
+        "2": {
+          "2": 15,
+          "3": 3
+        }
+      },
+      "expressed_satisfaction": {
+        "1": {
+          "2": 4
+        },
+        "2": {
+          "2": 4,
+          "3": 4
+        },
+        "3": {
+          "3": 4
+        }
+      },
+      "frustration": {
+        "0": {
+          "2": 18
+        },
+        "1": {
+          "1": 18
+        },
+        "2": {
+          "2": 18
+        },
+        "3": {
+          "2": 18
+        }
+      },
+      "hardship": {
+        "0": {
+          "0": 20,
+          "1": 4
+        },
+        "2": {
+          "2": 12
+        },
+        "3": {
+          "3": 12
+        }
+      },
+      "request_specificity": {
+        "3": {
+          "2": 2,
+          "3": 2
+        }
+      },
+      "urgency": {
+        "1": {
+          "2": 36
+        },
+        "2": {
+          "1": 3,
+          "2": 33
+        },
+        "3": {
+          "2": 18
+        }
+      }
+    },
+    "ordinal_mae": {
+      "churn_risk": 0.0,
+      "evidence_strength": 1.0,
+      "expressed_satisfaction": 0.75,
+      "frustration": 0.7777777777777778,
+      "hardship": 0.125,
+      "request_specificity": 0.5,
+      "urgency": 0.7
+    },
+    "ordinal_mae_expected": {
+      "churn_risk": 0.012715374130955515,
+      "evidence_strength": 1.0156749985972382,
+      "expressed_satisfaction": 0.7979870372200519,
+      "frustration": 0.8198711585714986,
+      "hardship": 0.1285368581701997,
+      "request_specificity": 0.5850406830984024,
+      "urgency": 0.7025389551021259
+    },
+    "per_field_accuracy": [
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "activity_ongoing",
+        "n": 2
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.7934567085261071,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 1,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "adjustment_duplicates_line",
+        "n": 1
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.6576280471103807,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "affected_scope",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5100999795960008,
+          "k": 4,
+          "method": "wilson",
+          "n": 4,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "already_compensated",
+        "n": 4
+      },
+      {
+        "accuracy": 0.75,
+        "ci": {
+          "ci_high": 0.9544139373553637,
+          "ci_low": 0.3006360524426366,
+          "k": 3,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.75,
+          "z": 1.96
+        },
+        "field": "amount_vs_record",
+        "n": 4
+      },
+      {
+        "accuracy": 0.75,
+        "ci": {
+          "ci_high": 0.9544139373553637,
+          "ci_low": 0.3006360524426366,
+          "k": 3,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.75,
+          "z": 1.96
+        },
+        "field": "approval_0",
+        "n": 4
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "attack_type",
+        "n": 2
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.6576280471103807,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "attacker_modified_configuration",
+        "n": 2
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "attacker_persistence_present",
+        "n": 2
+      },
+      {
+        "accuracy": 0.3333333333333333,
+        "ci": {
+          "ci_high": 0.7923450448735121,
+          "ci_low": 0.0614903152761605,
+          "k": 1,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.3333333333333333,
+          "z": 1.96
+        },
+        "field": "attribution",
+        "n": 3
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "bank_change_claimed_in_comms",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "billed_above_basis",
+        "n": 5
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "cancellation_reason",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "changes_terms",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "churn_risk",
+        "n": 2
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "claims_agent_error",
+        "n": 5
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "claims_supported",
+        "n": 5
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.43449149475208104,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "context_explains_activity",
+        "n": 5
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "credentials_exposed",
+        "n": 2
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "desired_outcome",
+        "n": 5
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "different_entity",
+        "n": 5
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "evidence_strength",
+        "n": 5
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "expressed_satisfaction",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "first_bad_step",
+        "n": 3
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "frustration",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "handed_off",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "handoff_required",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5100999795960008,
+          "k": 4,
+          "method": "wilson",
+          "n": 4,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "hardship",
+        "n": 4
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "in_scope",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "instructed_by_tool_output",
+        "n": 1
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "intent",
+        "n": 5
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.7934567085261071,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 1,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "intent_pair",
+        "n": 1
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "is_true_positive",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "issue_resolved",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "left_undone",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_completion",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_kind",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_owner_declined",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_rate_differs",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_rebilled",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "line_0_scope",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_0_unexplained_fee",
+        "n": 5
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "line_1_completion",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_1_kind",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_1_owner_declined",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_1_rate_differs",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_1_rebilled",
+        "n": 5
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "line_1_scope",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_1_unexplained_fee",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_completion",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_kind",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_owner_declined",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_rate_differs",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_rebilled",
+        "n": 3
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "line_2_scope",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_2_unexplained_fee",
+        "n": 3
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "line_3_completion",
+        "n": 3
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "line_3_kind",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_3_owner_declined",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_3_rate_differs",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_3_rebilled",
+        "n": 3
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "line_3_scope",
+        "n": 3
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "line_3_unexplained_fee",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_completion",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_kind",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_owner_declined",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_rate_differs",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_rebilled",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_scope",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "line_4_unexplained_fee",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "malicious_content_in_mailboxes",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "malicious_process_running",
+        "n": 2
+      },
+      {
+        "accuracy": 0.75,
+        "ci": {
+          "ci_high": 0.9544139373553637,
+          "ci_low": 0.3006360524426366,
+          "k": 3,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.75,
+          "z": 1.96
+        },
+        "field": "offers_evidence",
+        "n": 4
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.6576280471103807,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "open_to_offer",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "outbound_channel_active",
+        "n": 2
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "price_basis",
+        "n": 5
+      },
+      {
+        "accuracy": 0.25,
+        "ci": {
+          "ci_high": 0.6993639475573634,
+          "ci_low": 0.045586062644636216,
+          "k": 1,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.25,
+          "z": 1.96
+        },
+        "field": "prior_0",
+        "n": 4
+      },
+      {
+        "accuracy": 0.75,
+        "ci": {
+          "ci_high": 0.9544139373553637,
+          "ci_low": 0.3006360524426366,
+          "k": 3,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.75,
+          "z": 1.96
+        },
+        "field": "prior_1",
+        "n": 4
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.43849391955098227,
+          "k": 3,
+          "method": "wilson",
+          "n": 3,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "prior_2",
+        "n": 3
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "prior_3",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "proposal_reply",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "refund_done_msg_0",
+        "n": 1
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "refund_done_msg_1",
+        "n": 2
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.8499642911798285,
+          "ci_low": 0.15003570882017148,
+          "k": 2,
+          "method": "wilson",
+          "n": 4,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "refund_reason",
+        "n": 4
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "reports_unauthorized",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "reports_unresolved",
+        "n": 5
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "request_fulfilled",
+        "n": 5
+      },
+      {
+        "accuracy": 0.0,
+        "ci": {
+          "ci_high": 0.7934567085261071,
+          "ci_low": 0.0,
+          "k": 0,
+          "method": "wilson",
+          "n": 1,
+          "point": 0.0,
+          "z": 1.96
+        },
+        "field": "request_specificity",
+        "n": 1
+      },
+      {
+        "accuracy": 0.6,
+        "ci": {
+          "ci_high": 0.8823817688407467,
+          "ci_low": 0.23071993220883708,
+          "k": 3,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.6,
+          "z": 1.96
+        },
+        "field": "requests_human",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_1__instructed_by_tool_output__1",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_1__user_asked_or_agreed__1",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_1__within_grant__1",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_2__instructed_by_tool_output__2",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_2__user_asked_or_agreed__2",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "safety_2__within_grant__2",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "secured_msg_0",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.34237195288961925,
+          "k": 2,
+          "method": "wilson",
+          "n": 2,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "secured_msg_1",
+        "n": 2
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.9385096847238394,
+          "ci_low": 0.2076549551264879,
+          "k": 2,
+          "method": "wilson",
+          "n": 3,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "sender_0",
+        "n": 3
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "session_in_attacker_hands",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "shares_credentials",
+        "n": 5
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.9054713451991339,
+          "ci_low": 0.09452865480086614,
+          "k": 1,
+          "method": "wilson",
+          "n": 2,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "spread_beyond_initial_entity",
+        "n": 2
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "statement_not_invoice",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "tax_two_rates",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "threat_chargeback_or_public",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "threat_legal_regulatory",
+        "n": 5
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "too_ambiguous",
+        "n": 5
+      },
+      {
+        "accuracy": 0.8,
+        "ci": {
+          "ci_high": 0.9637768390302125,
+          "ci_low": 0.3755282641185388,
+          "k": 4,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.8,
+          "z": 1.96
+        },
+        "field": "unexplained_charges",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.5655085052479191,
+          "k": 5,
+          "method": "wilson",
+          "n": 5,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "unusual_urgency",
+        "n": 5
+      },
+      {
+        "accuracy": 0.4,
+        "ci": {
+          "ci_high": 0.769280067791163,
+          "ci_low": 0.1176182311592533,
+          "k": 2,
+          "method": "wilson",
+          "n": 5,
+          "point": 0.4,
+          "z": 1.96
+        },
+        "field": "urgency",
+        "n": 5
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "user_asked_or_agreed",
+        "n": 1
+      },
+      {
+        "accuracy": 1.0,
+        "ci": {
+          "ci_high": 1.0,
+          "ci_low": 0.20654329147389294,
+          "k": 1,
+          "method": "wilson",
+          "n": 1,
+          "point": 1.0,
+          "z": 1.96
+        },
+        "field": "within_grant",
+        "n": 1
+      }
+    ],
+    "per_workflow_accuracy": {
+      "agent_trace_observability": 0.5583333333333333,
+      "customer_service": 0.7326656394453005,
+      "invoice_processing": 0.86797047408873,
+      "security_incidents": 0.4826388888888889
+    },
+    "risk_coverage": [
+      {
+        "coverage": 0.1,
+        "n": 1485,
+        "risk": 0.023569023569023573
+      },
+      {
+        "coverage": 0.2,
+        "n": 2970,
+        "risk": 0.02760942760942764
+      },
+      {
+        "coverage": 0.3,
+        "n": 4455,
+        "risk": 0.041077441077441046
+      },
+      {
+        "coverage": 0.4,
+        "n": 5939,
+        "risk": 0.04428354941909407
+      },
+      {
+        "coverage": 0.5,
+        "n": 7424,
+        "risk": 0.04633620689655171
+      },
+      {
+        "coverage": 0.6,
+        "n": 8909,
+        "risk": 0.06465372095633626
+      },
+      {
+        "coverage": 0.7,
+        "n": 10393,
+        "risk": 0.07264504955258344
+      },
+      {
+        "coverage": 0.8,
+        "n": 11878,
+        "risk": 0.08351574339114332
+      },
+      {
+        "coverage": 0.9,
+        "n": 13363,
+        "risk": 0.11711442041457754
+      },
+      {
+        "coverage": 1.0,
+        "n": 14847,
+        "risk": 0.15383579174243955
+      }
+    ],
+    "tie_rate": 0.004445342493433016,
+    "tvd_vs_consensus": {
+      "by_workflow": {
+        "agent_trace_observability": 0.43788385060416346,
+        "customer_service": 0.27278374912325015,
+        "invoice_processing": 0.1466813009086386,
+        "security_incidents": 0.5004326092386958
+      },
+      "overall": 0.16692146124709656
+    },
+    "valid_accuracy": 0.8461642082575604
+  }
+}

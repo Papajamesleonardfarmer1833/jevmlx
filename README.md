@@ -157,6 +157,9 @@ Agreement with the TypeSafe public eval consensus. Official rows are cited from 
 | mlx-community/Qwen2.5-7B-Instruct-4bit | local | naive (generate+parse) | m5max-128gb | 67.7% [52.1%, 78.6%] | — | 72.8% | 53.8% | 45.9% | 73.4% | 1.5s | $0 (local) | 45 (7 error) |
 | mlx-community/Qwen2.5-7B-Instruct-4bit | local | labels | m5max-128gb | 82.1% [68.7%, 90.7%] | DRIFT (0.078) | 68.0% | 39.2% | 57.6% | 84.5% | 0.6s | $0 (local) | 45 (1 error) |
 | mlx-community/Qwen2.5-7B-Instruct-4bit | local | slots | m5max-128gb | 63.2% [47.6%, 74.9%] | DRIFT (0.078) | 61.4% | 51.7% | 47.2% | 63.9% | 0.6s | $0 (local) | 45 (1 error) |
+| mlx-community/Qwen3-8B-4bit | local | naive (generate+parse) | m5max-128gb | 69.3% [54.3%, 80.5%] | — | 73.9% | 69.2% | 29.7% | 75.0% | 1.6s | $0 (local) | 45 (4 error) |
+| mlx-community/Qwen3-8B-4bit | local | labels | m5max-128gb | 84.6% [71.2%, 92.3%] | DRIFT (0.750) | 73.3% | 55.8% | 48.3% | 86.8% | 0.6s | $0 (local) | 45 (1 error) |
+| mlx-community/Qwen3-8B-4bit | local | slots | m5max-128gb | 34.7% [23.2%, 50.2%] | DRIFT (0.750) | 62.9% | 47.5% | 50.7% | 31.5% | 0.7s | $0 (local) | 45 (1 error) |
 
 _Official accuracies are on TypeSafe's full private eval; ours are on the 45 public example cases, so the numbers are indicative, not the same test._
 _Consensus label = the agreement of GPT-6 Astra + Claude Fable 5.1 (TypeSafe's reference)._

@@ -1,0 +1,5 @@
+{"active_memory_bytes": 7188274706, "cache_memory_bytes": 8591192954, "cases_done": 25, "combo": "parallel-labels-bundled", "elapsed_s": 9, "peak_memory_bytes": 8330647244, "pred_lines": 75}
+{"active_memory_bytes": 7188274706, "cache_memory_bytes": 8594791354, "cases_done": 50, "combo": "parallel-labels-bundled", "elapsed_s": 20, "peak_memory_bytes": 8303060320, "pred_lines": 150}
+{"active_memory_bytes": 7188274706, "cache_memory_bytes": 8597528690, "cases_done": 75, "combo": "parallel-labels-bundled", "elapsed_s": 31, "peak_memory_bytes": 8207189642, "pred_lines": 225}
+{"active_memory_bytes": 7188274706, "cache_memory_bytes": 8592711882, "cases_done": 100, "combo": "parallel-labels-bundled", "elapsed_s": 41, "peak_memory_bytes": 8195976710, "pred_lines": 300}
+{"active_memory_bytes": 7188274706, "cache_memory_bytes": 8591425962, "cases_done": 125, "combo": "parallel-labels-bundled", "elapsed_s": 52, "peak_memory_bytes": 8179904930, "pred_lines": 375}
