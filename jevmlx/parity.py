@@ -171,14 +171,16 @@ def check_scoring_parity(
 def _field_margin(tel: dict) -> float:
     """Top-two probability margin from a field's telemetry (W5c-1 review §4).
 
-    ``top_choices`` is sorted by probability descending; the margin is
-    p1 - p2 (the same quantity the near-tie rescore keys on, in
-    probability space). A field with one choice has margin inf.
+    Delegates to the engine's _near_tie_margin helper — one definition of
+    'near-tie margin' shared by the rescore gate (finalize_scalar_evidence)
+    and parity. A field with one choice has margin inf.
     """
+    from jevmlx.engine import _near_tie_margin
+
     tc = tel.get("top_choices") or []
     if len(tc) < 2:
         return float("inf")
-    return float(tc[0]["probability"]) - float(tc[1]["probability"])
+    return _near_tie_margin([float(c["probability"]) for c in tc])
 
 
 def _environment_metadata(engine: Any) -> dict[str, Any]:

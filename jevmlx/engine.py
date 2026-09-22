@@ -1075,6 +1075,21 @@ def _field_semantics(
     }
 
 
+def _near_tie_margin(probs: list[float]) -> float:
+    """Top-two probability margin — the shared near-tie quantity.
+
+    Both the engine's rescore gate (finalize_scalar_evidence) and parity's
+    _field_margin key on the SAME concept: is the top-2 gap small enough
+    that batch-shape noise could flip the winner? This helper returns p1 - p2
+    (probability space), the same quantity parity checks against the 0.05
+    near-tie constant. A single-choice field returns inf.
+    """
+    if len(probs) < 2:
+        return float("inf")
+    sorted_p = sorted(probs, reverse=True)
+    return sorted_p[0] - sorted_p[1]
+
+
 def finalize_scalar_evidence(
     evidence: ScalarEvidence,
     *,
@@ -1127,10 +1142,21 @@ def finalize_scalar_evidence(
     # by the persisted drift envelope's E_bound for the pass's shape bucket.
     band = rescore_band_nats
     rescored = False
-    if n > 0:
-        order = sorted(range(n), key=raw_scores.__getitem__, reverse=True)
-        band_candidates = [i for i in order if raw_scores[order[0]] - raw_scores[i] < band]
-        if len(band_candidates) > 1 and evidence.source_shape == "batch" and rescore is not None:
+    if n > 1 and evidence.source_shape == "batch" and rescore is not None:
+        # D5 fix (c): the gate decides on the FINAL post-prior probability
+        # margin (p1 - p2 after prior correction + softmax), NOT the raw
+        # log-score gap. Parity's near-tie detection (_field_margin) checks
+        # the same final probabilities; a field that is a final near-tie must
+        # always get the batch=1 rescore, even when the raw margin was above
+        # the band (the prior correction can narrow the gap). One definition
+        # of 'near-tie margin' shared by engine and parity: p1 - p2 <
+        # INSTABILITY_BAND (0.05). The rescore_band_nats (drift envelope) is
+        # NOT used for the gate decision — only the fixed 0.05 probability
+        # margin that parity checks. The prior correction is cheap (no model
+        # call).
+        pre_scores = _apply_prior(raw_scores, choices, prior_entry)
+        pre_probs = softmax(pre_scores, temperature=temperature)
+        if _near_tie_margin(pre_probs) < INSTABILITY_BAND:
             rescored_evidence = rescore(rescore_idxs or [])
             raw_scores = list(rescored_evidence.log_scores_raw)
             legal_logs = list(rescored_evidence.legal_mass_logs)

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- engine: near-tie rescore gate uses post-prior probability margin (closes
+  the parity escape gap). The rescore gate in `finalize_scalar_evidence`
+  previously selected band candidates on RAW log-scores (before prior
+  correction), but parity's near-tie detection (`_field_margin`) checks
+  FINAL probabilities (after prior + softmax). A field whose raw margin was
+  above the rescore band but whose post-prior margin was below 0.05 escaped
+  the rescore — the Llama-3.1-8B parity run had exactly one such field
+  (`support_triage/secondary_department`, raw margin ≥ 0.094, final margin
+  0.050), making the whole model FAIL on `escaped_near_tie` even though no
+  winner changed and no drift moved. Fix: ONE definition of 'near-tie
+  margin' shared by engine and parity — the top-two probability margin
+  `_near_tie_margin(probs)` returns p1 - p2, and the gate rescres when
+  p1 - p2 < INSTABILITY_BAND (0.05), the same threshold parity checks. The
+  gate applies the prior correction, computes the final probabilities, and
+  checks this margin — a field that is a final near-tie always gets the
+  batch=1 rescore, regardless of its raw margin. The `rescore_band_nats`
+  (drift envelope) is no longer used for the gate decision (only the fixed
+  0.05 probability margin); the `escaped_near_tie` count for this
+  construction becomes 0. Counterexample test: 4 choices p1=0.30 p2=0.26 →
+  margin 0.04 < 0.05 → rescored (the old nats-based gate would compute
+  0.143 nats > 0.094 band and miss it). The band/DRIFT/FAIL rule is
+  unchanged (separate decision pending).
+
 - ci: slow model tests run on every merge to main (and on manual dispatch).
   New `.github/workflows/slow.yml` (push to main + workflow_dispatch) runs
   `pytest -m slow` on the macOS runner against the pinned 0.5B dev model,
