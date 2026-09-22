@@ -223,6 +223,13 @@ Paste `SUMMARY.md` into the PR description and link the machine specs
   dataset lock file for the combo's dataset (provenance: leaderboard rows
   trace to a pinned dataset revision; a missing lock aborts the run with
   an error, it never records null).
+- **Engine provenance (`environment.git_sha`):** every run.json records
+  the jevmlx commit the engine ran on under `environment.git_sha`. Commits
+  before 2026-09-22 were rewritten with identical trees (author metadata
+  correction); the old sha no longer resolves but the tree is unchanged.
+  Mapping: `dbb1ff1f04a0bce4b20817e4c09eae2b5a3d2ad3` →
+  `4f74bd87fd19509aa6b019175b59aad2733a0b7f`. `check_results` does not
+  fail on a git_sha absent from history (it never resolved the sha).
 - **jabr classifier-benchmark** (W6-B1, pass `--datasets jabr`): a
   public-domain (CC0) benchmark from
   https://github.com/jabr/classifier-benchmark — 8 classification tasks /
