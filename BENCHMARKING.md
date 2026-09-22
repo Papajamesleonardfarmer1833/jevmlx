@@ -477,3 +477,21 @@ point or 'n too small'. `report.md` and `SUMMARY.md` show the majority
 baseline (mean over fields) and exact-record accuracy as first-class
 columns right after field accuracy; the per-field table marks a field
 below its majority baseline with †.
+
+
+## Slow tests on the shared macOS runner
+
+Four GPU-bound slow tests assert one-pass batching over the 28-row fintech_fraud
+schema, or batched-vs-chunked parity on a real model. The GitHub Actions
+`macos-14` runner's GPU times out on the full-batch Metal command buffer
+(`kIOGPUCommandBufferCallbackErrorTimeout`), forcing a 2-chunk retry that
+breaks the `sequential_forward_passes == 1` assertion and crashes the parity
+twin. Under `JEVMLX_CI_SLOW=1` (set in `.github/workflows/slow.yml`) these 4
+tests are skipped via `skip_on_shared_runner()`:
+
+- `test_chunking_matches_full_batch_and_counts_passes`
+- `test_slots_scoring_fintech_fraud`
+- `test_labels_scoring_fintech_fraud_valid`
+- `test_parity_real_model_twin`
+
+They are verified on real hardware (M5) via `slowtest.sh`.
