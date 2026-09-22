@@ -1077,7 +1077,7 @@ def test_post_prior_near_tie_rescores_even_when_raw_margin_is_wide():
     does not fire (raw gap too wide) and the field escapes — the parity
     escaped_near_tie count is 1. With the fix, the rescore fires.
     """
-    from jevmlx.engine import INSTABILITY_BAND, _near_tie_margin_nats
+    from jevmlx.engine import INSTABILITY_BAND, _near_tie_margin
     from jevmlx.trie import softmax as _softmax
 
     class PostPriorNearTieModel(FakeModel):
@@ -1126,15 +1126,15 @@ def test_post_prior_near_tie_rescores_even_when_raw_margin_is_wide():
     assert result["field_telemetry"]["pick"]["rescored"] is True
 
     # Verify the helper: a probability list with a small top-2 gap has a
-    # small nat margin; a wide gap has a large one.
+    # small margin; a wide gap has a large one.
     probs_tie = _softmax([0.0, 0.0])  # [0.5, 0.5] — exact tie
-    assert _near_tie_margin_nats(probs_tie) == 0.0
+    assert _near_tie_margin(probs_tie) == 0.0
 
     probs_decisive = _softmax([2.0, 0.0])  # ~[0.88, 0.12]
-    assert _near_tie_margin_nats(probs_decisive) > INSTABILITY_BAND
+    assert _near_tie_margin(probs_decisive) > INSTABILITY_BAND
 
     # A single-choice field has inf margin.
-    assert _near_tie_margin_nats([1.0]) == float("inf")
+    assert _near_tie_margin([1.0]) == float("inf")
 
 
 def test_decisive_raw_and_final_margin_never_rescores():
@@ -1169,3 +1169,63 @@ def test_decisive_raw_and_final_margin_never_rescores():
     # different path; the rescore would add 2+ batch1_calls for this field's
     # 2 rows). With no rescore, batch1_calls should be just the prefill.
     assert model.batch1_calls <= 1
+
+
+def test_four_choice_sub_0_05_margin_rescores():
+    """D5 fix (c) counterexample: 4 choices where p1=0.30, p2=0.26 gives a
+    probability margin of 0.04 < 0.05 (INSTABILITY_BAND) — a near-tie that
+    MUST be rescored. The old nats-based gate would compute log(0.30) -
+    log(0.26) = 0.143 nats > 0.094 band and NOT rescore (escape). The
+    unified probability-margin gate rescres correctly.
+
+    Construction: a 4-choice enum where the batched logits produce a
+    sub-0.05 probability margin (the top two choices are close in
+    probability). Batch=1 gives a decisive winner.
+    """
+    from jevmlx.engine import _near_tie_margin
+
+    # Verify the counterexample directly: p1=0.30, p2=0.26, rest=0.44
+    # margin = 0.04 < 0.05 -> near-tie
+    probs = [0.30, 0.26, 0.22, 0.22]
+    assert _near_tie_margin(probs) == pytest.approx(0.04)
+    assert _near_tie_margin(probs) < 0.05  # near-tie
+
+    # The old nats-based approach would give log(0.30) - log(0.26) = 0.143
+    # which is > 0.094 (the typical band) -> NOT a near-tie -> escape.
+    # The unified gate uses p1-p2 = 0.04 < 0.05 -> near-tie -> rescore.
+
+    class FourChoiceNearTieModel(FakeModel):
+        """Batch>1: two choices near-tied in probability (margin < 0.05).
+        Batch=1: decisive winner."""
+
+        def __init__(self, vocab_size: int = 64):
+            super().__init__(vocab_size=vocab_size)
+            self.batch1_calls = 0
+
+        def __call__(self, tokens, cache=None):
+            batch, seq_len = tokens.shape
+            out = super().__call__(tokens, cache=cache)
+            if batch == 1:
+                self.batch1_calls += 1
+            # Labels mode: root [5, 8] (A-family vs D), split [6, 7] (B vs C).
+            # Batched: B (6) and C (7) near-tied — tiny logit gap produces
+            # a sub-0.05 probability margin. Batch=1: B wins decisively.
+            if batch == 1:
+                out[:, :, 5] += 1.0
+                out[:, :, 6] += 0.5
+            else:
+                out[:, :, 5] += 1.0
+                # Small gap between B and C -> near-tie in probability space
+                out[:, :, 6] += 0.01
+                out[:, :, 7] += 0.008
+            return out
+
+    model = FourChoiceNearTieModel(vocab_size=64)
+    tokenizer = FakeTokenizer()
+    schema = StructuredSchema(
+        {"pick": {"type": "enum", "description": "d", "choices": ["AB", "AC", "D"]}}
+    )
+    result = run_parallel_generation(make_engine(model, tokenizer), "ctx", schema, scoring="labels")
+    # The rescore fired — the final probability margin was < 0.05.
+    assert result["rescored_fields"] == ["pick"]
+    assert result["field_telemetry"]["pick"]["rescored"] is True

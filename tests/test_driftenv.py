@@ -237,11 +237,18 @@ def test_engine_end_to_end_widened_band_rescores():
 
 
 def test_engine_end_to_end_constant_band():
-    """Same engine with a 0.0-bound envelope: margin 0.075 >= 0.05, no
-    rescore (the behavior the envelope widens)."""
+    """Same engine with a 0.0-bound envelope: margin 0.25 nats -> probability
+    margin ~0.12 > 0.05, no rescore (the behavior the envelope widens).
+
+    D5 fix (c): the gate now checks the FINAL probability margin (p1 - p2),
+    not the raw log-score gap. A raw gap of 0.25 nats produces a probability
+    margin of ~0.12 (well above 0.05), so the gate does not fire. The old
+    test used margin=0.075 which is 0.037 in probability space — a near-tie
+    that the unified gate correctly rescres.
+    """
     from tests.conftest import _constant_test_envelope
 
-    model = _MarginFakeModel(margin=0.075)
+    model = _MarginFakeModel(margin=0.25)
     tokenizer = FakeTokenizer()
     schema = _schema_two_choice()
     engine = make_engine(model, tokenizer, drift_envelope=_constant_test_envelope())
@@ -249,8 +256,8 @@ def test_engine_end_to_end_constant_band():
     tel = result["field_telemetry"]["action"]
     assert tel["rescored"] is False
     # The constant band (0.0 drift) still rounds UP to the 1/64 lattice:
-    # 0.05 -> 0.0625 (0.05 is not on the grid). Margin 0.075 > 0.0625, so
-    # no rescore — the behavior the widened envelope exists to change.
+    # 0.05 -> 0.0625 (0.05 is not on the grid). The probability margin
+    # (~0.12) > 0.05, so no rescore.
     assert tel["rescore_band_nats"] == pytest.approx(0.0625)
 
 
