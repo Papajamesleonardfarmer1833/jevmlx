@@ -1,0 +1,1338 @@
+{
+  "model": "mlx-community/gemma-3-12b-it-4bit",
+  "prompt_version": "jevmlx-parallel-v9",
+  "max_abs_drift_nats": 1.105346,
+  "max_raw_row_drift_nats": 2.0,
+  "max_gap_drift_nats": 1.0,
+  "max_logp_drift_nats": 1.0,
+  "max_margin_drift_nats": 0.75,
+  "max_batched_drift_nats": 1.000017,
+  "winners_identical": false,
+  "atol": 0.05,
+  "drift_envelope": {
+    "shape_bucket": "M>16",
+    "max_gap_drift_nats": 1.0,
+    "band": 1.0625
+  },
+  "rescore_gate": {
+    "escaped_near_tie": [],
+    "per_field": [
+      {
+        "case": "code_security",
+        "field": "is_vulnerability",
+        "batch_one_margin": 0.980583,
+        "batched_margin": 0.980583,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "primary_cwe",
+        "batch_one_margin": 0.995405,
+        "batched_margin": 0.995405,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "secondary_cwe",
+        "batch_one_margin": 0.980204,
+        "batched_margin": 0.980204,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "severity_level",
+        "batch_one_margin": 0.99858,
+        "batched_margin": 0.99858,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "block_pull_request",
+        "batch_one_margin": 0.990781,
+        "batched_margin": 0.990781,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "quarantine_branch",
+        "batch_one_margin": 0.971873,
+        "batched_margin": 0.971873,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "credential_revocation_required",
+        "batch_one_margin": 0.992813,
+        "batched_margin": 0.992813,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "requires_security_lead_signoff",
+        "batch_one_margin": 0.968187,
+        "batched_margin": 0.968187,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "exploitability_in_production",
+        "batch_one_margin": 0.98269,
+        "batched_margin": 0.98269,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "blast_radius",
+        "batch_one_margin": 0.999913,
+        "batched_margin": 0.999913,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "auto_generate_fix",
+        "batch_one_margin": 0.98956,
+        "batched_margin": 0.98956,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "remediation_effort",
+        "batch_one_margin": 0.999849,
+        "batched_margin": 0.999849,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "pci_dss_impact",
+        "batch_one_margin": 0.995635,
+        "batched_margin": 0.995635,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "soc2_audit_flag",
+        "batch_one_margin": 0.998747,
+        "batched_margin": 0.998747,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "hipaa_exposure_risk",
+        "batch_one_margin": 0.596374,
+        "batched_margin": 0.596374,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "secret_type_detected",
+        "batch_one_margin": 0.99999,
+        "batched_margin": 0.99999,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "target_environment",
+        "batch_one_margin": 0.94119,
+        "batched_margin": 0.94119,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "notify_ciso",
+        "batch_one_margin": 0.596374,
+        "batched_margin": 0.596374,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "requires_immediate_patch",
+        "batch_one_margin": 0.30271,
+        "batched_margin": 0.30271,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "jira_ticket_priority",
+        "batch_one_margin": 0.999019,
+        "batched_margin": 0.999019,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "assigned_team",
+        "batch_one_margin": 0.991458,
+        "batched_margin": 0.991458,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "false_positive_risk",
+        "batch_one_margin": 0.901126,
+        "batched_margin": 0.901126,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "public_cve_match",
+        "batch_one_margin": 0.124353,
+        "batched_margin": 0.124353,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "auto_merge_allowed",
+        "batch_one_margin": 0.996998,
+        "batched_margin": 0.996998,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "container_escape_risk",
+        "batch_one_margin": 0.995055,
+        "batched_margin": 0.995055,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "data_exfiltration_risk",
+        "batch_one_margin": 0.333554,
+        "batched_margin": 0.333554,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "author_trust_score",
+        "batch_one_margin": 0.999945,
+        "batched_margin": 0.999945,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "code_security",
+        "field": "security_gate_status",
+        "batch_one_margin": 0.999945,
+        "batched_margin": 0.999945,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "violation_category",
+        "batch_one_margin": 0.999945,
+        "batched_margin": 0.999945,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "severity",
+        "batch_one_margin": 0.999126,
+        "batched_margin": 0.999126,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "requires_human_review",
+        "batch_one_margin": 0.41157,
+        "batched_margin": 0.41157,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "user_intent",
+        "batch_one_margin": 0.999984,
+        "batched_margin": 0.999984,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "secondary_violation",
+        "batch_one_margin": 0.916708,
+        "batched_margin": 0.916708,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "remove_content",
+        "batch_one_margin": 0.998178,
+        "batched_margin": 0.998178,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "restrict_account",
+        "batch_one_margin": 0.975137,
+        "batched_margin": 0.975137,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "suspend_account",
+        "batch_one_margin": 0.948085,
+        "batched_margin": 0.948085,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "ban_account",
+        "batch_one_margin": 0.848284,
+        "batched_margin": 0.848284,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "escalate_to_law_enforcement",
+        "batch_one_margin": 0.993655,
+        "batched_margin": 0.993655,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "imminent_danger_flag",
+        "batch_one_margin": 0.996147,
+        "batched_margin": 0.996147,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "targeted_individual",
+        "batch_one_margin": 0.915825,
+        "batched_margin": 0.915825,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "coordinated_activity",
+        "batch_one_margin": 0.998894,
+        "batched_margin": 0.998894,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "dehumanizing_language",
+        "batch_one_margin": 0.999945,
+        "batched_margin": 0.999945,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "action_priority",
+        "batch_one_margin": 0.991841,
+        "batched_margin": 0.991841,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "appeal_eligible",
+        "batch_one_margin": 0.50983,
+        "batched_margin": 0.50983,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "notify_author",
+        "batch_one_margin": 0.0,
+        "batched_margin": 0.0,
+        "reference_near_tie": true,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "warn_author",
+        "batch_one_margin": 0.0,
+        "batched_margin": 0.0,
+        "reference_near_tie": true,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "strike_count_tier",
+        "batch_one_margin": 0.995048,
+        "batched_margin": 0.995048,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "content_moderation",
+        "field": "repeat_offender",
+        "batch_one_margin": 0.968187,
+        "batched_margin": 0.968187,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "is_fraudulent",
+        "batch_one_margin": 0.968187,
+        "batched_margin": 0.968187,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "risk_tier",
+        "batch_one_margin": 0.954045,
+        "batched_margin": 0.954045,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "recommended_action",
+        "batch_one_margin": 0.996843,
+        "batched_margin": 0.996843,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "primary_anomaly",
+        "batch_one_margin": 0.999956,
+        "batched_margin": 0.999956,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "secondary_anomaly",
+        "batch_one_margin": 0.0,
+        "batched_margin": 0.0,
+        "reference_near_tie": true,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "requires_human_escalation",
+        "batch_one_margin": 0.964028,
+        "batched_margin": 0.964028,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "can_auto_block",
+        "batch_one_margin": 0.062419,
+        "batched_margin": 0.062419,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "aml_sar_filing_required",
+        "batch_one_margin": 0.358357,
+        "batched_margin": 0.358357,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "fincen_flag_threshold",
+        "batch_one_margin": 0.41157,
+        "batched_margin": 0.41157,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "sanctions_screening_risk",
+        "batch_one_margin": 0.989495,
+        "batched_margin": 0.989495,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "tor_exit_node_detected",
+        "batch_one_margin": 0.99992,
+        "batched_margin": 0.99992,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "device_fingerprint_mismatch",
+        "batch_one_margin": 0.997936,
+        "batched_margin": 0.997936,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "velocity_score",
+        "batch_one_margin": 0.998177,
+        "batched_margin": 0.998177,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "block_card_immediately",
+        "batch_one_margin": 0.734072,
+        "batched_margin": 0.734072,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "freeze_online_banking",
+        "batch_one_margin": 0.244919,
+        "batched_margin": 0.244919,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "notify_cardholder_sms",
+        "batch_one_margin": 0.829802,
+        "batched_margin": 0.829802,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "notify_cardholder_email",
+        "batch_one_margin": 0.358357,
+        "batched_margin": 0.358357,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "requires_identity_verification",
+        "batch_one_margin": 0.185333,
+        "batched_margin": 0.185333,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "merchant_category_risk",
+        "batch_one_margin": 0.999997,
+        "batched_margin": 0.999997,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "chargeback_probability",
+        "batch_one_margin": 0.999988,
+        "batched_margin": 0.999988,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "counterparty_jurisdiction_risk",
+        "batch_one_margin": 0.961801,
+        "batched_margin": 0.961801,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "auto_reverse_transfer",
+        "batch_one_margin": 0.994398,
+        "batched_margin": 0.994398,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "fraud_ring_association",
+        "batch_one_margin": 0.994398,
+        "batched_margin": 0.994398,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "alert_clearing_house",
+        "batch_one_margin": 0.124353,
+        "batched_margin": 0.124353,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "escalate_to_fiu",
+        "batch_one_margin": 0.358357,
+        "batched_margin": 0.358357,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "confidence_score_tier",
+        "batch_one_margin": 0.999974,
+        "batched_margin": 0.999974,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "loss_prevention_priority",
+        "batch_one_margin": 0.999748,
+        "batched_margin": 0.999748,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "fintech_fraud",
+        "field": "account_takeover_suspected",
+        "batch_one_margin": 0.996599,
+        "batched_margin": 0.996599,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "high_cardinality_255",
+        "field": "customs_category",
+        "batch_one_margin": 0.971709,
+        "batched_margin": 0.971709,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "high_cardinality_255",
+        "field": "export_license_required",
+        "batch_one_margin": 0.954045,
+        "batched_margin": 0.954045,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "high_cardinality_255",
+        "field": "is_dual_use_goods",
+        "batch_one_margin": 0.998392,
+        "batched_margin": 0.998392,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "high_cardinality_255",
+        "field": "inspection_priority",
+        "batch_one_margin": 0.528346,
+        "batched_margin": 0.528346,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "destination",
+        "batch_one_margin": 0.999909,
+        "batched_margin": 0.999909,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "is_spam_or_phishing",
+        "batch_one_margin": 0.999641,
+        "batched_margin": 0.999641,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "priority",
+        "batch_one_margin": 0.953624,
+        "batched_margin": 0.953624,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "needs_reply",
+        "batch_one_margin": 0.994398,
+        "batched_margin": 0.994398,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "secondary_destination",
+        "batch_one_margin": 0.847683,
+        "batched_margin": 0.847683,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "customer_tier",
+        "batch_one_margin": 0.986612,
+        "batched_margin": 0.986612,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "contains_billing_dispute",
+        "batch_one_margin": 0.999967,
+        "batched_margin": 0.999967,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "contains_renewal_question",
+        "batch_one_margin": 0.999962,
+        "batched_margin": 0.999962,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "requires_csm_involvement",
+        "batch_one_margin": 0.993655,
+        "batched_margin": 0.993655,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "auto_reply_eligible",
+        "batch_one_margin": 0.864907,
+        "batched_margin": 0.864907,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "escalate_to_manager",
+        "batch_one_margin": 0.062419,
+        "batched_margin": 0.062419,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "sla_deadline_hours",
+        "batch_one_margin": 0.998644,
+        "batched_margin": 0.998644,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "sentiment",
+        "batch_one_margin": 0.991834,
+        "batched_margin": 0.991834,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "contains_pii",
+        "batch_one_margin": 0.761594,
+        "batched_margin": 0.761594,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "contains_attachment",
+        "batch_one_margin": 0.999683,
+        "batched_margin": 0.999683,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "thread_type",
+        "batch_one_margin": 0.999961,
+        "batched_margin": 0.999961,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "assign_to_queue",
+        "batch_one_margin": 0.893193,
+        "batched_margin": 0.893193,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "contains_legal_language",
+        "batch_one_margin": 0.99186,
+        "batched_margin": 0.99186,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "inbound_email",
+        "field": "account_health_impact",
+        "batch_one_margin": 0.996024,
+        "batched_margin": 0.996024,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "sentiment",
+        "batch_one_margin": 0.999994,
+        "batched_margin": 0.999994,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "severity_tier",
+        "batch_one_margin": 0.97778,
+        "batched_margin": 0.97778,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "primary_department",
+        "batch_one_margin": 0.928487,
+        "batched_margin": 0.928487,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "secondary_department",
+        "batch_one_margin": 0.809026,
+        "batched_margin": 0.809026,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "sla_breach_risk",
+        "batch_one_margin": 0.999683,
+        "batched_margin": 0.999683,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "requires_executive_escalation",
+        "batch_one_margin": 0.999977,
+        "batched_margin": 0.999977,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "can_resolve_autonomously",
+        "batch_one_margin": 0.998178,
+        "batched_margin": 0.998178,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "confidence_above_auto_threshold",
+        "batch_one_margin": 0.596374,
+        "batched_margin": 0.596374,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "churn_risk_level",
+        "batch_one_margin": 0.848283,
+        "batched_margin": 0.848283,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "refund_recommended",
+        "batch_one_margin": 0.999593,
+        "batched_margin": 0.999593,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "refund_tier",
+        "batch_one_margin": 0.998149,
+        "batched_margin": 0.998149,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "requires_legal_review",
+        "batch_one_margin": 0.999782,
+        "batched_margin": 0.999782,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "security_incident",
+        "batch_one_margin": 0.995635,
+        "batched_margin": 0.995635,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "compliance_breach",
+        "batch_one_margin": 0.761594,
+        "batched_margin": 0.761594,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "customer_tenure_tier",
+        "batch_one_margin": 0.999996,
+        "batched_margin": 0.999996,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "root_cause_domain",
+        "batch_one_margin": 0.999836,
+        "batched_margin": 0.999836,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "target_resolution_hours",
+        "batch_one_margin": 0.907315,
+        "batched_margin": 0.907315,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "requires_phone_call",
+        "batch_one_margin": 0.99985,
+        "batched_margin": 0.99985,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "notify_account_executive",
+        "batch_one_margin": 0.998747,
+        "batched_margin": 0.998747,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "public_status_page_incident",
+        "batch_one_margin": 0.124353,
+        "batched_margin": 0.124353,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "postmortem_required",
+        "batch_one_margin": 0.975137,
+        "batched_margin": 0.975137,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "vendor_fault",
+        "batch_one_margin": 0.915825,
+        "batched_margin": 0.915825,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "contract_penalty_applicable",
+        "batch_one_margin": 0.999753,
+        "batched_margin": 0.999753,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "escalate_to_vp",
+        "batch_one_margin": 0.99972,
+        "batched_margin": 0.99972,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "customer_sentiment_trend",
+        "batch_one_margin": 0.998747,
+        "batched_margin": 0.998747,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "suggested_action",
+        "batch_one_margin": 0.994695,
+        "batched_margin": 0.994695,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "assigned_agent_tier",
+        "batch_one_margin": 0.357888,
+        "batched_margin": 0.357888,
+        "reference_near_tie": false,
+        "production_rescored": true,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "ticket_priority",
+        "batch_one_margin": 0.999969,
+        "batched_margin": 0.999969,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "frustration_level",
+        "batch_one_margin": 0.703884,
+        "batched_margin": 0.703884,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      },
+      {
+        "case": "support_triage",
+        "field": "churn_risk",
+        "batch_one_margin": 0.554512,
+        "batched_margin": 0.554512,
+        "reference_near_tie": false,
+        "production_rescored": false,
+        "winner_differs": false,
+        "escaped_near_tie": false
+      }
+    ]
+  },
+  "environment": {
+    "chip": "m5max-128gb",
+    "macos": "macOS-26.6.2-arm64-arm-64bit",
+    "mlx_version": "0.32.2",
+    "mlx_lm_version": "0.31.3",
+    "activation_dtype": "float32",
+    "quantization": {
+      "group_size": 64,
+      "bits": 4
+    },
+    "mask_path": "explicit_merge",
+    "max_rows": 4,
+    "context_count": 4
+  },
+  "passed": false,
+  "status": "FAIL",
+  "cases": [
+    "code_security",
+    "content_moderation",
+    "fintech_fraud",
+    "high_cardinality_255",
+    "inbound_email",
+    "support_triage"
+  ],
+  "test": "test_w1a_scoring_parity_batch_vs_chunked_real_model",
+  "run_at": "2026-09-21T17:54:09Z"
+}

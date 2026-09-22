@@ -1,0 +1,247 @@
+{
+  "environment": {
+    "chip": "Apple M5 Max",
+    "git_sha": "dbb1ff1f04a0bce4b20817e4c09eae2b5a3d2ad3",
+    "jevmlx_version": "0.1.0",
+    "machine_model": "Mac17,7",
+    "macos_version": "26.6.2",
+    "mlx_lm_version": "0.31.3",
+    "mlx_version": "0.32.2",
+    "python_version": "3.12.14",
+    "ram_gb": 128.0,
+    "timestamp_utc": "2026-09-21T17:39:44+00:00"
+  },
+  "metrics": {
+    "accuracy": 0.7245370370370371,
+    "accuracy_ci": {
+      "accuracy": 0.7245370370370371,
+      "ci_high": 0.7662037037037037,
+      "ci_low": 0.6811342592592593,
+      "draws": 2000,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 96,
+      "seed": 0
+    },
+    "any_flip_rate": {
+      "action": 0.20833333333333334,
+      "category": 0.0625,
+      "fraud": 0.0375,
+      "needs_human": 0.016666666666666666,
+      "priority": 0.04583333333333333,
+      "risk": 0.03333333333333333
+    },
+    "balanced_accuracy": {
+      "action": 0.5814814814814815,
+      "category": 0.8567708333333333,
+      "fraud": 0.9560185185185186,
+      "needs_human": 0.5833333333333334,
+      "priority": 0.7400793650793651,
+      "risk": 0.4916666666666667
+    },
+    "brier": 0.4735644131633982,
+    "brier_ci": {
+      "brier": 0.4735644131633982,
+      "ci_high": 0.5261687944108049,
+      "ci_low": 0.4222847018729855,
+      "draws": 2000,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 96,
+      "seed": 0
+    },
+    "case_exact_match": 0.23958333333333334,
+    "correctness_auroc": 0.7068639756221977,
+    "ece_5bin_equal_mass": 0.055921836595328275,
+    "ece_ci": {
+      "ci_high": 0.0939515304517039,
+      "ci_low": 0.03210010272648632,
+      "draws": 2000,
+      "ece": 0.055921836595328275,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 96,
+      "seed": 0
+    },
+    "exact_record_accuracy": 0.23958333333333334,
+    "macro_f1": {
+      "action": 0.5770436254283714,
+      "category": 0.8617200442624335,
+      "fraud": 0.9187153701035369,
+      "needs_human": 0.45864661654135336,
+      "priority": 0.7859148793565683,
+      "risk": 0.5131587721720364
+    },
+    "macro_f1_ci": {
+      "ci_high": 0.7305504044497506,
+      "ci_low": 0.6235856659682764,
+      "draws": 2000,
+      "macro_f1": 0.6858665513107166,
+      "method": "case_cluster_bootstrap",
+      "n_cases": 96,
+      "seed": 0
+    },
+    "majority_class_baseline": {
+      "action": 0.4166666666666667,
+      "category": 0.3333333333333333,
+      "fraud": 0.75,
+      "needs_human": 0.5833333333333334,
+      "priority": 0.5833333333333334,
+      "risk": 0.4166666666666667
+    },
+    "mean_tvd": {
+      "action": 0.14260210693313544,
+      "category": 0.05345985697520542,
+      "fraud": 0.017298317147424847,
+      "needs_human": 0.04033056572378444,
+      "priority": 0.07082888758002898,
+      "risk": 0.058296486588918624
+    },
+    "order_flip_rate": {
+      "action": 0.20833333333333334,
+      "category": 0.0625,
+      "fraud": 0.0375,
+      "needs_human": 0.016666666666666666,
+      "priority": 0.04583333333333333,
+      "risk": 0.03333333333333333
+    },
+    "per_field_accuracy": [
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.6361090106796223,
+          "ci_low": 0.36389098932037767,
+          "k": 24,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "action",
+        "n": 48
+      },
+      {
+        "accuracy": 0.8541666666666666,
+        "ci": {
+          "ci_high": 0.9275184258620602,
+          "ci_low": 0.7283255295714138,
+          "k": 41,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.8541666666666666,
+          "z": 1.96
+        },
+        "field": "category",
+        "n": 48
+      },
+      {
+        "accuracy": 0.9583333333333334,
+        "ci": {
+          "ci_high": 0.9884983479210344,
+          "ci_low": 0.8602408885222853,
+          "k": 46,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.9583333333333334,
+          "z": 1.96
+        },
+        "field": "fraud",
+        "n": 48
+      },
+      {
+        "accuracy": 0.5,
+        "ci": {
+          "ci_high": 0.6361090106796223,
+          "ci_low": 0.36389098932037767,
+          "k": 24,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.5,
+          "z": 1.96
+        },
+        "field": "needs_human",
+        "n": 48
+      },
+      {
+        "accuracy": 0.8125,
+        "ci": {
+          "ci_high": 0.8980872365179983,
+          "ci_low": 0.6805986065115378,
+          "k": 39,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.8125,
+          "z": 1.96
+        },
+        "field": "priority",
+        "n": 48
+      },
+      {
+        "accuracy": 0.6666666666666666,
+        "ci": {
+          "ci_high": 0.783233986291032,
+          "ci_low": 0.5253984633247204,
+          "k": 32,
+          "method": "wilson",
+          "n": 48,
+          "point": 0.6666666666666666,
+          "z": 1.96
+        },
+        "field": "risk",
+        "n": 48
+      }
+    ],
+    "perturbation_flip_rate": 0.08796296296296297,
+    "risk_coverage": [
+      {
+        "coverage": 0.1,
+        "n": 173,
+        "risk": 0.09248554913294793
+      },
+      {
+        "coverage": 0.2,
+        "n": 346,
+        "risk": 0.08959537572254339
+      },
+      {
+        "coverage": 0.3,
+        "n": 519,
+        "risk": 0.1290944123314065
+      },
+      {
+        "coverage": 0.4,
+        "n": 692,
+        "risk": 0.14161849710982655
+      },
+      {
+        "coverage": 0.5,
+        "n": 864,
+        "risk": 0.15162037037037035
+      },
+      {
+        "coverage": 0.6,
+        "n": 1037,
+        "risk": 0.16682738669238184
+      },
+      {
+        "coverage": 0.7,
+        "n": 1210,
+        "risk": 0.19256198347107434
+      },
+      {
+        "coverage": 0.8,
+        "n": 1383,
+        "risk": 0.21908893709327548
+      },
+      {
+        "coverage": 0.9,
+        "n": 1556,
+        "risk": 0.2467866323907455
+      },
+      {
+        "coverage": 1.0,
+        "n": 1728,
+        "risk": 0.2754629629629629
+      }
+    ],
+    "tie_rate": 0.0023148148148148147,
+    "valid_accuracy": 0.7245370370370371
+  }
+}
