@@ -4,7 +4,6 @@ import pytest
 from conftest import (  # noqa: F401  (documented in slow-test docstrings)
     MODEL_ID,
     PARITY_ATOL,
-    make_test_renderer,
     skip_on_shared_runner,
 )
 
@@ -78,7 +77,7 @@ def test_chunking_matches_full_batch_and_counts_passes(engine):
 
     # Rows: one per trie branch point for enum/boolean fields, one per option
     # for multi fields. Pass count must match ceil(rows / max_rows).
-    plan = schema.compile_labels_plan(tokenizer, make_test_renderer(tokenizer, schema, "labels"))
+    plan = schema.compile_labels_plan(tokenizer)
     expected_rows = sum(
         len(build_trie(p["remainders"])) if "options" not in p else len(p["options"])
         for p in plan["fields"].values()

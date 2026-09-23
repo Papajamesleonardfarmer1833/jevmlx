@@ -68,10 +68,7 @@ def _rotation_suggestion(choices: list[str], all_choices: list[str], tokenizer) 
         probe = StructuredSchema(
             {"_probe": {"type": "enum", "description": "", "choices": renamed_list}}
         )
-        from jevmlx.engine import make_field_prompt_renderer
-
-        _rfp = make_field_prompt_renderer(tokenizer, "", probe, "labels")
-        probe_entry = probe.compile_labels_plan(tokenizer, _rfp)["fields"]["_probe"]
+        probe_entry = probe.compile_labels_plan(tokenizer)["fields"]["_probe"]
     except ValueError:
         return None
     seen_first: set[int] = set()
@@ -114,10 +111,7 @@ def lint_schema(schema: StructuredSchema, tokenizer) -> list[Finding]:
     findings: list[Finding] = []
 
     try:
-        from jevmlx.engine import make_field_prompt_renderer
-
-        _rfp = make_field_prompt_renderer(tokenizer, "", schema, "labels")
-        compiled = schema.compile_labels_plan(tokenizer, _rfp)
+        compiled = schema.compile_labels_plan(tokenizer)
     except SchemaCompileError as exc:
         return [
             Finding(
