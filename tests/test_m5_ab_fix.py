@@ -23,10 +23,24 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 import benchmarks.m5 as m5
 from benchmarks.m5 import Step, _resolve_ab_ref, build_summary_text, execute_step, runbook_append
 
 QUALITY_TARGET = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+
+
+@pytest.fixture(autouse=True)
+def _planned_root(tmp_path, monkeypatch):
+    """Point the planner's REPO_ROOT at a temp repo (same guard as
+    TestM5MainEndToEnd): every m5.main() here fires the readme step, which
+    regenerates the PLANNED root's README — left on the module global it
+    wrote the real checkout's README.md. The dir must exist: execute_step
+    fails any step whose planned cwd is missing."""
+    planned_root = tmp_path / "planned-repo"
+    planned_root.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(m5, "REPO_ROOT", planned_root)
 
 
 # ---- B2: _resolve_ab_ref ---------------------------------------------------

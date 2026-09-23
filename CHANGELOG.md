@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- m5: the readme step derives README/results/official paths from the step's
+  planned root (its README output's parent), not the module global
+  `REPO_ROOT` — a runbook planned for another checkout (e2e temp repo,
+  A/B worktree) regenerates THAT checkout's README. Tests that run
+  `benchmarks.m5.main()` with a fake runner now point `REPO_ROOT` at a
+  temp repo and assert the real repo README's sha is unchanged after the
+  run (pre-fix, the e2e fake leaderboard clobbered the real README.md).
+
 - evalrun: error-rate breaker applies to scoring tracks only. Naive tracks
   (naive_local, api_baseline) free-write JSON and parse errors ARE the
   measurement — the model failing to produce valid JSON is the outcome the
