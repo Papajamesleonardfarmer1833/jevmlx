@@ -6,7 +6,6 @@ import pytest
 
 from jevmlx.lint import lint_schema
 from jevmlx.schema import StructuredSchema
-from tests.conftest import make_test_renderer
 from tests.test_trie import NonCompositionalTokenizer
 
 
@@ -399,10 +398,8 @@ def test_non_weakrefable_tokenizer_compiles_fresh_each_time():
     schema = StructuredSchema(
         {"action": {"type": "enum", "description": "d", "choices": ["A", "B"]}}
     )
-    tok_a = Uncacheable()
-    tok_b = Uncacheable()
-    plan_a = schema.compile_labels_plan(tok_a, make_test_renderer(tok_a, schema, "labels"))
-    plan_b = schema.compile_labels_plan(tok_b, make_test_renderer(tok_b, schema, "labels"))
+    plan_a = schema.compile_labels_plan(Uncacheable())
+    plan_b = schema.compile_labels_plan(Uncacheable())
     assert plan_a is not plan_b
     # Both plans are complete and correct.
     assert plan_a["fields"]["action"]["remainders"] == (plan_b["fields"]["action"]["remainders"])
