@@ -45,6 +45,7 @@ would have caught the M5 crash.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess  # noqa: F401 - re-exported for the fake runner's subprocess.run guard
 from pathlib import Path
@@ -900,6 +901,20 @@ class TestM5MainEndToEnd:
     fake runner that produces each step's REAL outputs (via the builders
     above), so execute_step/runbook_append/step_done run for real."""
 
+    @pytest.fixture(autouse=True)
+    def _planned_root(self, tmp_path, monkeypatch):
+        """Point the planner's REPO_ROOT at a temp repo.
+
+        The readme step regenerates the PLANNED root's README; left on the
+        module global it resolved to the checkout the test runs in, and the
+        fake leaderboard wrote '| fresh |' into the REAL README.md. The dir
+        must exist: execute_step fails any step whose planned cwd is
+        missing.
+        """
+        self.planned_root = tmp_path / "planned-repo"
+        self.planned_root.mkdir(parents=True, exist_ok=True)
+        monkeypatch.setattr(m5, "REPO_ROOT", self.planned_root)
+
     @staticmethod
     def _fake_run_factory(out: Path, calls: list[tuple[str, int]]):
         """Map a planned step's argv to its real artifact builder; record
@@ -1022,6 +1037,13 @@ class TestM5MainEndToEnd:
         )
         monkeypatch.delenv("JEVMLX_M5_CAFFEINATED", raising=False)
 
+        # Guard: the real repo README.md is byte-identical after the run —
+        # the readme step regenerates the PLANNED root's README (the temp
+        # repo), never the checkout the test runs in. Pre-fix, the fake
+        # leaderboard wrote '| fresh |' into the real README.md.
+        real_readme = Path(__file__).resolve().parent.parent / "README.md"
+        real_sha_before = hashlib.sha256(real_readme.read_bytes()).hexdigest()
+
         rc = m5.main(
             [
                 "--out",
@@ -1032,6 +1054,12 @@ class TestM5MainEndToEnd:
             ]
         )
         assert rc == 0, f"runbook failed: {calls}"
+
+        assert hashlib.sha256(real_readme.read_bytes()).hexdigest() == real_sha_before, (
+            "the e2e run modified the real repo README.md"
+        )
+        # The planned (temp) repo's README got the fresh leaderboard block.
+        assert "| fresh |" in (self.planned_root / "README.md").read_text(encoding="utf-8")
 
         # Every planned step got a RUNBOOK section with exit 0 and a wall.
         steps = plan_steps(out, parity_models=[QUALITY_TARGET, REST_MODEL])
@@ -1126,8 +1154,10 @@ class TestM5MainEndToEnd:
         # B9: the summary and readme steps are in_process and NEVER skipped
         # (always regenerated); every OTHER step is skipped because its
         # outputs exist. The readme step fires its two subprocess calls
-        # (leaderboard + check_results) on every run.
+        # (leaderboard + check_results) on every run — against the planned
+        # root's README, never the real checkout's.
         assert all(c[0].startswith("readme-") for c in calls), f"unexpected calls: {calls}"
+        assert "| fresh |" in (self.planned_root / "README.md").read_text(encoding="utf-8")
         runbook = (out / "RUNBOOK.md").read_text()
         steps = plan_steps(out, parity_models=[QUALITY_TARGET])
         non_in_process_steps = [s for s in steps if not s.in_process]

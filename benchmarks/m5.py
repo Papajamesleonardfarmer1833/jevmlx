@@ -404,6 +404,8 @@ def plan_steps(
             title="Regenerate README leaderboard and verify freshness",
             argv=(),
             outputs=(REPO_ROOT / "README.md",),
+            cwd=REPO_ROOT,  # explicit: plan-time read of REPO_ROOT, never the
+            # class-default frozen at import (Step.cwd's default binds once)
             in_process=True,
         )
     )
@@ -586,20 +588,25 @@ def _execute_readme(step: Step, log) -> int:
     """The readme step: regenerate the README leaderboard block and verify it
     is fresh.
 
-    Runs in the repo root (step.cwd = REPO_ROOT). Uses the same venv's
-    python. Fails (non-zero) if check_results --check-readme finds the README
-    stale after regen (a real contract violation, not a skip). Nothing else
-    — the M5 agent commits and opens the PR by hand.
+    Every path derives from the step's PLANNED root — the README output's
+    parent (the checkout the plan targeted) — never from the module global
+    REPO_ROOT: a runbook planned for another checkout (e2e temp repo, A/B
+    worktree) regenerates THAT checkout's README, so a fake leaderboard in
+    a test can never write the real repo. Uses the same venv's python.
+    Fails (non-zero) if check_results --check-readme finds the README stale
+    after regen (a real contract violation, not a skip). Nothing else — the
+    M5 agent commits and opens the PR by hand.
     """
     py = sys.executable
-    results_dir = REPO_ROOT / "benchmarks" / "results"
-    official = REPO_ROOT / "benchmarks" / "typesafe" / "official.json"
-    readme = REPO_ROOT / "README.md"
+    root = step.outputs[0].parent  # the planned root: where the README lives
+    results_dir = root / "benchmarks" / "results"
+    official = root / "benchmarks" / "typesafe" / "official.json"
+    readme = step.outputs[0]
 
     def _run(argv: tuple[str, ...]) -> int:
         log.write(f"$ {' '.join(argv)}\n")
         log.flush()
-        proc = subprocess.run(argv, cwd=REPO_ROOT, stdout=log, stderr=subprocess.STDOUT)
+        proc = subprocess.run(argv, cwd=root, stdout=log, stderr=subprocess.STDOUT)
         return proc.returncode
 
     # 1. Regenerate the README leaderboard block.
