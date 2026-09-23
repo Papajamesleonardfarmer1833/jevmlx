@@ -20,6 +20,7 @@ Fix at the owning layer:
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 
@@ -245,7 +246,11 @@ def test_ab_setup_failure_skips_ab_steps_and_summaries(tmp_path, monkeypatch):
 
 def test_ab_setup_success_runs_ab_steps(tmp_path, monkeypatch):
     """When A/B setup succeeds, the ab-bench and ab-invariance steps DO run
-    (the skip logic does not fire). This guards against over-skipping."""
+    (the skip logic does not fire). This guards against over-skipping.
+
+    B12: the fake ab-side bench rewrites its run.json git_sha to a DIFFERENT
+    value (a real A/B run's jevmlx comes from the worktree), so GUARD 2 does
+    not fire — the equal-sha case is test_ab_bench_measured_base_fails."""
     from tests.test_m5_e2e import TestM5MainEndToEnd
 
     out = tmp_path / "run-ab-ok"
@@ -264,6 +269,11 @@ def test_ab_setup_success_runs_ab_steps(tmp_path, monkeypatch):
         if is_python and "-c" in argv and "rmtree" in joined:
             calls.append(("ab-setup-cleanup", 0))
             return subprocess.CompletedProcess(tuple(argv), 0, stdout="", stderr="")
+        # B12 GUARD 1: <ab-venv>/python -I -c <guard snippet>. The fake venv
+        # has no python, so this must exit 0 WITHOUT running.
+        if is_python and "-I" in argv and "-c" in argv:
+            calls.append(("ab-install-guard", 0))
+            return subprocess.CompletedProcess(tuple(argv), 0, stdout="", stderr="")
         # _resolve_ab_ref runs 'git rev-parse --verify <ref>' before ab-setup;
         # return exit 0 with a fake sha so the origin/<branch> ref resolves.
         if bin0 == "git" and "rev-parse" in joined:
@@ -278,7 +288,17 @@ def test_ab_setup_success_runs_ab_steps(tmp_path, monkeypatch):
         if "uv" in bin0:
             calls.append(("uv", 0))
             return subprocess.CompletedProcess(tuple(argv), 0, stdout="", stderr="")
-        return fake_run(argv, **kwargs)
+        proc = fake_run(argv, **kwargs)
+        # B12: the ab-side bench's run.jsons must not carry main's git_sha,
+        # or GUARD 2 fails the step (they would — the fake builder writes the
+        # real environment() of THIS repo for both sides).
+        if bin0 == "jevmlx" and "bench" in argv[1:3] and "/ab/" in joined:
+            bench_out = Path(argv[argv.index("--out") + 1])
+            for run_json in bench_out.glob("**/run.json"):
+                data = json.loads(run_json.read_text(encoding="utf-8"))
+                data["environment"]["git_sha"] = "ab0000000000000000000000000000deadbee"
+                run_json.write_text(json.dumps(data), encoding="utf-8")
+        return proc
 
     monkeypatch.setattr(m5, "subprocess", TestM5MainEndToEnd._fake_subprocess(ab_ok_run))
     monkeypatch.delenv("JEVMLX_M5_CAFFEINATED", raising=False)
@@ -299,6 +319,7 @@ def test_ab_setup_success_runs_ab_steps(tmp_path, monkeypatch):
     # The ab-bench and ab-invariance steps ran (not skipped).
     runbook = (out / "RUNBOOK.md").read_text()
     assert "skipped: A/B setup failed" not in runbook
+    assert "skipped: A/B measured the base code" not in runbook
 
 
 # ---- B3(b) summary note ----------------------------------------------------
@@ -323,14 +344,14 @@ def test_build_summary_text_no_ab_branch_note():
 
 
 def test_runbook_append_skipped(tmp_path):
-    """runbook_append with skipped=True writes 'skipped: A/B setup failed'."""
+    """runbook_append with skipped_reason writes ' — skipped: <reason>'."""
     step = Step(
         id="ab-bench",
         title="A/B bench quality",
         argv=("echo", "hello"),
         outputs=(tmp_path / "ab-bench.done",),
     )
-    runbook_append(tmp_path, 1, step, rc=None, secs=None, skipped=True)
+    runbook_append(tmp_path, 1, step, rc=None, secs=None, skipped_reason="A/B setup failed")
     text = (tmp_path / "RUNBOOK.md").read_text()
     assert "skipped: A/B setup failed" in text
 

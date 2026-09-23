@@ -37,6 +37,31 @@
   #148/#151/#152). Golden prompt vectors and serve fixtures regenerated
   for v9.
 
+- m5: the A/B setup installs THE A/B WORKTREE, and the runbook fails if the
+  A/B measured the base code. Field evidence (M5, issue #63): ab-setup ran
+  `uv pip install ... -e .[dev]` with cwd = the main repo, so the A/B venv
+  got jevmlx from MAIN (dbb1ff1) and every A/B so far measured main twice
+  (the A/B run.json even recorded `config.prompt_version =
+  jevmlx-parallel-v9` while the w2a branch only knows v8). Fix, at the
+  owning layer with two guards that make the repeat impossible: (1) the
+  install step runs `-e <ab-worktree>[dev,bench]` with cwd=<ab-worktree>
+  (extra_argv entries are now `ExtraCmd(argv, cwd)` — each command states
+  its own cwd); (2) GUARD 1 — after the install, `<ab-venv>/python -I -c`
+  imports jevmlx, prints the resolved path into ab-setup.log, and FAILS the
+  step unless it resolves inside the A/B worktree (`-I` keeps the import off
+  the cwd, so it cannot mask a broken install); (3) GUARD 2 — after the A/B
+  bench, the combos' run.json `environment.git_sha` are compared against
+  the main side; an equal sha fails the step with 'A/B measured the base
+  code', skips the remaining A/B steps, and SUMMARY discards the A/B side
+  ('A/B: not run (measured the base code)') instead of comparing main
+  against itself. Also: `--ab-eval-args` (repeatable) appends extra eval
+  flags verbatim to the A/B bench + invariance argv (e.g.
+  `--ab-eval-args=--dual-framing`); a flag the A/B branch's bench/invariance
+  do not expose fails that step loudly. E2E on a real temp git repo with two
+  commits and real venvs: the guard fails when the venv resolves the base
+  repo, passes when it resolves the worktree (and fails on a missing
+  install), offline.
+
 - evalrun: error-rate breaker applies to scoring tracks only. Naive tracks
   (naive_local, api_baseline) free-write JSON and parse errors ARE the
   measurement — the model failing to produce valid JSON is the outcome the

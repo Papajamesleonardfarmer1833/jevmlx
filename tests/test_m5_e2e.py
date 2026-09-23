@@ -823,7 +823,12 @@ class TestPlannedArgvParses:
         assert steps, "plan_steps returned no steps"
         parsed_any = False
         for step in steps:
-            for argv in (step.argv, step.pre_argv, *(step.extra_argv or ())):
+            # B12: extra_argv entries are ExtraCmd(argv, cwd) — unpack .argv.
+            for argv in (
+                step.argv,
+                step.pre_argv,
+                *(extra.argv for extra in step.extra_argv or ()),
+            ):
                 if not argv:
                     continue
                 bin0 = argv[0].split("/")[-1]
@@ -876,7 +881,12 @@ class TestPlannedArgvParses:
         alias_tokens = set(MODEL_ALIASES)
         checked = 0
         for step in steps:
-            for argv in (step.argv, step.pre_argv, *(step.extra_argv or ())):
+            # B12: extra_argv entries are ExtraCmd(argv, cwd) — unpack .argv.
+            for argv in (
+                step.argv,
+                step.pre_argv,
+                *(extra.argv for extra in step.extra_argv or ()),
+            ):
                 if not argv or "--model" not in argv:
                     continue
                 idx = argv.index("--model")
