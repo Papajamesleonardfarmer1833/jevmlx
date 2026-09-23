@@ -9,6 +9,19 @@
   in the m5 runbook step before every bench; the `skip_on_shared_runner`
   marker stays in place.
 
+- parity: the DRIFT status no longer consults an envelope band — DRIFT is
+  now winners identical on all cases and no escaped near-tie (PASS and
+  FAIL definitions unchanged; ``passed`` semantics untouched). The old
+  band was self-referential: it was round_up(0.05 + the run's own max gap
+  drift), so the band check could never fail and tested nothing. The
+  measured max drift is still reported in parity.json and shown in the
+  leaderboard Parity column (``DRIFT (0.078)``). parity.json no longer
+  persists ``drift_envelope.band``; check_results and the leaderboard
+  accept older files that still carry the field (ignored, never a
+  failure). The engine's rescore band is untouched — it resolves from the
+  persisted envelope records via ``driftenv.band_for_pass``, not from
+  parity.json.
+
 - m5: the readme step derives README/results/official paths from the step's
   planned root (its README output's parent), not the module global
   `REPO_ROOT` — a runbook planned for another checkout (e2e temp repo,

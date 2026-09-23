@@ -40,9 +40,10 @@ compatible both ways.
 P4/I7: ``status`` is the REPORTING word (PASS / DRIFT / FAIL). The GATE
 (``passed``) is unchanged — DRIFT and FAIL both set ``passed: false``.
 PASS = all drifts < atol. DRIFT = some drift >= atol but winners identical
-on all cases AND max drift inside the persisted envelope band for the run's
-shape bucket (batch-shape noise, not a real divergence). FAIL = a winner
-changed, or drift beyond the band.
+on all cases and no escaped near-tie (batch-shape noise, not a real
+divergence). FAIL = a winner changed, or an escaped near-tie. The measured
+max drift is always reported as is (D6: no self-referential band — a band
+computed from the run's own max drift can never fail).
 """
 
 from __future__ import annotations
@@ -346,22 +347,16 @@ def parity_report(
         and max_margin_drift < INSTABILITY_BAND
         and not escaped
     )
-    # P4/I7: the REPORTING status (PASS / DRIFT / FAIL). The GATE (passed)
-    # is unchanged — DRIFT and FAIL both set passed=False. DRIFT = some
-    # drift >= atol but winners identical on all cases AND max drift inside
-    # the persisted envelope band for the run's shape bucket (batch-shape
-    # noise, not a real divergence). FAIL = a winner changed, or drift
-    # beyond the band.
-    envelope_band = recorded.get("band") if isinstance(recorded, dict) else None
-    max_drift = max(max_abs_drift, max_gap_drift, max_margin_drift)
+    # P4/I7 (D6): the REPORTING status (PASS / DRIFT / FAIL). The GATE
+    # (passed) is unchanged — DRIFT and FAIL both set passed=False. DRIFT =
+    # some drift >= atol but winners identical on all cases and no escaped
+    # near-tie (batch-shape noise, not a real divergence). FAIL = a winner
+    # changed, or an escaped near-tie. The measured max drift is reported
+    # as is — no envelope-band term (a band computed from the run's own
+    # max drift can never fail; it tested nothing).
     if passed:
         status = "PASS"
-    elif (
-        winners_identical
-        and not escaped
-        and isinstance(envelope_band, (int, float))
-        and max_drift <= envelope_band
-    ):
+    elif winners_identical and not escaped:
         status = "DRIFT"
     else:
         status = "FAIL"
@@ -378,7 +373,9 @@ def parity_report(
         "winners_identical": winners_identical,
         "atol": INSTABILITY_BAND,
         # W5c-9: the drift-envelope resolution this report persisted (bound,
-        # band, source) — informational; the gate above is untouched.
+        # source) — informational; the gate above is untouched. D6: the
+        # band field is gone — it was round_up(0.05 + this run's own max
+        # gap drift), self-referential and untestable.
         "drift_envelope": recorded,
         # Rescore-gate safety assertion (review item 4).
         "rescore_gate": rescore_flag,
@@ -428,7 +425,10 @@ def _record_envelope_from_report(
     shape (M = 4 * rows — the M>16 bucket for every bundled schema). The
     record lands in the user cache (keyed by the envelope tuple) and the
     model's probes folder. Best-effort: a failure NEVER fails parity — the
-    envelope is an optimization for the band, not a gate input.
+    envelope is an optimization for the engine's rescore band, not a gate
+    input. D6: the returned summary no longer carries the ``band`` field —
+    it was derived from THIS run's own max drift (self-referential); the
+    engine resolves its rescore band from the persisted RECORDS instead.
     """
     try:
         from jevmlx.driftenv import (
@@ -451,12 +451,10 @@ def _record_envelope_from_report(
         }
         probes_dir = probes_dir_for_record(model_id, chip=key.get("chip") or "")
         record_envelope(record, probes_dir=probes_dir)
-        from jevmlx.driftenv import rescore_band
 
         return {
             "shape_bucket": bucket,
             MAX_GAP_DRIFT_KEY: round(float(max_gap_drift), 6),
-            "band": round(rescore_band(max_gap_drift), 6),
         }
     except Exception as exc:  # noqa: BLE001 — never fails parity
         return {"error": str(exc)}

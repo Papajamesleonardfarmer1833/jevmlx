@@ -336,12 +336,14 @@ faster than a single trie-constrained pass on 255-option enums. Output:
       "atol": 0.05, "rescore_gate": {...}, "environment": {...},
       "status": "PASS", "run_at": "..."}`
 
-      P4/I7: ``status`` is the REPORTING word — PASS, DRIFT, or FAIL. The
-      GATE (``passed``) is unchanged (DRIFT and FAIL both set ``passed:
+      P4/I7 (D6): ``status`` is the REPORTING word — PASS, DRIFT, or FAIL.
+      The GATE (``passed``) is unchanged (DRIFT and FAIL both set ``passed:
       false``). PASS = all drifts < atol. DRIFT = some drift >= atol but
-      winners identical on all cases AND max drift inside the persisted
-      envelope band for the run's shape bucket (batch-shape noise, not a
-      real divergence). FAIL = a winner changed, or drift beyond the band.
+      winners identical on all cases and no escaped near-tie (batch-shape
+      noise, not a real divergence); the measured max drift is reported as
+      is. FAIL = a winner changed, or an escaped near-tie. There is no
+      envelope-band term — a band computed from the run's own max drift
+      can never fail, so it tested nothing.
       ``check_results --check-parity`` prints the status word and one
       sentence; the leaderboard shows the status word in the Parity column.
 
@@ -349,7 +351,7 @@ faster than a single trie-constrained pass on 255-option enums. Output:
       is publishable — it appears in the leaderboard (DRIFT shows the word
       + max drift in the Parity column) and ``check_results --check-parity``
       returns OK (DRIFT with an informational note). Status FAIL (a winner
-      changed, or drift beyond the band) is excluded from the leaderboard
+      changed, or an escaped near-tie) is excluded from the leaderboard
       and ``check_results`` returns FAIL. ``parity.passed`` semantics in
       ``jevmlx/parity.py`` are untouched (DRIFT and FAIL both set
       ``passed: false``); the gate is now on ``status``, not ``passed``.`

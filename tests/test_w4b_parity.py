@@ -116,6 +116,98 @@ def test_parity_report_fails_when_winners_flip(tmp_path):
     assert on_disk["passed"] is False
 
 
+def test_parity_report_drift_when_winners_identical_and_large_drift(tmp_path):
+    """D6: DRIFT = winners identical + no escaped near-tie, regardless of
+    the drift size. The old envelope-band term was self-referential (the
+    band was round_up(0.05 + THIS run's own max gap drift), so the band
+    check could never fail) — removed; the measured drift is reported as
+    is. _DriftingModel under the default scoring keeps winners identical
+    while the batched drift far exceeds atol."""
+    from jevmlx.parity import write_parity_json
+
+    payload = write_parity_json(
+        make_engine(_DriftingModel(), _CountTokenizer()), "fake/drift", tmp_path, _cases()
+    )
+    assert payload["winners_identical"] is True
+    assert (
+        max(
+            payload["max_abs_drift_nats"],
+            payload["max_gap_drift_nats"],
+            payload["max_margin_drift_nats"],
+        )
+        >= PARITY_ATOL
+    )
+    assert payload["passed"] is False
+    assert payload["status"] == "DRIFT"
+    on_disk = json.loads((tmp_path / "parity.json").read_text(encoding="utf-8"))
+    # D6: the payload no longer persists the band field.
+    assert "band" not in (on_disk.get("drift_envelope") or {})
+
+
+def test_parity_report_drift_without_band_term_accepts_old_payload(tmp_path):
+    """D6: an OLD parity.json that still carries drift_envelope.band parses
+    fine through check_results — the field is ignored, never a failure.
+    (Leaderboard acceptance of the same old shape is covered by
+    test_leaderboard_includes_drift_model, whose fixture carries a band.)"""
+    from benchmarks.check_results import check_parity
+    from jevmlx.parity import PARITY_TEST_NAME
+
+    old = {
+        "model": "old/model",
+        "test": PARITY_TEST_NAME,
+        "passed": False,
+        "status": "DRIFT",
+        "max_abs_drift_nats": 0.078,
+        "max_raw_row_drift_nats": 0.03,
+        "max_gap_drift_nats": 0.078,
+        "max_margin_drift_nats": 0.063,
+        "max_batched_drift_nats": 0.078,
+        "winners_identical": True,
+        "atol": PARITY_ATOL,
+        "drift_envelope": {"band": 0.14, "shape_bucket": "M>16"},
+        "cases": ["a"],
+        "run_at": "2026-09-20T12:00:00Z",
+    }
+    (tmp_path / "parity.json").write_text(json.dumps(old), encoding="utf-8")
+    ok, problems = check_parity(tmp_path)
+    assert ok, problems
+    assert "envelope band" not in problems[0]
+
+
+def test_parity_report_fails_on_escaped_near_tie(monkeypatch, tmp_path):
+    """D6: an escaped near-tie (a field inside the 0.05 band at batch=1
+    that the batched path did NOT rescore) is FAIL, not DRIFT — winners
+    being identical is not enough when the rescore gate was bypassed.
+    The escape is injected at the parity module boundary: constructing a
+    real escape needs a rescore-capable model, and the branch under test
+    is the status decision, not the rescore mechanism (covered in
+    test_engine_fake.py)."""
+    import jevmlx.parity as parity_mod
+
+    escape = {
+        "case": "mini",
+        "field": "flag",
+        "batch_one_margin": 0.01,
+        "batched_margin": 0.01,
+        "reference_near_tie": True,
+        "production_rescored": False,
+        "winner_differs": False,
+        "escaped_near_tie": True,
+    }
+    monkeypatch.setattr(
+        parity_mod,
+        "_rescore_gate_safety_assertion",
+        lambda engine, cases: {"escaped_near_tie": [escape], "per_field": [escape]},
+    )
+    payload = parity_mod.parity_report(
+        make_engine(_StableModel(), _CountTokenizer()), "fake/escaped", _cases()
+    )
+    assert payload["winners_identical"] is True
+    assert payload["rescore_gate"]["escaped_near_tie"]
+    assert payload["passed"] is False
+    assert payload["status"] == "FAIL"  # not DRIFT: the escape is a divergence
+
+
 def test_summarize_gates_parity_failed_rows(tmp_path):
     """A model folder with failing parity.json: every row's accuracy is
     replaced by the parity_failed note. A passing parity.json leaves rows

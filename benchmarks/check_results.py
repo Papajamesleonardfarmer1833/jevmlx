@@ -565,12 +565,13 @@ def check_parity(model_dir: Path) -> tuple[bool, list[str]]:
         return False, problems
     status = parity.get("status", "PASS" if parity.get("passed") else "FAIL")
     # parity-gates: PASS and DRIFT are publishable (OK); only FAIL (a winner
-    # changed, or drift beyond the band) or missing/unreadable parity is a
+    # changed, or an escaped near-tie) or missing/unreadable parity is a
     # hard FAIL. DRIFT is OK-with-note — the one-sentence explanation so an
     # operator sees the batch-shape noise is expected, not a regression.
+    # D6: no envelope-band term — a band computed from the run's own max
+    # drift is self-referential. Old files that still carry a
+    # drift_envelope.band field are accepted as is (the field is ignored).
     if status == "DRIFT":
-        envelope = parity.get("drift_envelope") or {}
-        band = envelope.get("band", "?")
         max_drift = max(
             parity.get("max_abs_drift_nats", 0),
             parity.get("max_gap_drift_nats", 0),
@@ -578,8 +579,8 @@ def check_parity(model_dir: Path) -> tuple[bool, list[str]]:
         )
         sentence = (
             f"DRIFT: batched drift {max_drift} >= atol {parity['atol']}, "
-            f"winners identical on all cases, inside envelope band {band}; "
-            "near-tie rescore applies"
+            "winners identical on all cases (batch-shape noise, not a "
+            "divergence); measured drift reported as is"
         )
         # DRIFT is OK (publishable) — the note is informational, not a problem.
         return True, [f"{name}: parity.json status=DRIFT — {sentence}"]

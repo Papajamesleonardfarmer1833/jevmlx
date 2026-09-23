@@ -225,10 +225,13 @@ def _local_rows(results_root: Path) -> list[dict]:
 
     W4-A / issue parity-gates: a model appears if its folder's parity.json
     records status PASS or DRIFT. PASS = all drifts < atol. DRIFT = some
-    drift >= atol but winners identical on all cases AND max drift inside the
-    persisted envelope band (batch-shape noise, not a real divergence) —
-    publishable, the Parity column shows the word + max drift. FAIL (a winner
-    changed, or drift beyond the band) stays excluded.
+    drift >= atol but winners identical on all cases and no escaped
+    near-tie (batch-shape noise, not a real divergence) — publishable, the
+    Parity column shows the word + the measured max drift. FAIL (a winner
+    changed, or an escaped near-tie) stays excluded. D6: no envelope-band
+    term — a band computed from the run's own max drift is
+    self-referential; a parity.json that still carries a band field is
+    read unchanged (the field is ignored).
 
     Time per case (review follow-up on #48): read ONLY the honest
     per-item end-to-end median (results contract v2). There are no pre-v2
