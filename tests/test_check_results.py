@@ -398,7 +398,9 @@ class TestParityGate:
         assert len(problems) == 1
         assert "DRIFT" in problems[0]
         assert "batched drift" in problems[0]
-        assert "inside envelope band 0.14" in problems[0]
+        # D6: the note cites no envelope band; the file still carries the
+        # old drift_envelope.band field — accepted, ignored.
+        assert "envelope band" not in problems[0]
 
     def test_missing_parity_fails(self, tmp_path):
         from benchmarks.check_results import check_parity
@@ -508,9 +510,10 @@ class TestParityGate:
 
     def test_drift_status_prints_drift_word(self, tmp_path):
         """parity-gates: a parity.json with status=DRIFT (drift >= atol,
-        winners identical, inside envelope band) is OK (publishable) and
-        prints the DRIFT sentence as an informational note. Before the fix,
-        DRIFT set passed=False and check_parity returned FAIL."""
+        winners identical, no escaped near-tie) is OK (publishable) and
+        prints the DRIFT sentence as an informational note. D6: the note
+        cites no envelope band (the old band was self-referential); the
+        file still carries the old band field and parses unchanged."""
         from benchmarks.check_results import check_parity
 
         (tmp_path / "parity.json").write_text(
@@ -536,8 +539,7 @@ class TestParityGate:
         msg = problems[0]  # the informational note
         assert "DRIFT:" in msg
         assert "winners identical" in msg
-        assert "inside envelope band 0.141" in msg
-        assert "envelope band 0.141" in msg
+        assert "envelope band" not in msg
 
     def test_fail_status_prints_fail_word(self, tmp_path):
         """P4/I7: a parity.json with a winner changed (status=FAIL) prints
