@@ -229,6 +229,26 @@ def ab_measured_base(main_bench_dir: Path, ab_bench_dir: Path) -> bool:
     return bool(main_shas and ab_shas and (main_shas & ab_shas))
 
 
+def ab_enforce_base_guard(out: Path) -> bool:
+    """B12 GUARD 2 executor for the ``out`` root: evaluates
+    :func:`ab_measured_base` over the main and A/B bench dirs and maintains
+    the ``ab-measured-base.txt`` marker.
+
+    Returns True (and writes the marker) when the A/B measured the base
+    code. When the A/B bench is clean, any STALE marker from a previous
+    tripped run is removed — a rerun whose A/B measured the branch for real
+    must not be discarded because of an earlier failure. Symmetric with the
+    guard: the marker always reflects THIS run's evidence."""
+    marker = Path(out) / "ab-measured-base.txt"
+    tripped = ab_measured_base(Path(out) / "bench-quality", Path(out) / "ab" / "bench-quality")
+    if tripped:
+        reason = "A/B measured the base code (run.json environment.git_sha equals main)"
+        marker.write_text(f"{reason} — {_now()}\n", encoding="utf-8")
+    else:
+        marker.unlink(missing_ok=True)
+    return tripped
+
+
 def plan_steps(
     out: Path,
     *,
@@ -1256,19 +1276,14 @@ def main(argv: list[str] | None = None) -> int:
             # run.json environment.git_sha equals a main-side combo's sha
             # means the A/B measured the base code — the step FAILS, the
             # remaining A/B steps skip, and SUMMARY discards the A/B side.
+            # A clean A/B clears any stale marker left by a tripped rerun.
             if rc == 0 and step.id == "ab-bench":
-                if ab_measured_base(
-                    step.outputs[0].parent / "bench-quality",
-                    step.outputs[0].parent / "ab" / "bench-quality",
-                ):
+                if ab_enforce_base_guard(step.outputs[0].parent):
                     reason = "A/B measured the base code (run.json environment.git_sha equals main)"
                     rc = 1
                     log_path = step.outputs[0].parent / f"{step.id}.log"
                     with log_path.open("a", encoding="utf-8") as f:
                         f.write(f"GUARD FAILED: {reason}\n")
-                    (step.outputs[0].parent / "ab-measured-base.txt").write_text(
-                        f"{reason} — {_now()}\n", encoding="utf-8"
-                    )
             runbook_append(out, index, step, rc=rc, secs=secs)
             if rc == 0:
                 for marker in step.outputs:

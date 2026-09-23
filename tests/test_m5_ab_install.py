@@ -36,7 +36,7 @@ from pathlib import Path
 import pytest
 
 import benchmarks.m5 as m5
-from benchmarks.m5 import ab_git_shas, ab_measured_base
+from benchmarks.m5 import ab_enforce_base_guard, ab_git_shas, ab_measured_base
 
 QUALITY_TARGET = "mlx-community/Qwen2.5-7B-Instruct-4bit"
 
@@ -226,6 +226,25 @@ def test_ab_measured_base_false_without_evidence(tmp_path):
     _write_run_json(main_bench, "a", "main-sha")
     _write_run_json(ab_bench, "a", None)
     assert ab_measured_base(main_bench, ab_bench) is False
+
+
+def test_ab_enforce_base_guard_writes_and_clears_marker(tmp_path):
+    """ab_enforce_base_guard maintains ab-measured-base.txt symmetrically: a
+    tripped A/B writes the marker and returns True; a clean A/B REMOVES a
+    stale marker (a rerun whose A/B measured the branch for real must not
+    be discarded because an earlier run tripped the guard)."""
+    out = tmp_path / "run"
+    out.mkdir()
+    _write_run_json(out / "bench-quality", "a", "main-sha")
+    _write_run_json(out / "ab" / "bench-quality", "a", "ab-sha")
+    stale = out / "ab-measured-base.txt"
+    stale.write_text("stale from a tripped run\n", encoding="utf-8")
+    assert ab_enforce_base_guard(out) is False
+    assert not stale.exists()  # stale marker cleared on a clean A/B
+    # Now trip it: the A/B bench measured main's sha.
+    _write_run_json(out / "ab" / "bench-quality", "b", "main-sha")
+    assert ab_enforce_base_guard(out) is True
+    assert "A/B measured the base code" in stale.read_text(encoding="utf-8")
 
 
 # ---- GUARD 2 wiring: the runbook fails the ab-bench step --------------------
