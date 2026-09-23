@@ -494,4 +494,7 @@ tests are skipped via `skip_on_shared_runner()`:
 - `test_labels_scoring_fintech_fraud_valid`
 - `test_parity_real_model_twin`
 
-They are verified on real hardware (M5) via `slowtest.sh`.
+They are verified on real hardware (M5) via `slowtest.sh`. The GitHub Actions
+slow workflow is manual-dispatch only — it no longer runs automatically on
+merge to main, because the shared runner GPU is not stable enough for model
+tests (Metal command-buffer timeouts, NaN logits observed).

@@ -1,11 +1,11 @@
 name: Slow tests (0.5B)
 
-# A4/O2: slow model tests run on every merge to main (and on manual dispatch).
+# Manual only: the shared macOS runner GPU is not stable enough for model
+# tests (Metal command-buffer timeouts, NaN logits observed). Real-hardware
+# slow tests run in the m5 runbook step before every bench.
 # Runs the -m slow suite against the pinned 0.5B dev model. NOT a required
 # check — main protection stays test (CI) + build.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
