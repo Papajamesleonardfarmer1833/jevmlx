@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- ci: the slow model-test workflow is manual-dispatch only. The shared macOS
+  runner GPU is not stable enough for model tests (Metal command-buffer
+  timeouts, NaN logits observed), so the workflow no longer triggers on push
+  to main and the stale README badge is removed. Real-hardware slow tests run
+  in the m5 runbook step before every bench; the `skip_on_shared_runner`
+  marker stays in place.
+
 - m5: the readme step derives README/results/official paths from the step's
   planned root (its README output's parent), not the module global
   `REPO_ROOT` — a runbook planned for another checkout (e2e temp repo,
