@@ -28,6 +28,15 @@ some combos failed). B8: ab-setup is done only when the worktree AND its
 venv python exist. The step planner and the summary builder are pure
 functions tested with fakes; no model ever loads in a unit test.
 
+B12 (issue #63): the A/B setup used to run ``uv pip install -e .[dev]``
+with cwd = the runbook's repo, so the A/B venv got MAIN's jevmlx and every
+A/B measured main twice. Two guards make that impossible to repeat:
+(1) the install runs ``-e <ab-worktree>[dev,bench]`` with cwd=<ab-worktree>
+and a post-install guard fails the step unless the venv's imported jevmlx
+resolves inside the A/B worktree; (2) after the A/B bench, the combos'
+run.json ``environment.git_sha`` values are compared against the main
+side — an equal sha fails the step with 'A/B measured the base code'.
+
 Usage:
     python -m benchmarks.m5 --out m5-2026-09-18 [--models-file models.txt]
         [--parity-models id1,id2] [--ab-branch w2a-field-local] [--fresh]
@@ -93,10 +102,23 @@ class Step:
     capture_path: Path | None = None  # where captured stdout is also written
     pre_argv: tuple[str, ...] = ()  # run before argv when pre_target is missing
     pre_target: Path | None = None
-    extra_argv: tuple[tuple[str, ...], ...] = ()
+    extra_argv: tuple[ExtraCmd, ...] = ()
     in_process: bool = False  # the summary step: rendered from artifacts
     # B7: for bench steps, the --out dir whose combo subdirs carry run.json.
     bench_results_dir: Path | None = None
+
+
+@dataclass
+class ExtraCmd:
+    """One ``extra_argv`` command with its own cwd.
+
+    ab-setup's commands must NOT all run with the runbook's cwd: B12 (issue
+    #63) — ``uv pip install -e .[dev]`` inherited cwd = the main repo, so the
+    A/B venv installed MAIN and every A/B measured main twice. Each extra
+    command now states its own cwd (``None`` = the step's ``cwd``)."""
+
+    argv: tuple[str, ...]
+    cwd: Path | None = None
 
 
 def _venv_bin(name: str) -> str:
@@ -156,6 +178,77 @@ def _resolve_ab_ref(branch: str) -> str:
     return branch
 
 
+def _ab_install_guard_snippet(worktree: Path) -> str:
+    """B12 GUARD 1: the single-line ``-c`` program run inside the A/B venv
+    right after the install.
+
+    Imports jevmlx FROM THE VENV ONLY (``-I`` removes the cwd from sys.path,
+    so the import cannot silently resolve through the caller's checkout),
+    prints the resolved ``__file__`` (the ab-setup.log evidence), and exits
+    non-zero (sys.exit of a string: message on stderr, exit 1) unless the
+    resolved path is inside the A/B worktree. The field failure (issue #63):
+    the install ran ``-e .[dev]`` with cwd = the main repo, so the venv's
+    jevmlx was MAIN's and every A/B measured main twice."""
+    return (
+        "import sys, jevmlx;"
+        " from pathlib import Path;"
+        f" w = Path({str(worktree)!r}).resolve();"
+        " p = Path(jevmlx.__file__).resolve();"
+        " print(p);"
+        " sys.exit('ab-install guard FAILED: jevmlx resolved to ' + str(p)"
+        " + ', outside the A/B worktree ' + str(w))"
+        " if (w != p and w not in p.parents) else None"
+    )
+
+
+def ab_git_shas(bench_dir: Path) -> set[str]:
+    """Non-null ``environment.git_sha`` values from every run.json under a
+    bench results dir (one run.json per combo folder)."""
+    shas: set[str] = set()
+    for run_json in Path(bench_dir).glob("**/run.json"):
+        try:
+            env = json.loads(run_json.read_text(encoding="utf-8")).get("environment")
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(env, dict) and env.get("git_sha"):
+            shas.add(str(env["git_sha"]))
+    return shas
+
+
+def ab_measured_base(main_bench_dir: Path, ab_bench_dir: Path) -> bool:
+    """B12 GUARD 2: True when an A/B combo's run.json records the SAME
+    ``environment.git_sha`` as a main-side combo — the A/B measured the base
+    code (issue #63: the A/B venv held main's jevmlx, so both sides ran the
+    same build). Missing, null, or unparseable shas never match: no evidence,
+    no failure — the bench step's own outputs and B7 cover those."""
+    main_dir, ab_dir = Path(main_bench_dir), Path(ab_bench_dir)
+    if not (main_dir.is_dir() and ab_dir.is_dir()):
+        return False
+    main_shas = ab_git_shas(main_dir)
+    ab_shas = ab_git_shas(ab_dir)
+    return bool(main_shas and ab_shas and (main_shas & ab_shas))
+
+
+def ab_enforce_base_guard(out: Path) -> bool:
+    """B12 GUARD 2 executor for the ``out`` root: evaluates
+    :func:`ab_measured_base` over the main and A/B bench dirs and maintains
+    the ``ab-measured-base.txt`` marker.
+
+    Returns True (and writes the marker) when the A/B measured the base
+    code. When the A/B bench is clean, any STALE marker from a previous
+    tripped run is removed — a rerun whose A/B measured the branch for real
+    must not be discarded because of an earlier failure. Symmetric with the
+    guard: the marker always reflects THIS run's evidence."""
+    marker = Path(out) / "ab-measured-base.txt"
+    tripped = ab_measured_base(Path(out) / "bench-quality", Path(out) / "ab" / "bench-quality")
+    if tripped:
+        reason = "A/B measured the base code (run.json environment.git_sha equals main)"
+        marker.write_text(f"{reason} — {_now()}\n", encoding="utf-8")
+    else:
+        marker.unlink(missing_ok=True)
+    return tripped
+
+
 def plan_steps(
     out: Path,
     *,
@@ -163,6 +256,7 @@ def plan_steps(
     extra: str = "1,5,20,40",
     reps: int = 5,
     ab_branch: str | None = None,
+    ab_eval_args: list[str] | None = None,
     typesafe_data: Path = TYPESAFE_JSONL,
     quality: str = QUALITY_ALIAS,
     probe: bool = False,
@@ -171,7 +265,11 @@ def plan_steps(
 
     ``parity_models`` drives steps 2 (pytest per model) and 6 (bench the
     remaining ones, i.e. every model except the quality alias's target).
-    A/B steps appear only when ``ab_branch`` is given.
+    A/B steps appear only when ``ab_branch`` is given. ``ab_eval_args``
+    (B12) are extra eval flags appended VERBATIM to the A/B bench and
+    invariance argv — e.g. ``--dual-framing`` for a branch that exposes it
+    on its eval; a flag the branch's bench/invariance do not expose fails
+    that step loudly (argparse error in the step log), never silently.
     """
     from jevmlx.models import resolve_model
 
@@ -317,31 +415,58 @@ def plan_steps(
                     "if wt.exists() and not vp.exists() else None",
                 ),
                 extra_argv=(
-                    (
-                        "git",
-                        "worktree",
-                        "add",
-                        "--detach",
-                        str(worktree),
-                        ab_ref,
+                    ExtraCmd(
+                        argv=(
+                            "git",
+                            "worktree",
+                            "add",
+                            "--detach",
+                            str(worktree),
+                            ab_ref,
+                        )
                     ),
-                    (
-                        shutil.which("uv") or "uv",
-                        "venv",
-                        "--python-preference",
-                        "only-managed",
-                        "--python",
-                        "3.12",
-                        str(worktree / ".venv"),
+                    ExtraCmd(
+                        argv=(
+                            shutil.which("uv") or "uv",
+                            "venv",
+                            "--python-preference",
+                            "only-managed",
+                            "--python",
+                            "3.12",
+                            str(worktree / ".venv"),
+                        )
                     ),
-                    (
-                        shutil.which("uv") or "uv",
-                        "pip",
-                        "install",
-                        "--python",
-                        str(venv_python),
-                        "-e",
-                        ".[dev]",
+                    # B12 (issue #63): install FROM THE A/B WORKTREE PATH
+                    # EXPLICITLY, with cwd = the worktree. The old '-e .[dev]'
+                    # inherited the runbook's cwd (the main repo), so the A/B
+                    # venv installed MAIN and every A/B measured main twice.
+                    # The absolute -e operand + cwd=<worktree> make the
+                    # install cwd-independent by construction; [dev,bench]
+                    # covers the typesafe/bench deps the A/B steps need.
+                    ExtraCmd(
+                        argv=(
+                            shutil.which("uv") or "uv",
+                            "pip",
+                            "install",
+                            "--python",
+                            str(venv_python),
+                            "-e",
+                            f"{worktree}[dev,bench]",
+                        ),
+                        cwd=worktree,
+                    ),
+                    # B12 GUARD 1: the venv's jevmlx must resolve INSIDE the
+                    # A/B worktree — the step FAILS otherwise (exit 1 via
+                    # sys.exit(str)), so a main-repo install can never reach
+                    # ab-bench. -I keeps the guard's import off the cwd.
+                    ExtraCmd(
+                        argv=(
+                            str(venv_python),
+                            "-I",
+                            "-c",
+                            _ab_install_guard_snippet(worktree),
+                        ),
+                        cwd=REPO_ROOT,
                     ),
                 ),
                 outputs=(out / "ab-setup.done",),
@@ -359,6 +484,7 @@ def plan_steps(
                     quality_id,
                     "--out",
                     str(out / "ab" / "bench-quality"),
+                    *(tuple(ab_eval_args) if ab_eval_args else ()),
                 ),
                 outputs=(out / "ab-bench.done",),
                 cwd=worktree,
@@ -380,6 +506,7 @@ def plan_steps(
                     str(out / "ab" / "invariance"),
                     "--extra",
                     extra,
+                    *(tuple(ab_eval_args) if ab_eval_args else ()),
                 ),
                 outputs=(out / "ab-invariance.done", out / "ab" / "invariance" / "invariance.json"),
                 cwd=worktree,
@@ -564,13 +691,22 @@ def _append_started_line(out: Path, step_id: str) -> None:
 
 
 def runbook_append(
-    out: Path, index: int, step: Step, *, rc: int | None, secs: float | None, skipped: bool = False
+    out: Path,
+    index: int,
+    step: Step,
+    *,
+    rc: int | None,
+    secs: float | None,
+    skipped_reason: str | None = None,
 ) -> None:
-    """One RUNBOOK.md section per step, appended as the step completes."""
+    """One RUNBOOK.md section per step, appended as the step completes.
+
+    ``skipped_reason`` records WHY an A/B step was skipped ('A/B setup
+    failed' or B12's 'A/B measured the base code')."""
     lines = [f"## {index}. {step.title}"]
     lines.append(f"step: {step.id}")  # W6-UI-3c: the step id for the parser
-    if skipped:
-        lines[0] += " — skipped: A/B setup failed"
+    if skipped_reason:
+        lines[0] += f" — skipped: {skipped_reason}"
     elif rc is None:
         lines[0] += " — skip (outputs exist)"
     else:
@@ -662,9 +798,11 @@ def execute_step(step: Step) -> int:
             if step.id == "readme":
                 return _execute_readme(step, log)
             # B3(b): if A/B setup failed, the summary shows 'A/B: not run'
-            # instead of an all-dashes A/B table.
+            # instead of an all-dashes A/B table. B12: the same discard when
+            # GUARD 2 tripped — those A/B numbers measured the base code.
             ab_failed_marker = step.outputs[0].parent / "ab-failed.txt"
-            if ab_failed_marker.exists():
+            ab_base_marker = step.outputs[0].parent / "ab-measured-base.txt"
+            if ab_failed_marker.exists() or ab_base_marker.exists():
                 ab_block = None
             else:
                 ab_block = collect_side(step.outputs[0].parent / "ab")
@@ -673,6 +811,7 @@ def execute_step(step: Step) -> int:
                 ab_block,
                 parity_models=_meta_parity_models(step.outputs[0].parent),
                 ab_failed=ab_failed_marker.exists(),
+                ab_base_code=ab_base_marker.exists(),
             )
             log.write(text)
             (step.outputs[0].parent / "SUMMARY.md").write_text(text, encoding="utf-8")
@@ -695,10 +834,16 @@ def execute_step(step: Step) -> int:
         for extra in step.extra_argv:
             if rc != 0:
                 break
-            log.write(f"$ {' '.join(extra)}\n")
+            # B12: each extra command carries its own cwd (None = the step's).
+            extra_cwd = extra.cwd if extra.cwd is not None else step.cwd
+            log.write(f"$ {' '.join(extra.argv)}\n")
             log.flush()
             rc = subprocess.run(
-                extra, cwd=step.cwd, env=_step_env(step), stdout=log, stderr=subprocess.STDOUT
+                extra.argv,
+                cwd=extra_cwd,
+                env=_step_env(step),
+                stdout=log,
+                stderr=subprocess.STDOUT,
             ).returncode
         return rc
 
@@ -844,11 +989,18 @@ def _combo_agreement(row: dict) -> float | None:
 
 
 def build_summary_text(
-    main: dict, ab: dict | None, *, parity_models: list[str], ab_failed: bool = False
+    main: dict,
+    ab: dict | None,
+    *,
+    parity_models: list[str],
+    ab_failed: bool = False,
+    ab_base_code: bool = False,
 ) -> str:
     """SUMMARY.md: main table, timing report, invariance rollup, A/B deltas.
 
     Pure: takes the collected blocks (see collect_side), never touches disk.
+    ``ab_base_code`` (B12) marks an A/B whose run.json git_sha equaled main —
+    its artifacts are discarded, never compared as if they were the branch.
     """
     lines = [
         "# M5 runbook summary",
@@ -939,7 +1091,12 @@ def build_summary_text(
             "",
             "## A/B comparison",
             "",
-            "A/B: not run (setup failed)." if ab_failed else "A/B not run (no --ab-branch).",
+            "A/B: not run (measured the base code — run.json environment.git_sha "
+            "equals main; results discarded)."
+            if ab_base_code
+            else "A/B: not run (setup failed)."
+            if ab_failed
+            else "A/B not run (no --ab-branch).",
         ]
     lines.append("")
     return "\n".join(lines)
@@ -1007,6 +1164,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ab-branch", default=None, help="git branch/ref to bench + invariance as A/B"
     )
+    parser.add_argument(
+        "--ab-eval-args",
+        action="append",
+        default=None,
+        metavar="ARG",
+        help="extra eval flag(s) appended verbatim to the A/B bench and "
+        "invariance runs (repeatable), e.g. --ab-eval-args=--dual-framing; "
+        "the A/B branch's bench/invariance must expose the flag, else the "
+        "step fails loudly (B12)",
+    )
     parser.add_argument("--reps", type=int, default=5, help="timing reps (step 5)")
     parser.add_argument(
         "--extra", default="1,5,20,40", help="invariance extra-field ladder (step 4)"
@@ -1046,6 +1213,7 @@ def main(argv: list[str] | None = None) -> int:
         extra=args.extra,
         reps=args.reps,
         ab_branch=args.ab_branch,
+        ab_eval_args=args.ab_eval_args,
         probe=args.probe,
     )
 
@@ -1072,8 +1240,9 @@ def main(argv: list[str] | None = None) -> int:
     worktree = out / "ab-worktree"
     # B3: when the A/B setup step fails, every later A/B step is SKIPPED
     # with a RUNBOOK line. The summary step still runs for the main side
-    # with an 'A/B: not run' note.
-    ab_setup_failed = False
+    # with an 'A/B: not run' note. B12: the same discard when GUARD 2
+    # catches the A/B bench measuring the base code.
+    ab_skip_reason: str | None = None
     # B8: the A/B worktree is removed ONLY after the summary step succeeds
     # (not in a finally block). A runbook that fails before summary leaves
     # the worktree in place so a rerun can reuse it; a rerun whose worktree
@@ -1085,9 +1254,10 @@ def main(argv: list[str] | None = None) -> int:
             if step_done(step, args.fresh):
                 runbook_append(out, index, step, rc=None, secs=None)
                 continue
-            # B3(b): skip later A/B steps when ab-setup failed.
-            if ab_setup_failed and step.id.startswith("ab-"):
-                runbook_append(out, index, step, rc=None, secs=None, skipped=True)
+            # B3(b)/B12: skip later A/B steps when the A/B aborted (setup
+            # failed) or its bench measured the base code.
+            if ab_skip_reason and step.id.startswith("ab-"):
+                runbook_append(out, index, step, rc=None, secs=None, skipped_reason=ab_skip_reason)
                 continue
             # W6-UI-3a: 'started' line before the step runs (dashboard shows
             # 'running' before the completion line lands).
@@ -1102,6 +1272,18 @@ def main(argv: list[str] | None = None) -> int:
                 log_path = step.outputs[0].parent / f"{step.id}.log"
                 log_path.write_text(f"EXCEPTION ({type(exc).__name__}): {exc}\n", encoding="utf-8")
             secs = time.perf_counter() - secs
+            # B12 GUARD 2: after a successful A/B bench, an A/B combo whose
+            # run.json environment.git_sha equals a main-side combo's sha
+            # means the A/B measured the base code — the step FAILS, the
+            # remaining A/B steps skip, and SUMMARY discards the A/B side.
+            # A clean A/B clears any stale marker left by a tripped rerun.
+            if rc == 0 and step.id == "ab-bench":
+                if ab_enforce_base_guard(step.outputs[0].parent):
+                    reason = "A/B measured the base code (run.json environment.git_sha equals main)"
+                    rc = 1
+                    log_path = step.outputs[0].parent / f"{step.id}.log"
+                    with log_path.open("a", encoding="utf-8") as f:
+                        f.write(f"GUARD FAILED: {reason}\n")
             runbook_append(out, index, step, rc=rc, secs=secs)
             if rc == 0:
                 for marker in step.outputs:
@@ -1112,11 +1294,14 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 failures.append(step.id)
                 # B3(b): mark A/B setup as failed so later ab-* steps skip.
+                # B12: the same skip when the A/B bench measured the base.
                 if step.id == "ab-setup":
-                    ab_setup_failed = True
+                    ab_skip_reason = "A/B setup failed"
                     (out / "ab-failed.txt").write_text(
                         f"A/B setup failed at {_now()}\n", encoding="utf-8"
                     )
+                elif step.id == "ab-bench" and (out / "ab-measured-base.txt").exists():
+                    ab_skip_reason = "A/B measured the base code"
                 if step.gate:
                     with (out / "RUNBOOK.md").open("a", encoding="utf-8") as f:
                         f.write(

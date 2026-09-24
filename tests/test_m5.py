@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+import benchmarks.m5 as m5
 from benchmarks.m5 import (
     DEFAULT_PARITY_MODELS,
     Step,
@@ -117,12 +118,38 @@ class TestPlanSteps:
         ab_setup = next(s for s in steps if s.id == "ab-setup")
         # B8: argv is a stale-worktree cleanup; git worktree add is the first
         # extra_argv. The branch ref and worktree path appear across them.
+        # B12: extra_argv entries are ExtraCmd(argv, cwd) — the install runs
+        # -e <worktree>[dev,bench] with cwd=<worktree> (never the caller's
+        # cwd, which made every A/B measure main — issue #63), followed by a
+        # guard that fails unless the venv's jevmlx resolves in the worktree.
         all_ab_setup_tokens = list(ab_setup.argv) + [
-            t for extra in ab_setup.extra_argv for t in extra
+            t for extra in ab_setup.extra_argv for t in extra.argv
         ]
         assert "worktree" in " ".join(all_ab_setup_tokens)
         assert "w2a-field-local" in " ".join(all_ab_setup_tokens)
-        assert any("uv" in " ".join(extra) for extra in ab_setup.extra_argv)
+        assert any("uv" in " ".join(extra.argv) for extra in ab_setup.extra_argv)
+        install, guard = ab_setup.extra_argv[2], ab_setup.extra_argv[3]
+        worktree = out / "ab-worktree"
+        assert f"-e {worktree}[dev,bench]" in " ".join(install.argv)
+        assert install.cwd == worktree
+        assert guard.cwd == m5.REPO_ROOT  # -I makes the cwd irrelevant, kept neutral
+        assert "-I" in guard.argv and "-c" in guard.argv
+        assert str(worktree) in guard.argv[-1]
+        # B12: --ab-eval-args ride the ab-bench and ab-invariance argvs.
+        steps = plan_steps(
+            out,
+            parity_models=[QUALITY_TARGET],
+            ab_branch="w2a-field-local",
+            ab_eval_args=["--dual-framing"],
+        )
+        ab_bench = next(s for s in steps if s.id == "ab-bench")
+        assert ab_bench.argv[-1] == "--dual-framing"
+        ab_inv = next(s for s in steps if s.id == "ab-invariance")
+        assert ab_inv.argv[-1] == "--dual-framing"
+        # The main-side steps never receive the A/B-only flags.
+        assert "--dual-framing" not in " ".join(
+            next(s for s in steps if s.id == "bench-quality").argv
+        )
         ab_bench = next(s for s in steps if s.id == "ab-bench")
         assert ab_bench.cwd == out / "ab-worktree"
         assert str(out / "ab" / "bench-quality") in " ".join(ab_bench.argv)

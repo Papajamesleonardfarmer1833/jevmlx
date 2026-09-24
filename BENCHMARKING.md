@@ -400,6 +400,35 @@ reruns everything). Per-step logs land in `<out>/<step-id>.log`. Interrupted
 runs resume; the gate step keeps a half-finished evening from wasting GPU time
 on a broken environment.
 
+### A/B install contract (B12, issue #63)
+
+The A/B setup used to run `uv pip install -e .[dev]` with cwd = the main
+repo, so the A/B venv got MAIN's jevmlx and every A/B measured main twice.
+Two guards make that impossible to repeat:
+
+- The install runs `-e <ab-worktree>[dev,bench]` with cwd=<ab-worktree> —
+  the worktree path is absolute, never relative to the caller's cwd. After
+  the install, `<ab-venv>/python -I -c` imports jevmlx, prints the resolved
+  path into `ab-setup.log`, and FAILS the step unless it resolves inside
+  the A/B worktree (`-I` keeps the import off the cwd, so it cannot mask a
+  broken install).
+- After the A/B bench, the combos' run.json `environment.git_sha` are
+  compared against the main side. An equal sha fails the ab-bench step with
+  'A/B measured the base code', skips the remaining A/B steps, and SUMMARY
+  discards the A/B side instead of comparing main against itself.
+
+Extra eval flags for the A/B side ride `--ab-eval-args` (repeatable):
+
+```bash
+python -m benchmarks.m5 --out m5-2026-09-23 --ab-branch w6-dualframe \
+    --ab-eval-args=--dual-framing
+```
+
+The flags are appended verbatim to the A/B bench and invariance command
+lines. A flag the A/B branch's bench/invariance do not expose fails that
+step loudly (argparse error in the step log) — it is never silently
+dropped.
+
 **macOS idle sleep** (W5c-15): on darwin the runbook re-execs under
 `caffeinate -dimsu` so macOS does not idle-sleep mid-run (during the M5 7B
 smoke it did, and Metal parks while wall time runs). The `sleep_blocked`
